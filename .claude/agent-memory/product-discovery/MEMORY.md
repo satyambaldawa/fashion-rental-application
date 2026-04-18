@@ -1,0 +1,1 @@
+- [Discovery Status](project_discovery_status.md) — v1.1 decisions, open items, and phase scope for fashion rental MVP
