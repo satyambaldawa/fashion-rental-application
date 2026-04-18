@@ -1,0 +1,100 @@
+# Backend (Java/Gradle)
+backend/build/
+backend/.gradle/
+backend/out/
+backend/*.jar
+backend/*.war
+backend/target/
+
+# Backend - IDE
+backend/.idea/
+backend/.vscode/
+backend/*.iml
+backend/*.iws
+backend/*.ipr
+backend/.classpath
+backend/.project
+backend/.settings/
+
+# Frontend (Node.js)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.parcel-cache/
+
+# Frontend - Build outputs
+frontend/.next/
+frontend/out/
+frontend/.nuxt/
+frontend/.cache/
+frontend/.vuepress/dist/
+
+# Frontend - IDE
+frontend/.idea/
+frontend/.vscode/
+frontend/*.iml
+frontend/*.iws
+frontend/*.ipr
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env*.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.c9/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+*.logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# Package manager lockfiles (optional - uncomment if you want to commit them)
+# backend/gradle/
+# frontend/package-lock.json
+
+# Database (local Docker volume, don't commit)
+pgdata/
+postgres_data/
+
+# IDE workspace settings (user-specific)
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Gradle wrapper (usually committed, but exclude if you have it locally)
+# !backend/gradle/wrapper/gradle-wrapper.jar
+# !backend/gradle/wrapper/gradle-wrapper.properties
+
+# MacOS
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+.VisualStudioCode
+.history/
+.ionide/

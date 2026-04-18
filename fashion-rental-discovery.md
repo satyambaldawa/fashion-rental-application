@@ -4,10 +4,10 @@
 
 ---
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Prepared By:** Product Discovery & Requirements Engineering
 **Date:** April 18, 2026
-**Status:** Draft — Updated with Client Clarifications (v1.1)
+**Status:** Draft — Updated with Client Clarifications (v1.2)
 
 ---
 
@@ -292,7 +292,8 @@ I want the system to automatically calculate the number of rental days and the t
 So that I never have to manually compute billing amounts.
 
 Acceptance Criteria:
-- Days = (end date − start date) inclusive or exclusive as per agreed business rule (see Open Questions).
+- The rental period is time-based (start_datetime to end_datetime), not calendar-date based.
+- Days = difference between end_datetime and start_datetime measured in 24-hour increments (exclusive). Example: rented at 10 AM today, due back at 10 AM tomorrow = 1 day.
 - Total rent per line item = rate × days × quantity.
 - Grand total = sum of all line item rents + sum of all deposits.
 
@@ -347,13 +348,14 @@ Priority: P0
 **US-401** *(refined from rough story #2)*
 ```
 As a Shop Staff member,
-I want to process an item return by selecting an active receipt and recording the return date,
+I want to process an item return by selecting an active receipt and recording the return datetime,
 So that the system generates an invoice with accurate late fees, damage costs, and deposit refund.
 
 Acceptance Criteria:
-- Given I select an active receipt and enter the return date/time, the system calculates: late fees (if return date > end date, using the configured late fee rules), damage costs (if any items are marked as damaged), deposit to be returned (total deposit − damage costs), and final amount (collect from customer if balance owed, or refund if deposit exceeds charges).
+- Given I select an active receipt and enter the return_datetime (timestamp, not just date), the system calculates: late fees (if return_datetime > end_datetime, using the configured late fee rules), damage costs (if any items are marked as damaged), deposit to be returned (total deposit − damage costs), and final amount (collect from customer if balance owed, or refund if deposit exceeds charges).
+- return_datetime must be captured as a full timestamp (date + time) since late fee overdue duration is calculated in hours.
 - Upon saving, the receipt status is updated to "Returned" and an Invoice is created.
-- The returned item units become available in inventory again.
+- The returned item units become available in inventory again immediately.
 
 Priority: P0
 ```
@@ -376,15 +378,17 @@ Acceptance Criteria:
 Priority: P0
 ```
 
-**US-403** *(updated per client clarification on OQ-2 and A-5)*
+**US-403** *(updated per client clarification on OQ-2, OQ-5, and A-5)*
 ```
 As a Shop Staff member,
-I want the system to automatically calculate late fees when items are returned after the agreed end date,
+I want the system to automatically calculate late fees when items are returned after the agreed end datetime,
 So that customers are charged correctly and consistently without manual calculation.
 
 Acceptance Criteria:
-- The system calculates overdue duration based on the return date/time vs. the agreed end date.
-- Late fee = penalty multiplier x daily rate, where the multiplier is determined by the applicable time-range tier (e.g., 3hrs, 6hrs, 1day, 2days, n-days).
+- The system calculates overdue duration in hours: overdue_hours = return_datetime − end_datetime.
+- Late fee = penalty multiplier x daily rate, where the multiplier is determined by the applicable time-range tier (e.g., 0-3hrs, 3-6hrs, 6hrs-1day, 1-2days, 2+ days).
+- Example: rented for 1 day, returned 3 hours late → 3 hours of late fee applies (matching the 0-3hr or 3-6hr tier as configured).
+- Minimum rental duration is 1 day. An early return does not reduce the rental charge below 1 day (there is no negative late fee).
 - The late fee is shown as a line item on the invoice.
 - The system supports configurable time-range tiers with corresponding multipliers, settable by the owner.
 - If no tier is configured, a default flat multiplier (e.g., 1.5x per overdue day) applies.
@@ -619,30 +623,28 @@ These items require answers before development begins. Each unresolved question 
 |---|----------|------|--------|-----------------|
 | OQ-1 | **How is damage cost determined?** | Damage / Invoice | PARTIALLY ANSWERED | Damage cost is derived from the percentage of damage and rate of item. The actual formula will be factored in later. Staff can also enter an ad hoc amount. |
 | OQ-2 | **How are late fees calculated exactly?** | Late Fees / Invoice | ANSWERED | Multiplier of the daily rate (e.g., 1.5x per overdue day). |
-| OQ-3 | **Are rental days calculated inclusively or exclusively?** | Billing | OPEN | Client will get back later. |
+| OQ-3 | **Are rental days calculated inclusively or exclusively?** | Billing | ANSWERED | Exclusive. Rental periods are time-based (start_datetime to end_datetime). Days = difference between end_datetime and start_datetime in 24-hour increments. Example: rented at 10 AM today, must be returned by 10 AM tomorrow = 1 day. |
 | OQ-4 | **Can a single receipt span multiple customers?** | Receipt / Customer | ANSWERED | No. Always one customer per receipt. |
-| OQ-5 | **How are partial-day returns handled?** | Late Fees | OPEN | Client will get back later. |
-| OQ-6 | **What happens when an item is damaged beyond repair?** | Damage / Inventory | OPEN | Client will get back later. |
+| OQ-5 | **How are partial-day returns handled?** | Late Fees | ANSWERED | Minimum rental is 1 day — early return within the rental period does not reduce the charge. If returned within the first 6 hours: still charged 1 full day (minimum applies). If returned late: late fees are charged per the time-range tier system. Overdue duration = return_datetime − end_datetime (in hours). Receipt stores start_datetime and end_datetime as full timestamps. |
+| OQ-6 | **What happens when an item is damaged beyond repair?** | Damage / Inventory | ANSWERED | No special write-off workflow in MVP. The store operator manually enters the damage cost (staff enters whatever amount is appropriate). Owner manually adjusts the unit count if an item is retired. The existing damage cost entry on the invoice handles this case sufficiently for MVP. |
 | OQ-7 | **Is there a concept of advance booking / reservations?** | Booking | ANSWERED | Yes, advance booking exists but is deferred to a later phase (low priority / Phase 3). |
 | OQ-8 | **How are multiple physical units of the same item tracked?** | Inventory | ANSWERED | Hybrid model: identical items (exact replicas) are tracked together via pool count. Non-identical items are tracked individually as separate catalog entries. |
 | OQ-9 | **What is the printing setup?** | Print / UX | ANSWERED (MVP) | MVP: display on screen to customer. Later phases: printer integration and SMS/WhatsApp delivery. |
 | OQ-10 | **Is deposit always collected upfront and refunded at return?** | Deposit | ANSWERED | Yes. Deposit is always collected upfront and refunded at return. |
 | OQ-11 | **Are there any discounts or special pricing?** | Pricing | ANSWERED (MVP) | Not in MVP. Deferred to future scope. |
 | OQ-12 | **Who has access to what?** | Access Control | ANSWERED (MVP) | Not in MVP. Separate pages on the web app are sufficient for now. Role-based access to be added in a later phase. |
-| OQ-13 | **How should the system handle same-day re-rental?** | Inventory | OPEN | Client will get back later. |
+| OQ-13 | **How should the system handle same-day re-rental?** | Inventory | ANSWERED | If an item is returned at 10 AM, it is immediately available for re-rental. Availability is recalculated in real-time based on receipt status — when a receipt is marked Returned, those units are immediately available for new bookings. |
 | OQ-14 | **Is there a need to support multiple shop locations?** | Architecture | ANSWERED (MVP) | Not in MVP. Deferred to future scope. |
 | OQ-15 | **What devices will the application run on?** | Platform | PARTIALLY ANSWERED | Tablet (Android), either as an app or website. Final decision pending tech discussion. |
 
 ### Remaining Open Questions Summary
 
-The following questions remain unresolved and carry development risk:
+OQ-3, OQ-5, OQ-6, and OQ-13 have all been answered as of v1.2. The only remaining open item in Section 6 is **OQ-15** (final device/platform decision) and the **late fee tier multiplier values** (A-5), which do not block MVP development. All critical billing and return-processing questions are now resolved.
 
 | # | Question | Risk Level | Blocker? |
 |---|----------|-----------|----------|
-| OQ-3 | Inclusive vs. exclusive day count | Medium | Yes — drives all billing calculations |
-| OQ-5 | Partial-day return handling | Low | No — can default to full-day granularity for MVP |
-| OQ-6 | Damaged-beyond-repair workflow | Low | No — can handle manually outside system for MVP |
-| OQ-13 | Same-day re-rental logic | Low | No — standard availability logic should handle this |
+| OQ-15 | Final device/platform decision (tablet app vs. web app) | Low | No — design responsive-first; final decision pending tech discussion |
+| A-5 (pending) | Actual multiplier values per late fee time-range tier | Low | No — engine can be built with configurable tiers; values entered by owner before go-live |
 
 ---
 
@@ -656,7 +658,7 @@ These decisions were made during discovery and validated with the client on Apri
 | A-2 | One customer per receipt (no group billing). | CONFIRMED | Always one customer per receipt. |
 | A-3 | Hybrid unit tracking model: identical items (exact replicas) are managed as a pool count; non-identical items are tracked as separate catalog entries. | CONFIRMED (UPDATED) | Original assumption was pure pool-based. Updated to hybrid model per client clarification. |
 | A-4 | Deposits are always collected upfront and always refunded at return (minus valid deductions). | CONFIRMED | No exceptions. |
-| A-5 | Late fees may be based on time-range tiers (3hrs, 6hrs, 1day, 2day, n-days) rather than simple calendar days. | UPDATED — PENDING | Client indicated time-range tiers are under consideration. For now, design the late fee engine to support configurable time ranges. Final answer pending. |
+| A-5 | Late fees are based on time-range tiers (3hrs, 6hrs, 1day, 2day, n-days). Overdue duration is calculated in hours (return_datetime − end_datetime). | CONFIRMED | Time-range tier system confirmed. The tiers (0-3hr, 3-6hr, 6hr-1day, 1-2day, 2+day) are the confirmed approach. The actual multiplier values per tier are still pending from the client but do not block MVP development — owner will configure them before go-live. |
 | A-6 | The application requires no integration with external accounting software (e.g., Tally, QuickBooks) in MVP. | CONFIRMED | |
 | A-7 | All transactions are in a single currency (INR). No multi-currency support required. | CONFIRMED | |
 | A-8 | A single set of late fee rules applies to all items. Item-specific late fee rules are not required in MVP. | CONFIRMED | |
@@ -664,16 +666,19 @@ These decisions were made during discovery and validated with the client on Apri
 | A-10 | Data backup and storage are the responsibility of the deployment environment (local server or cloud host). The application itself does not need a built-in backup mechanism in MVP. | CONFIRMED | |
 | A-11 | There is no requirement for SMS or WhatsApp notifications to customers in the MVP. | CONFIRMED (MVP) | SMS/WhatsApp integration planned for a later phase. |
 | A-12 | Staff members share a single login. User-level audit trails per staff member are not required for MVP. | CONFIRMED | Role-based access is planned for a later phase. |
+| A-13 | Rental periods are time-based (datetime), not calendar-date based. Days = difference between end_datetime and start_datetime in 24-hour increments (exclusive). | CONFIRMED (v1.2) | Receipt.start_datetime and Receipt.end_datetime must be full timestamps, not date-only fields. |
+| A-14 | Minimum rental duration is 1 day (system constraint). Early return within the rental period does not reduce the charge — a customer cannot be billed less than 1 day regardless of when they return. | CONFIRMED (v1.2) | System enforces this at invoice calculation time. Return within first 6 hours still incurs 1 full day charge. |
 
-### Key Assumption Change: Late Fee Model (A-5)
+### Key Assumption Change: Late Fee Model (A-5) — Now Confirmed
 
-The original assumption that late fees are based on simple overdue calendar days has been updated. The client indicated that late fees may use **time-range tiers**: 3 hours, 6 hours, 1 day, 2 days, n-days. This is a significant design consideration:
+The original assumption that late fees are based on simple overdue calendar days has been updated and **confirmed**. Late fees use **time-range tiers**: 0-3 hours, 3-6 hours, 6hrs-1day, 1-2 days, 2+ days. This is a confirmed design requirement:
 
-- The late fee calculation engine must support configurable time-range brackets, not just day counts.
-- The data model for `LateFeeRule` should accommodate duration ranges (in hours or days) with corresponding multipliers.
-- Final tier definitions are still pending from the client.
+- The late fee calculation engine must support configurable time-range brackets with per-tier multipliers.
+- The data model for `LateFeeRule` must accommodate duration ranges stored in hours with corresponding multipliers.
+- Overdue duration is calculated as `return_datetime − end_datetime` in hours.
+- The actual multiplier values per tier are still pending from the client and will be configured by the owner before go-live. This does not block MVP development.
 
-This does not block MVP development if we design the engine to be configurable, but it does mean the late fee rules UI and calculation logic need to account for sub-day granularity.
+The late fee rules UI and calculation logic must account for sub-day granularity.
 
 ---
 
@@ -741,9 +746,9 @@ Advance booking / reservations, SMS/WhatsApp reminders and receipt delivery, bar
 |------|-----------|------------|--------|
 | Late fee calculation rules are unclear (OQ-2) | ~~High~~ **Resolved** | Late fee = multiplier of daily rate per overdue day (e.g., 1.5x). However, time-range tiers (A-5) still pending — design engine to be configurable. | REDUCED |
 | Damage cost model undefined (OQ-1) | ~~High~~ **Low** | Damage cost = percentage of damage x item rate. Actual formula TBD. Staff can also enter ad hoc. Design with percentage-based default + manual override. | REDUCED |
-| Day count calculation ambiguity (OQ-3) | Medium | Still unresolved. Agree in writing before development; drives all billing tests. | OPEN |
+| Day count calculation ambiguity (OQ-3) | ~~Medium~~ **Resolved** | Exclusive, datetime-based. Days = (end_datetime − start_datetime) in 24-hour increments. Receipts store full timestamps. | RESOLVED |
 | Device/platform unclear (OQ-15) | Low | Confirmed: Android tablet, app or website. Final decision pending tech discussion. Design responsive-first for tablet. | PARTIALLY RESOLVED |
-| Late fee time-range tiers (A-5 — new) | Medium | Client indicated 3hr/6hr/1day/2day/nday tiers may apply. Design late fee engine with configurable time-range brackets. | NEW RISK |
+| Late fee time-range tiers (A-5) | ~~Medium~~ **Reduced** | Tiers confirmed (0-3hr, 3-6hr, 6hr-1day, 1-2day, 2+day). Design late fee engine with configurable time-range brackets. Actual multiplier values pending — owner configures before go-live. | REDUCED |
 
 ---
 
@@ -815,7 +820,29 @@ Final tier definitions and multiplier values are pending from the client. For MV
 
 ---
 
-### 10.5 Receipt Status: Missing Intermediate States
+### 10.5 Receipt & Invoice Datetime Fields (Updated v1.2)
+
+**Client Decision (OQ-3, OQ-5 — ANSWERED):** Rental periods are time-based, not calendar-date based.
+
+**Design Implication:** The following fields must be full timestamps (datetime), not date-only fields:
+
+| Entity | Field | Type | Reason |
+|--------|-------|------|--------|
+| Receipt | `start_datetime` | TIMESTAMP | Rental period start — time of day matters for day count calculation |
+| Receipt | `end_datetime` | TIMESTAMP | Rental period end — time of day matters; due back at same time of day |
+| Invoice / Return | `return_datetime` | TIMESTAMP | Required for late fee calculation in hours (overdue_hours = return_datetime − end_datetime) |
+
+**Day count calculation:** `days = (end_datetime − start_datetime)` in 24-hour increments (exclusive). A rental from 10:00 AM Day 1 to 10:00 AM Day 2 = 1 day.
+
+**Late fee calculation:** `overdue_hours = return_datetime − end_datetime` (in hours). The result is matched to the applicable `LateFeeRule` tier.
+
+**Minimum rental enforcement:** If `return_datetime < end_datetime` (early return), the system still charges for the full agreed rental period (minimum 1 day). No reduction applied.
+
+**Same-day re-rental:** When a receipt is marked Returned (return_datetime recorded), inventory availability is recalculated immediately in real-time. No cooldown period. Units are available for new bookings the moment the return is saved.
+
+---
+
+### 10.6 Receipt Status: Missing Intermediate States
 
 **Client Decision — ANSWERED:** Additional statuses (Draft, Partially Returned, Cancelled) are **not needed for MVP**.
 
@@ -825,7 +852,7 @@ Note: The PO entity (Section 10.2) effectively serves the "Draft" role — a PO 
 
 ---
 
-### 10.6 Invoice Final Amount Sign Convention
+### 10.7 Invoice Final Amount Sign Convention
 
 **Client Decision — ANSWERED:** Use a separate `TransactionType` field (`COLLECT` / `REFUND`) with a positive amount.
 
@@ -836,7 +863,7 @@ This is clearer for staff reading the invoice and avoids sign-convention confusi
 
 ---
 
-### 10.7 Missing Fields to Consider
+### 10.8 Missing Fields to Consider
 
 | Entity | Missing Field | Client Decision | Include in MVP? |
 |--------|---------------|-----------------|-----------------|
@@ -858,6 +885,7 @@ This is clearer for staff reading the invoice and avoids sign-convention confusi
 |---------|------|---------|
 | 1.0 | April 17, 2026 | Initial discovery document |
 | 1.1 | April 18, 2026 | Updated with client clarifications: 11 of 15 open questions answered/partially answered; 12 of 12 assumptions validated; data model decisions on PO vs Receipt, damage model, unit tracking, receipt status, invoice transaction type, and field additions confirmed |
+| 1.2 | April 18, 2026 | Answered OQ-3 (day counting: exclusive, datetime-based), OQ-5 (partial-day returns: minimum 1 day, late fees in hours per tier), OQ-6 (damaged-beyond-repair: manual damage cost entry + manual unit count adjustment, no special write-off workflow in MVP), OQ-13 (same-day re-rental: immediate availability on return). Confirmed A-5 late fee tiers. Added A-13 (datetime-based rental periods) and A-14 (minimum rental 1 day). Added Section 10.5 (Receipt & Invoice Datetime Fields). Updated US-302, US-401, US-403. Updated Section 9 risk register. All four previously open questions are now resolved. |
 
 ---
 
@@ -865,4 +893,4 @@ This is clearer for staff reading the invoice and avoids sign-convention confusi
 
 ---
 
-**Status as of v1.1:** Most critical blockers are resolved. Remaining open items (OQ-3 day count, OQ-5 partial-day returns, OQ-6 damaged-beyond-repair, OQ-13 same-day re-rental) and the late fee time-range tier definitions (A-5) should be resolved before or during early development sprints. The team can begin MVP development on the core transaction flow.
+**Status as of v1.2:** All previously open billing and return-processing questions are now resolved. OQ-3, OQ-5, OQ-6, and OQ-13 are answered. The late fee tier system (A-5) is confirmed; only the specific multiplier values per tier remain outstanding, which the owner will configure before go-live — this does not block development. The only remaining open question is OQ-15 (final device/platform decision), which is low-risk. The team can proceed with MVP development with full confidence on the core transaction flow, billing calculations, and data model field types.
