@@ -1,0 +1,27 @@
+# Local development profile — safe defaults for a local-only dev container.
+# Override any value by setting the corresponding environment variable.
+# NEVER copy these values to production. Production must use real secrets via env vars.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/fashionrental}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  jpa:
+    show-sql: true
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:dev-secret-key-min-32-chars-long-for-testing}
+  auth:
+    username: ${APP_AUTH_USERNAME:admin}
+    password: ${APP_AUTH_PASSWORD:admin}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha

@@ -16,6 +16,30 @@ Examples:
 
 ---
 
+## ⚠️ Security: No Secrets in Committed Files
+
+This is a public repository. Never commit real credentials, secrets, or tokens.
+
+**Rules:**
+- Never hardcode passwords, API keys, JWT secrets, or database credentials in any committed file
+- `application-dev.yml` uses `${ENV_VAR:local-default}` syntax — the defaults are throwaway local-dev values only. Production must inject real secrets via environment variables
+- Never add a `springdoc.swagger-ui.enabled: true` override outside the `dev` profile
+- If you need a local secret override, create `application-local.yml` (gitignored) — never commit it
+- Cloudflare R2 credentials, Sentry DSN, and any third-party API keys must come from env vars in production
+
+**What's safe to commit:**
+- `application.yml` — all values are `${ENV_VAR}` placeholders with no defaults
+- `application-dev.yml` — local throwaway defaults only (local Docker postgres, `admin/admin` dev login)
+- `docker-compose.yml` — local dev postgres container with throwaway credentials
+
+**What must never be committed:**
+- Real database passwords (even weak ones used in staging)
+- Real JWT secrets (anything used on a real server)
+- Any `.env` file containing actual values
+- Cloud provider credentials (R2, AWS, GCP, etc.)
+
+---
+
 ## Project Structure
 
 ```
@@ -353,10 +377,58 @@ pnpm test:e2e -- checkout.spec.ts
 
 ---
 
+## Model & DTO Conventions
+
+### Backend: model sub-package per module
+
+Every domain module must have a `model/` sub-package containing all request and response DTOs. No raw primitives, `Map`, or inline records in controller signatures.
+
+```
+inventory/
+  model/
+    request/   ← CreateItemRequest.java, UpdateItemRequest.java
+    response/  ← ItemResponse.java, AvailabilityResponse.java
+customer/
+  model/
+    request/   ← RegisterCustomerRequest.java
+    response/  ← CustomerResponse.java
+config/
+  model/       ← LoginRequest.java, LoginResponse.java
+```
+
+Rules:
+- Every `@RequestBody` parameter must be a typed record/class from the module's `model/` package, annotated with `@Valid`
+- Every controller method returns `ResponseEntity<ApiResponse<XxxResponse>>` — never `Map`, raw `String`, or a primitive
+- Request records must have Bean Validation annotations (`@NotBlank`, `@NotNull`, `@Min`, etc.) on every field
+
+### Frontend: per-module type files
+
+Types live in `src/types/` with one file per domain. Never inline types in API functions or components.
+
+```
+src/types/
+  api.ts       ← ApiResponse<T> envelope only
+  auth.ts      ← LoginRequest, LoginResponse
+  inventory.ts ← Item, CreateItemRequest, AvailabilityResponse, ...
+  customer.ts  ← Customer, RegisterCustomerRequest, ...
+  receipt.ts   ← Receipt, CreateReceiptRequest, CheckoutPreview, ...
+  invoice.ts   ← Invoice, ProcessReturnRequest, ...
+  reports.ts   ← DailyRevenueReport, OutstandingDeposit, ...
+  config.ts    ← LateFeeRule, UpdateLateFeeRuleRequest, ...
+```
+
+Rules:
+- API functions in `src/api/*.ts` must use typed imports from `src/types/` — no inline `{ field: string }` shapes
+- Component props that mirror API shapes must reference the shared type, not redefine it
+
+---
+
 ## Project-Specific Conventions
 
 ### Monetary values
 - Never use `float`, `double`, or `DECIMAL` for money. `INTEGER` in SQL, `int` in Java.
+- All amounts are **whole rupees**. ₹150 is stored as `150`, transferred as `150`, displayed as `₹150`. No paise conversion anywhere.
+- Frontend: use `formatCurrency(amount)` from `src/utils/currency.ts` for display. No division or multiplication by 100.
 
 ### Datetime handling
 - All datetime fields: `TIMESTAMPTZ` in PostgreSQL, `OffsetDateTime` in Java.
@@ -370,6 +442,12 @@ pnpm test:e2e -- checkout.spec.ts
 
 ### API response shape
 Every endpoint returns `ApiResponse<T>`. Never return raw objects or Spring's default error page.
+
+### Swagger / OpenAPI
+- Available in `dev` profile only: **http://localhost:8080/swagger-ui.html**
+- Disabled in production (`springdoc.swagger-ui.enabled: false` in `application.yml`)
+- To test authenticated endpoints: call `POST /api/auth/login` first, copy the token, click **Authorize** in the Swagger UI, paste `<token>` (without "Bearer ")
+- Every controller must have `@Tag(name = "...")` on the class and `@Operation(summary = "...")` on each endpoint
 
 ### Local development
 - Build tool: **Gradle** (Kotlin DSL). Never use Maven.
