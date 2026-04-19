@@ -3,6 +3,7 @@ import { Layout, Button } from 'antd'
 import { LogoutOutlined } from '@ant-design/icons'
 import { Sidebar } from './Sidebar'
 import { useAuthStore } from '../../store/authStore'
+import SettingsPage from '../../pages/SettingsPage'
 
 const { Sider, Content, Header } = Layout
 
@@ -35,7 +36,7 @@ export default function AppLayout() {
             <Route path="/checkout" element={<div>New Rental (coming soon)</div>} />
             <Route path="/receipts" element={<div>Active Rentals (coming soon)</div>} />
             <Route path="/reports" element={<div>Reports (coming soon)</div>} />
-            <Route path="/settings" element={<div>Settings (coming soon)</div>} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Content>
       </Layout>
