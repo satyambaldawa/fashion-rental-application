@@ -36,11 +36,16 @@ frontend/*.iml
 frontend/*.iws
 frontend/*.ipr
 
-# Environment files
+# Environment files — never commit real secrets
 .env
 .env.local
 .env.*.local
 .env*.js
+*.env
+
+# Spring Boot local config overrides (may contain real secrets)
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-local.properties
 
 # IDE
 .idea/
