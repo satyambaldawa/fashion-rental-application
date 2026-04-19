@@ -28,6 +28,7 @@ frontend/out/
 frontend/.nuxt/
 frontend/.cache/
 frontend/.vuepress/dist/
+frontend/.vite/
 
 # Frontend - IDE
 frontend/.idea/
