@@ -64,7 +64,7 @@ Each file contains everything a developer needs to implement the feature end-to-
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-601-602-configuration.md` | Configure late fee tiers and deposit amounts | P0 | ⏳ |
+| `US-601-602-configuration.md` | Configure late fee tiers and deposit amounts | P0 | ✅ |
 
 ### 06 — Reporting
 
