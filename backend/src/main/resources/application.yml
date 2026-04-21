@@ -1,6 +1,10 @@
 spring:
   application:
     name: fashion-rental
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
