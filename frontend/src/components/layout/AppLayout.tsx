@@ -4,6 +4,8 @@ import { LogoutOutlined } from '@ant-design/icons'
 import { Sidebar } from './Sidebar'
 import { useAuthStore } from '../../store/authStore'
 import SettingsPage from '../../pages/SettingsPage'
+import InventoryPage from '../../pages/inventory/InventoryPage'
+import AddItemPage from '../../pages/inventory/AddItemPage'
 
 const { Sider, Content, Header } = Layout
 
@@ -31,7 +33,8 @@ export default function AppLayout() {
         <Content style={{ margin: '24px', background: '#fff', borderRadius: 8, padding: '24px' }}>
           <Routes>
             <Route path="/" element={<Navigate to="/inventory" replace />} />
-            <Route path="/inventory" element={<div>Inventory (coming soon)</div>} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/inventory/add" element={<AddItemPage />} />
             <Route path="/customers" element={<div>Customers (coming soon)</div>} />
             <Route path="/checkout" element={<div>New Rental (coming soon)</div>} />
             <Route path="/receipts" element={<div>Active Rentals (coming soon)</div>} />

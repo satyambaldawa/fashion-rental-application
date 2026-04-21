@@ -29,13 +29,13 @@ Each file contains everything a developer needs to implement the feature end-to-
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-101-browse-inventory.md` | Browse all items with availability | P0 | ⏳ |
-| `US-102-search-filter-items.md` | Search by name, filter by category/size | P0 | ⏳ |
-| `US-103-availability-check.md` | Check available units for a date range | P0 | ⏳ |
-| `US-104-add-item.md` | Add new item to catalog | P0 | ⏳ |
+| `US-101-browse-inventory.md` | Browse all items with availability | P0 | ✅ |
+| `US-102-search-filter-items.md` | Search by name, filter by category/size | P0 | ✅ |
+| `US-103-availability-check.md` | Check available units for a date range | P0 | ✅ |
+| `US-104-add-item.md` | Add new item to catalog | P0 | ✅ |
 | `US-105-edit-item.md` | Edit item details | P1 | ⏳ |
 | `US-106-adjust-unit-count.md` | Increase/decrease unit count | P1 | ⏳ |
-| `US-107-item-photo-upload.md` | Upload photos to Cloudflare R2 | P0 | ⏳ |
+| `US-107-item-photo-upload.md` | Upload photos to Cloudflare R2 | P0 | ✅ |
 
 ### 02 — Customer Management
 

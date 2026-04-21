@@ -5,6 +5,7 @@ backend/out/
 backend/*.jar
 backend/*.war
 backend/target/
+backend/uploads/items/
 
 # Backend - IDE
 backend/.idea/
