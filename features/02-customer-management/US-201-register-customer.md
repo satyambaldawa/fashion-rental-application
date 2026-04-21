@@ -15,12 +15,12 @@
 
 ## Acceptance Criteria
 
-- [ ] Required fields: name, phone number, customer type
-- [ ] Optional fields: address, organization name
-- [ ] Phone number must be unique — if already exists, show error (do not create duplicate)
-- [ ] When I enter a phone number, system checks for existing customer first (to avoid accidental duplicates)
-- [ ] Customer type options: Student (requires school name), Professional (requires organization name), Misc (no sub-field)
-- [ ] New customer is immediately searchable after creation
+- [x] Required fields: name, phone number, customer type
+- [x] Optional fields: address, organization name
+- [x] Phone number must be unique — if already exists, show error (do not create duplicate)
+- [x] When I enter a phone number, system checks for existing customer first (to avoid accidental duplicates)
+- [x] Customer type options: Student (requires school name), Professional (requires organization name), Misc (no sub-field)
+- [x] New customer is immediately searchable after creation
 
 ---
 

@@ -15,11 +15,11 @@
 
 ## Acceptance Criteria
 
-- [ ] Search by full or partial phone number (prefix match)
-- [ ] Search by partial name (contains match, case-insensitive)
-- [ ] Results appear immediately on input (debounced, 300ms)
-- [ ] Selecting a customer shows their full profile
-- [ ] Customer lookup by phone: < 5 seconds (easily < 500ms with index)
+- [x] Search by full or partial phone number (prefix match)
+- [x] Search by partial name (contains match, case-insensitive)
+- [x] Results appear immediately on input (debounced, 300ms)
+- [x] Selecting a customer shows their full profile
+- [x] Customer lookup by phone: < 5 seconds (easily < 500ms with index)
 
 ---
 
