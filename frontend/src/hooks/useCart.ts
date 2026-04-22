@@ -1,21 +1,7 @@
 import { useState, useCallback } from 'react'
+import type { Cart, CartItem } from '../types/receipt'
 
-export interface CartItem {
-  itemId: string
-  itemName: string
-  thumbnailUrl: string | null
-  rate: number
-  deposit: number
-  quantity: number
-  availableQuantity: number
-}
-
-export interface Cart {
-  startDatetime: string   // ISO 8601
-  endDatetime: string     // ISO 8601
-  rentalDays: number
-  items: CartItem[]
-}
+export type { Cart, CartItem }
 
 const STORAGE_KEY = 'rental_cart'
 

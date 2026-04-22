@@ -30,14 +30,14 @@ import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import DatePicker from 'antd/es/date-picker'
 import { useCart } from '../../hooks/useCart'
-import type { CartItem } from '../../hooks/useCart'
+import { toApiDatetime } from '../../utils/datetime'
 import { itemsApi } from '../../api/items'
 import { receiptsApi } from '../../api/receipts'
 import CustomerSearch from '../../components/common/CustomerSearch'
 import { customersApi } from '../../api/customers'
 import type { CustomerSummary } from '../../types/customer'
 import type { ItemSummary } from '../../types/inventory'
-import type { CheckoutRequest } from '../../types/receipt'
+import type { CartItem, CheckoutRequest } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
@@ -67,7 +67,7 @@ export default function CheckoutPage() {
       }).catch(() => {})
       setSearchParams({}, { replace: true })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, setSearchParams])
 
   // Create cart modal
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -131,7 +131,7 @@ export default function CheckoutPage() {
       return
     }
     const end = start.add(rentalDays, 'day')
-    createCart(start.toISOString(), end.toISOString(), rentalDays)
+    createCart(toApiDatetime(start), toApiDatetime(end), rentalDays)
     setShowCreateModal(false)
     setScreen('browse')
   }

@@ -2,7 +2,6 @@ package com.fashionrental.receipt;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.util.DateTimeUtil;
-import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import org.springframework.stereotype.Service;
@@ -17,10 +16,12 @@ public class ReceiptService {
 
     private final ReceiptRepository receiptRepository;
     private final DateTimeUtil dateTimeUtil;
+    private final ReceiptMapper receiptMapper;
 
-    public ReceiptService(ReceiptRepository receiptRepository, DateTimeUtil dateTimeUtil) {
+    public ReceiptService(ReceiptRepository receiptRepository, DateTimeUtil dateTimeUtil, ReceiptMapper receiptMapper) {
         this.receiptRepository = receiptRepository;
         this.dateTimeUtil = dateTimeUtil;
+        this.receiptMapper = receiptMapper;
     }
 
     @Transactional(readOnly = true)
@@ -45,7 +46,7 @@ public class ReceiptService {
     public ReceiptResponse getReceipt(UUID id) {
         Receipt receipt = receiptRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + id));
-        return toReceiptResponse(receipt);
+        return receiptMapper.toReceiptResponse(receipt);
     }
 
     private ReceiptSummaryResponse toSummaryResponse(Receipt receipt, OffsetDateTime now) {
@@ -79,36 +80,4 @@ public class ReceiptService {
         );
     }
 
-    private ReceiptResponse toReceiptResponse(Receipt receipt) {
-        List<ReceiptLineItemResponse> lineItemResponses = receipt.getLineItems().stream()
-                .map(li -> new ReceiptLineItemResponse(
-                        li.getId(),
-                        li.getItem().getId(),
-                        li.getItem().getName(),
-                        li.getQuantity(),
-                        li.getRateSnapshot(),
-                        li.getDepositSnapshot(),
-                        li.getLineRent(),
-                        li.getLineDeposit()
-                ))
-                .toList();
-
-        return new ReceiptResponse(
-                receipt.getId(),
-                receipt.getReceiptNumber(),
-                receipt.getCustomer().getId(),
-                receipt.getCustomer().getName(),
-                receipt.getCustomer().getPhone(),
-                receipt.getStartDatetime(),
-                receipt.getEndDatetime(),
-                receipt.getRentalDays(),
-                receipt.getTotalRent(),
-                receipt.getTotalDeposit(),
-                receipt.getGrandTotal(),
-                receipt.getStatus().name(),
-                receipt.getNotes(),
-                lineItemResponses,
-                receipt.getCreatedAt()
-        );
-    }
 }

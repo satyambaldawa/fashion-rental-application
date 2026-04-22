@@ -10,11 +10,13 @@ import com.fashionrental.inventory.AvailabilityService;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
+import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +42,7 @@ class CheckoutServiceTest {
     @Mock ReceiptRepository receiptRepository;
     @Mock ReceiptNumberService receiptNumberService;
     @Mock DateTimeUtil dateTimeUtil;
+    @Mock ReceiptMapper receiptMapper;
 
     @InjectMocks CheckoutService checkoutService;
 
@@ -56,10 +60,9 @@ class CheckoutServiceTest {
         when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
         when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
 
-        CheckoutRequest request = new CheckoutRequest(
-                UUID.randomUUID(), START, END,
-                List.of(new CheckoutLineItem(itemId, 2)),
-                null
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(
+                START, END,
+                List.of(new CheckoutLineItem(itemId, 2))
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -84,10 +87,9 @@ class CheckoutServiceTest {
         when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(1);
         when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
 
-        CheckoutRequest request = new CheckoutRequest(
-                UUID.randomUUID(), START, END,
-                List.of(new CheckoutLineItem(itemId, 2)), // requesting 2, only 1 available
-                null
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(
+                START, END,
+                List.of(new CheckoutLineItem(itemId, 2)) // requesting 2, only 1 available
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -100,10 +102,9 @@ class CheckoutServiceTest {
     void should_throw_validation_when_end_before_start() {
         OffsetDateTime end = START.minusDays(1);
 
-        CheckoutRequest request = new CheckoutRequest(
-                UUID.randomUUID(), START, end,
-                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
-                null
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(
+                START, end,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1))
         );
 
         assertThatThrownBy(() -> checkoutService.preview(request))
@@ -118,30 +119,46 @@ class CheckoutServiceTest {
         UUID customerId = UUID.randomUUID();
         UUID itemId = UUID.randomUUID();
 
-        Customer customer = makeCustomer(customerId, "Ravi Sharma", "9876543210");
-        Item item = makeItem(itemId, "Red Saree", 300, 1500);
+        Customer customer = new Customer();
+        customer.setName("Ramesh");
+        customer.setPhone("9876543210");
+        customer.setCustomerType(Customer.CustomerType.MISC);
 
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
-        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(3);
-        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
-        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260421-001");
-
-        Receipt savedReceipt = buildReceipt(customerId, customer, itemId, item, 2);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
+        Item item = new Item();
+        item.setName("Blue Sherwani");
+        item.setCategory(Item.Category.COSTUME);
+        item.setRate(300);
+        item.setDeposit(1500);
+        item.setQuantity(3);
+        item.setIsActive(true);
 
         CheckoutRequest request = new CheckoutRequest(
-                customerId, START, END,
+                customerId,
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(2),
                 List.of(new CheckoutLineItem(itemId, 1)),
                 null
         );
 
-        ReceiptResponse response = checkoutService.createReceipt(request);
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(eq(itemId), any(), any())).thenReturn(3);
+        when(dateTimeUtil.calculateRentalDays(any(), any())).thenReturn(2);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260422-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThat(response.receiptNumber()).isEqualTo("R-20260421-001");
-        assertThat(response.lineItems()).hasSize(1);
-        assertThat(response.lineItems().get(0).rateSnapshot()).isEqualTo(300);  // snapshot captured
-        assertThat(response.lineItems().get(0).depositSnapshot()).isEqualTo(1500);
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        assertThat(saved.getLineItems()).hasSize(1);
+        ReceiptLineItem li = saved.getLineItems().get(0);
+        assertThat(li.getRateSnapshot()).isEqualTo(300);
+        assertThat(li.getDepositSnapshot()).isEqualTo(1500);
+        assertThat(li.getLineRent()).isEqualTo(300 * 2 * 1);   // rate * days * qty
+        assertThat(li.getLineDeposit()).isEqualTo(1500 * 1);    // deposit * qty
     }
 
     @Test
@@ -200,8 +217,12 @@ class CheckoutServiceTest {
         when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(1); // minimum enforced by DateTimeUtil
         when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260421-001");
 
-        Receipt savedReceipt = buildReceipt(customerId, customer, itemId, item, 1);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(receiptMapper.toReceiptResponse(any(Receipt.class))).thenAnswer(inv -> {
+            Receipt r = inv.getArgument(0);
+            return new ReceiptResponse(null, null, null, null, null, null, null,
+                    r.getRentalDays(), 0, 0, 0, null, null, List.of(), null);
+        });
 
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
