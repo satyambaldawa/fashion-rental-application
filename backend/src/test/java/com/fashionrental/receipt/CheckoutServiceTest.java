@@ -1,0 +1,288 @@
+package com.fashionrental.receipt;
+
+import com.fashionrental.common.exception.ConflictException;
+import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.ValidationException;
+import com.fashionrental.common.util.DateTimeUtil;
+import com.fashionrental.customer.Customer;
+import com.fashionrental.customer.CustomerRepository;
+import com.fashionrental.inventory.AvailabilityService;
+import com.fashionrental.inventory.Item;
+import com.fashionrental.inventory.ItemRepository;
+import com.fashionrental.receipt.model.request.CheckoutLineItem;
+import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
+import com.fashionrental.receipt.model.response.ReceiptResponse;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CheckoutServiceTest {
+
+    @Mock ItemRepository itemRepository;
+    @Mock CustomerRepository customerRepository;
+    @Mock AvailabilityService availabilityService;
+    @Mock ReceiptRepository receiptRepository;
+    @Mock ReceiptNumberService receiptNumberService;
+    @Mock DateTimeUtil dateTimeUtil;
+
+    @InjectMocks CheckoutService checkoutService;
+
+    private static final OffsetDateTime START = OffsetDateTime.parse("2026-04-21T10:00:00+05:30");
+    private static final OffsetDateTime END = OffsetDateTime.parse("2026-04-24T10:00:00+05:30");
+
+    // ─── Preview ─────────────────────────────────────────────────────────────
+
+    @Test
+    void should_calculate_preview_totals_correctly() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+
+        CheckoutRequest request = new CheckoutRequest(
+                UUID.randomUUID(), START, END,
+                List.of(new CheckoutLineItem(itemId, 2)),
+                null
+        );
+
+        CheckoutPreviewResponse preview = checkoutService.preview(request);
+
+        assertThat(preview.rentalDays()).isEqualTo(3);
+        assertThat(preview.lineItems()).hasSize(1);
+        assertThat(preview.lineItems().get(0).lineRent()).isEqualTo(1200);   // 200 * 3 * 2
+        assertThat(preview.lineItems().get(0).lineDeposit()).isEqualTo(2000); // 1000 * 2
+        assertThat(preview.totalRent()).isEqualTo(1200);
+        assertThat(preview.totalDeposit()).isEqualTo(2000);
+        assertThat(preview.grandTotal()).isEqualTo(3200);
+        assertThat(preview.allAvailable()).isTrue();
+        assertThat(preview.unavailableItems()).isEmpty();
+    }
+
+    @Test
+    void should_flag_unavailable_items_in_preview() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Gold Necklace", 100, 500);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(1);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
+
+        CheckoutRequest request = new CheckoutRequest(
+                UUID.randomUUID(), START, END,
+                List.of(new CheckoutLineItem(itemId, 2)), // requesting 2, only 1 available
+                null
+        );
+
+        CheckoutPreviewResponse preview = checkoutService.preview(request);
+
+        assertThat(preview.allAvailable()).isFalse();
+        assertThat(preview.unavailableItems()).containsExactly("Gold Necklace");
+    }
+
+    @Test
+    void should_throw_validation_when_end_before_start() {
+        OffsetDateTime end = START.minusDays(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                UUID.randomUUID(), START, end,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
+                null
+        );
+
+        assertThatThrownBy(() -> checkoutService.preview(request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("endDatetime must be after startDatetime");
+    }
+
+    // ─── Create Receipt ───────────────────────────────────────────────────────
+
+    @Test
+    void should_create_receipt_with_snapshots() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+
+        Customer customer = makeCustomer(customerId, "Ravi Sharma", "9876543210");
+        Item item = makeItem(itemId, "Red Saree", 300, 1500);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(3);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260421-001");
+
+        Receipt savedReceipt = buildReceipt(customerId, customer, itemId, item, 2);
+        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                null
+        );
+
+        ReceiptResponse response = checkoutService.createReceipt(request);
+
+        assertThat(response.receiptNumber()).isEqualTo("R-20260421-001");
+        assertThat(response.lineItems()).hasSize(1);
+        assertThat(response.lineItems().get(0).rateSnapshot()).isEqualTo(300);  // snapshot captured
+        assertThat(response.lineItems().get(0).depositSnapshot()).isEqualTo(1500);
+    }
+
+    @Test
+    void should_throw_conflict_when_item_unavailable_at_creation() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+
+        Customer customer = makeCustomer(customerId, "Test User", "9000000001");
+        Item item = makeItem(itemId, "Blue Pagdi", 150, 500);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(0);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                null
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Blue Pagdi");
+    }
+
+    @Test
+    void should_throw_not_found_when_customer_missing() {
+        UUID customerId = UUID.randomUUID();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
+                null
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Customer not found");
+    }
+
+    @Test
+    void should_enforce_minimum_1_rental_day() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+
+        Customer customer = makeCustomer(customerId, "Test User", "9000000002");
+        Item item = makeItem(itemId, "Silver Ring", 50, 200);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(1); // minimum enforced by DateTimeUtil
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260421-001");
+
+        Receipt savedReceipt = buildReceipt(customerId, customer, itemId, item, 1);
+        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                null
+        );
+
+        ReceiptResponse response = checkoutService.createReceipt(request);
+
+        assertThat(response.rentalDays()).isGreaterThanOrEqualTo(1);
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private Item makeItem(UUID id, String name, int rate, int deposit) {
+        Item item = new Item();
+        item.setName(name);
+        item.setCategory(Item.Category.COSTUME);
+        item.setRate(rate);
+        item.setDeposit(deposit);
+        item.setQuantity(10);
+        item.setIsActive(true);
+        // inject id via reflection since there's no setter
+        try {
+            var field = Item.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(item, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return item;
+    }
+
+    private Customer makeCustomer(UUID id, String name, String phone) {
+        Customer customer = new Customer();
+        customer.setName(name);
+        customer.setPhone(phone);
+        customer.setCustomerType(Customer.CustomerType.MISC);
+        try {
+            var field = Customer.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(customer, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return customer;
+    }
+
+    private Receipt buildReceipt(UUID customerId, Customer customer, UUID itemId, Item item, int rentalDays) {
+        ReceiptLineItem li = new ReceiptLineItem();
+        li.setItem(item);
+        li.setQuantity(1);
+        li.setRateSnapshot(item.getRate());
+        li.setDepositSnapshot(item.getDeposit());
+        li.setLineRent(item.getRate() * rentalDays);
+        li.setLineDeposit(item.getDeposit());
+
+        Receipt receipt = new Receipt();
+        receipt.setCustomer(customer);
+        receipt.setStartDatetime(START);
+        receipt.setEndDatetime(END);
+        receipt.setRentalDays(rentalDays);
+        receipt.setReceiptNumber("R-20260421-001");
+        receipt.setStatus(Receipt.Status.GIVEN);
+        receipt.setTotalRent(li.getLineRent());
+        receipt.setTotalDeposit(li.getLineDeposit());
+        receipt.setGrandTotal(li.getLineRent() + li.getLineDeposit());
+        receipt.getLineItems().add(li);
+        li.setReceipt(receipt);
+
+        try {
+            var idField = Receipt.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(receipt, UUID.randomUUID());
+
+            var createdAtField = Receipt.class.getDeclaredField("createdAt");
+            createdAtField.setAccessible(true);
+            createdAtField.set(receipt, OffsetDateTime.now());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return receipt;
+    }
+}
