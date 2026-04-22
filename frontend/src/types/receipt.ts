@@ -43,6 +43,9 @@ export interface ReceiptLineItem {
   id: string
   itemId: string
   itemName: string
+  itemSize: string | null
+  itemCategory: string | null
+  itemDescription: string | null
   quantity: number
   rateSnapshot: number
   depositSnapshot: number

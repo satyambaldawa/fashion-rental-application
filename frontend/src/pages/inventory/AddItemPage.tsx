@@ -103,6 +103,18 @@ export default function AddItemPage() {
             <Input.TextArea rows={2} placeholder="Internal notes" />
           </Form.Item>
 
+          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, marginTop: 8, fontSize: 12 }}>
+            Purchase details below are for shop records only and are never shown to customers.
+          </Typography.Text>
+
+          <Form.Item name="purchaseRate" label="Purchase Rate (₹)">
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 3000" />
+          </Form.Item>
+
+          <Form.Item name="vendorName" label="Vendor / Supplier Name">
+            <Input placeholder="e.g. Rajesh Textiles" />
+          </Form.Item>
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={mutation.isPending}>

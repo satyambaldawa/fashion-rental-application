@@ -62,6 +62,7 @@ class ItemControllerTest {
         return new ItemDetailResponse(
                 id, name, Item.Category.COSTUME, Item.ItemType.INDIVIDUAL,
                 "M", "A fine costume", 200, 1000, 3, true, null,
+                null, null,
                 List.of(), OffsetDateTime.now(), OffsetDateTime.now()
         );
     }
@@ -155,7 +156,7 @@ class ItemControllerTest {
         UUID id = UUID.randomUUID();
         CreateItemRequest request = new CreateItemRequest(
                 "Blue Sherwani", Item.Category.COSTUME, "M",
-                "Traditional sherwani", 200, 1000, 3, null
+                "Traditional sherwani", 200, 1000, 3, null, null, null
         );
         when(itemService.createItem(any(CreateItemRequest.class))).thenReturn(detailResponse(id, "Blue Sherwani"));
 
@@ -171,7 +172,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_name_is_blank() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "", Item.Category.COSTUME, null, null, 200, 1000, 1, null
+                "", Item.Category.COSTUME, null, null, 200, 1000, 1, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())
@@ -185,7 +186,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_rate_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "Test Item", Item.Category.DRESS, null, null, 0, 0, 1, null
+                "Test Item", Item.Category.DRESS, null, null, 0, 0, 1, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())
@@ -199,7 +200,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_quantity_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "Test Item", Item.Category.DRESS, null, null, 100, 0, 0, null
+                "Test Item", Item.Category.DRESS, null, null, 100, 0, 0, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())

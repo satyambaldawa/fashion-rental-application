@@ -26,6 +26,9 @@ export interface ItemDetail extends ItemSummary {
   itemType: ItemType
   description: string | null
   notes: string | null
+  // Internal purchase tracking — visible to staff only
+  purchaseRate: number | null
+  vendorName: string | null
   quantity: number
   isActive: boolean
   photos: ItemPhoto[]
@@ -42,6 +45,9 @@ export interface CreateItemRequest {
   deposit: number
   quantity: number
   notes?: string
+  // Internal purchase tracking — not shown to customers
+  purchaseRate?: number
+  vendorName?: string
 }
 
 export interface AvailabilityResult {

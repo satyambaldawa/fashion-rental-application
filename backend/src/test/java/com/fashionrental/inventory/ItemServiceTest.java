@@ -169,7 +169,9 @@ class ItemServiceTest {
                 500,
                 1000,
                 3,
-                "Handle with care"
+                "Handle with care",
+                null,
+                null
         );
 
         Item savedItem = buildActiveItem("Maharaja Costume", Item.Category.COSTUME, 500, 1000, 3);
@@ -206,7 +208,7 @@ class ItemServiceTest {
     @Test
     void should_create_item_with_is_active_true_by_default() {
         CreateItemRequest request = new CreateItemRequest(
-                "New Item", Item.Category.ACCESSORIES, null, null, 100, 0, 1, null
+                "New Item", Item.Category.ACCESSORIES, null, null, 100, 0, 1, null, null, null
         );
         when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
             Item item = inv.getArgument(0);
@@ -229,7 +231,7 @@ class ItemServiceTest {
     @Test
     void should_create_item_with_zero_deposit_allowed() {
         CreateItemRequest request = new CreateItemRequest(
-                "Simple Pagdi", Item.Category.PAGDI, null, null, 50, 0, 2, null
+                "Simple Pagdi", Item.Category.PAGDI, null, null, 50, 0, 2, null, null, null
         );
         when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
             Item item = inv.getArgument(0);

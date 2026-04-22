@@ -13,5 +13,8 @@ public record CreateItemRequest(
         @NotNull @Min(1) Integer rate,
         @NotNull @Min(0) Integer deposit,
         @NotNull @Min(1) Integer quantity,
-        String notes
+        String notes,
+        // Internal purchase tracking — not returned in customer-facing responses
+        @Min(0) Integer purchaseRate,
+        String vendorName
 ) {}
