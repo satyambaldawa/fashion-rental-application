@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import {
   Form,
@@ -29,6 +29,8 @@ interface RegistrationForm {
 
 export default function RegisterCustomerPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
   const [phase, setPhase] = useState<Phase>('phone-check')
   const [phone, setPhone] = useState('')
   const [existingCustomerName, setExistingCustomerName] = useState<string | null>(null)
@@ -54,6 +56,10 @@ export default function RegisterCustomerPage() {
   const registerMutation = useMutation({
     mutationFn: (data: CreateCustomerRequest) => customersApi.create(data),
     onSuccess: (customer) => {
+      if (returnTo === 'checkout') {
+        navigate(`/checkout?newCustomerId=${customer.id}`)
+        return
+      }
       setRegisteredCustomer(customer)
       setPhase('success')
     },

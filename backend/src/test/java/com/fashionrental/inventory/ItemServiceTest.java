@@ -75,7 +75,7 @@ class ItemServiceTest {
         Page<Item> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(emptyPage);
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isZero();
@@ -90,7 +90,7 @@ class ItemServiceTest {
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
         when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(2);
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         ItemSummaryResponse summary = result.getContent().get(0);
@@ -112,7 +112,7 @@ class ItemServiceTest {
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
         when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(0);
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
         ItemSummaryResponse summary = result.getContent().get(0);
         assertThat(summary.availableQuantity()).isZero();
@@ -128,7 +128,7 @@ class ItemServiceTest {
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
         when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(1);
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent().get(0).thumbnailUrl()).isNull();
     }
@@ -154,7 +154,7 @@ class ItemServiceTest {
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
         when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(1);
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent().get(0).thumbnailUrl()).isEqualTo("https://cdn.example.com/thumb1.jpg");
     }

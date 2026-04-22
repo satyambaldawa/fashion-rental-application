@@ -37,9 +37,11 @@ public class ItemController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Item.Category category,
-            @RequestParam(name = "itemSize", required = false) String itemSize
+            @RequestParam(name = "itemSize", required = false) String itemSize,
+            @RequestParam(required = false) OffsetDateTime startDatetime,
+            @RequestParam(required = false) OffsetDateTime endDatetime
     ) {
-        Page<ItemSummaryResponse> result = itemService.listItems(search, category, itemSize, page, size);
+        Page<ItemSummaryResponse> result = itemService.listItems(search, category, itemSize, page, size, startDatetime, endDatetime);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

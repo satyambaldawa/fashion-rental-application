@@ -19,16 +19,16 @@
 
 ## Acceptance Criteria
 
-- [ ] Staff selects an existing customer (or creates one inline)
-- [ ] Staff selects a start datetime and end datetime
-- [ ] Staff adds one or more items with quantities
-- [ ] System validates availability for each item before adding to the order
-- [ ] System shows a live preview of totals (rental days, rent per item, total rent, total deposit, grand total)
-- [ ] On confirmation, Receipt is created atomically with a final availability recheck in a DB transaction
-- [ ] If availability changed between preview and confirm (race condition), API returns 409 and staff sees a clear error
-- [ ] Receipt status is set to `GIVEN` immediately
-- [ ] A human-readable receipt number is generated (e.g., `R-20260418-003`)
-- [ ] Receipt is displayed on screen after creation
+- [x] Staff selects an existing customer (or creates one inline)
+- [x] Staff selects a start datetime and end datetime
+- [x] Staff adds one or more items with quantities
+- [x] System validates availability for each item before adding to the order
+- [x] System shows a live preview of totals (rental days, rent per item, total rent, total deposit, grand total)
+- [x] On confirmation, Receipt is created atomically with a final availability recheck in a DB transaction
+- [x] If availability changed between preview and confirm (race condition), API returns 409 and staff sees a clear error
+- [x] Receipt status is set to `GIVEN` immediately
+- [x] A human-readable receipt number is generated (e.g., `R-20260418-003`)
+- [x] Receipt is displayed on screen after creation
 
 ### Billing Formula (US-302)
 

@@ -10,7 +10,7 @@ import type {
 } from '../types/inventory'
 
 export const itemsApi = {
-  list: (params: { page?: number; size?: number; search?: string; category?: string; itemSize?: string }) =>
+  list: (params: { page?: number; size?: number; search?: string; category?: string; itemSize?: string; startDatetime?: string; endDatetime?: string }) =>
     client.get<ApiResponse<PageResult<ItemSummary>>>('/items', { params }).then(r => r.data.data!),
 
   get: (id: string) =>
