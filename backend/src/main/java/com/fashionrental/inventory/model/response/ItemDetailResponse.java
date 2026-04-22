@@ -18,6 +18,9 @@ public record ItemDetailResponse(
         int quantity,
         boolean isActive,
         String notes,
+        // Internal purchase tracking — visible to shop owner only, never shown to customers
+        Integer purchaseRate,
+        String vendorName,
         List<ItemPhotoResponse> photos,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

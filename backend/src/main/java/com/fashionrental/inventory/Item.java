@@ -53,6 +53,13 @@ public class Item {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Internal purchase tracking — never exposed in customer-facing responses
+    @Column(name = "purchase_rate")
+    private Integer purchaseRate;
+
+    @Column(name = "vendor_name")
+    private String vendorName;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -95,6 +102,10 @@ public class Item {
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    public Integer getPurchaseRate() { return purchaseRate; }
+    public void setPurchaseRate(Integer purchaseRate) { this.purchaseRate = purchaseRate; }
+    public String getVendorName() { return vendorName; }
+    public void setVendorName(String vendorName) { this.vendorName = vendorName; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public List<ItemPhoto> getPhotos() { return photos; }

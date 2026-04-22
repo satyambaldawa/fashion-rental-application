@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.inventory.Item;
 import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.springframework.stereotype.Component;
@@ -34,10 +35,14 @@ public class ReceiptMapper {
     }
 
     private ReceiptLineItemResponse toLineItemResponse(ReceiptLineItem li) {
+        Item item = li.getItem();
         return new ReceiptLineItemResponse(
                 li.getId(),
-                li.getItem().getId(),
-                li.getItem().getName(),
+                item.getId(),
+                item.getName(),
+                item.getSize(),
+                item.getCategory() != null ? item.getCategory().name() : null,
+                item.getDescription(),
                 li.getQuantity(),
                 li.getRateSnapshot(),
                 li.getDepositSnapshot(),

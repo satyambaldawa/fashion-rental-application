@@ -77,6 +77,8 @@ public class ItemService {
         item.setDeposit(request.deposit());
         item.setQuantity(request.quantity());
         item.setNotes(request.notes());
+        item.setPurchaseRate(request.purchaseRate());
+        item.setVendorName(request.vendorName());
 
         Item saved = itemRepository.save(item);
         return toDetailResponse(saved);
@@ -119,6 +121,8 @@ public class ItemService {
                 item.getQuantity(),
                 item.getIsActive(),
                 item.getNotes(),
+                item.getPurchaseRate(),
+                item.getVendorName(),
                 photos,
                 item.getCreatedAt(),
                 item.getUpdatedAt()
