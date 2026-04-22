@@ -16,5 +16,5 @@ export function formatDate(iso: string): string {
 }
 
 export function toApiDatetime(date: dayjs.Dayjs): string {
-  return date.tz(IST).toISOString()
+  return date.tz(IST).format('YYYY-MM-DDTHH:mm:ssZ')
 }

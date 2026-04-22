@@ -1,6 +1,7 @@
 package com.fashionrental.receipt;
 
 import com.fashionrental.common.response.ApiResponse;
+import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
@@ -30,7 +31,7 @@ public class ReceiptController {
     @Operation(summary = "Preview checkout totals and availability before creating a receipt")
     @PostMapping("/api/checkout/preview")
     public ResponseEntity<ApiResponse<CheckoutPreviewResponse>> previewCheckout(
-            @Valid @RequestBody CheckoutRequest request
+            @Valid @RequestBody CheckoutPreviewRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(checkoutService.preview(request)));
     }

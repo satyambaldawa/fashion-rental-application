@@ -3,6 +3,12 @@ export interface CheckoutLineItem {
   quantity: number
 }
 
+export interface CheckoutPreviewRequest {
+  startDatetime: string
+  endDatetime: string
+  items: CheckoutLineItem[]
+}
+
 export interface CheckoutRequest {
   customerId: string
   startDatetime: string
@@ -77,4 +83,21 @@ export interface ReceiptSummary {
   status: 'GIVEN' | 'RETURNED'
   isOverdue: boolean
   overdueHours: number | null
+}
+
+export interface CartItem {
+  itemId: string
+  itemName: string
+  thumbnailUrl: string | null
+  rate: number
+  deposit: number
+  quantity: number
+  availableQuantity: number
+}
+
+export interface Cart {
+  startDatetime: string   // ISO 8601 with IST offset
+  endDatetime: string     // ISO 8601 with IST offset
+  rentalDays: number
+  items: CartItem[]
 }

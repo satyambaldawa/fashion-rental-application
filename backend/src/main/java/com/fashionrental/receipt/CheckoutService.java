@@ -9,10 +9,10 @@ import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
+import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
 import com.fashionrental.receipt.model.response.PreviewLineItem;
-import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +31,7 @@ public class CheckoutService {
     private final ReceiptRepository receiptRepository;
     private final ReceiptNumberService receiptNumberService;
     private final DateTimeUtil dateTimeUtil;
+    private final ReceiptMapper receiptMapper;
 
     public CheckoutService(
             ItemRepository itemRepository,
@@ -38,7 +39,8 @@ public class CheckoutService {
             AvailabilityService availabilityService,
             ReceiptRepository receiptRepository,
             ReceiptNumberService receiptNumberService,
-            DateTimeUtil dateTimeUtil
+            DateTimeUtil dateTimeUtil,
+            ReceiptMapper receiptMapper
     ) {
         this.itemRepository = itemRepository;
         this.customerRepository = customerRepository;
@@ -46,10 +48,11 @@ public class CheckoutService {
         this.receiptRepository = receiptRepository;
         this.receiptNumberService = receiptNumberService;
         this.dateTimeUtil = dateTimeUtil;
+        this.receiptMapper = receiptMapper;
     }
 
     @Transactional(readOnly = true)
-    public CheckoutPreviewResponse preview(CheckoutRequest request) {
+    public CheckoutPreviewResponse preview(CheckoutPreviewRequest request) {
         validateDateRange(request.startDatetime(), request.endDatetime());
 
         OffsetDateTime start = request.startDatetime();
@@ -158,45 +161,12 @@ public class CheckoutService {
         receipt.getLineItems().addAll(lineItems);
 
         Receipt saved = receiptRepository.save(receipt);
-        return toReceiptResponse(saved);
+        return receiptMapper.toReceiptResponse(saved);
     }
 
     private void validateDateRange(OffsetDateTime start, OffsetDateTime end) {
         if (!end.isAfter(start)) {
             throw new ValidationException("endDatetime must be after startDatetime");
         }
-    }
-
-    ReceiptResponse toReceiptResponse(Receipt receipt) {
-        List<ReceiptLineItemResponse> lineItemResponses = receipt.getLineItems().stream()
-                .map(li -> new ReceiptLineItemResponse(
-                        li.getId(),
-                        li.getItem().getId(),
-                        li.getItem().getName(),
-                        li.getQuantity(),
-                        li.getRateSnapshot(),
-                        li.getDepositSnapshot(),
-                        li.getLineRent(),
-                        li.getLineDeposit()
-                ))
-                .toList();
-
-        return new ReceiptResponse(
-                receipt.getId(),
-                receipt.getReceiptNumber(),
-                receipt.getCustomer().getId(),
-                receipt.getCustomer().getName(),
-                receipt.getCustomer().getPhone(),
-                receipt.getStartDatetime(),
-                receipt.getEndDatetime(),
-                receipt.getRentalDays(),
-                receipt.getTotalRent(),
-                receipt.getTotalDeposit(),
-                receipt.getGrandTotal(),
-                receipt.getStatus().name(),
-                receipt.getNotes(),
-                lineItemResponses,
-                receipt.getCreatedAt()
-        );
     }
 }
