@@ -13,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +30,9 @@ public class ItemService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ItemSummaryResponse> listItems(String search, Item.Category category, String itemSize, int page, int size) {
+    public Page<ItemSummaryResponse> listItems(String search, Item.Category category, String itemSize,
+                                               int page, int size,
+                                               OffsetDateTime startDatetime, OffsetDateTime endDatetime) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
 
         Specification<Item> spec = (root, query, cb) -> {
@@ -47,7 +50,8 @@ public class ItemService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        return itemRepository.findAll(spec, pageable).map(this::toSummaryResponse);
+        return itemRepository.findAll(spec, pageable)
+                .map(item -> toSummaryResponse(item, startDatetime, endDatetime));
     }
 
     @Transactional(readOnly = true)
@@ -78,8 +82,8 @@ public class ItemService {
         return toDetailResponse(saved);
     }
 
-    private ItemSummaryResponse toSummaryResponse(Item item) {
-        int available = availabilityService.getAvailableQuantity(item.getId(), null, null);
+    private ItemSummaryResponse toSummaryResponse(Item item, OffsetDateTime startDatetime, OffsetDateTime endDatetime) {
+        int available = availabilityService.getAvailableQuantity(item.getId(), startDatetime, endDatetime);
         List<String> photoUrls = item.getPhotos().stream().map(ItemPhoto::getUrl).toList();
         String thumbnailUrl = item.getPhotos().isEmpty() ? null : item.getPhotos().get(0).getThumbnailUrl();
 
