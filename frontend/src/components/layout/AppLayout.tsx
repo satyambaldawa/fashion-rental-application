@@ -8,6 +8,9 @@ import InventoryPage from '../../pages/inventory/InventoryPage'
 import AddItemPage from '../../pages/inventory/AddItemPage'
 import CustomersPage from '../../pages/customers/CustomersPage'
 import RegisterCustomerPage from '../../pages/customers/RegisterCustomerPage'
+import CheckoutPage from '../../pages/checkout/CheckoutPage'
+import ReceiptsPage from '../../pages/receipts/ReceiptsPage'
+import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
 
 const { Sider, Content, Header } = Layout
 
@@ -39,8 +42,9 @@ export default function AppLayout() {
             <Route path="/inventory/add" element={<AddItemPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/register" element={<RegisterCustomerPage />} />
-            <Route path="/checkout" element={<div>New Rental (coming soon)</div>} />
-            <Route path="/receipts" element={<div>Active Rentals (coming soon)</div>} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/receipts" element={<ReceiptsPage />} />
+            <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
             <Route path="/reports" element={<div>Reports (coming soon)</div>} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
