@@ -16,12 +16,12 @@
 
 ## Acceptance Criteria
 
-- [ ] Active receipts list shows: receipt number, customer name, items rented, end datetime, days until due
-- [ ] Overdue receipts are highlighted in red; overdue duration is shown (e.g., "2 days, 3 hrs overdue")
-- [ ] List is sortable by end datetime (soonest due first by default)
-- [ ] Clicking a receipt opens the full receipt detail
-- [ ] Customer phone number visible so staff can call directly from the list
-- [ ] A dedicated "Overdue" tab/filter shows only overdue receipts
+- [x] Active receipts list shows: receipt number, customer name, items rented, end datetime, days until due
+- [x] Overdue receipts are highlighted in red; overdue duration is shown (e.g., "2 days, 3 hrs overdue")
+- [x] List is sortable by end datetime (soonest due first by default)
+- [x] Clicking a receipt opens the full receipt detail
+- [x] Customer phone number visible so staff can call directly from the list
+- [x] A dedicated "Overdue" tab/filter shows only overdue receipts
 
 ---
 
