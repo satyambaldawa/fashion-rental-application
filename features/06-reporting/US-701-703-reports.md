@@ -18,21 +18,21 @@
 ## Acceptance Criteria
 
 **US-701 — Daily Revenue:**
-- [ ] Shows all receipts created on the selected date (deposits collected + rent paid)
-- [ ] Shows all invoices settled on the selected date (deposits refunded/collected, late fees, damage income)
-- [ ] Clearly separates rent revenue from deposit collection (deposits are liabilities)
-- [ ] Date filter defaults to today
-- [ ] Amounts in ₹, not paise
+- [x] Shows all receipts created on the selected date (deposits collected + rent paid)
+- [x] Shows all invoices settled on the selected date (deposits refunded/collected, late fees, damage income)
+- [x] Clearly separates rent revenue from deposit collection (deposits are liabilities)
+- [x] Date filter defaults to today
+- [x] Amounts in ₹, not paise
 
 **US-702 — Outstanding Deposits:**
-- [ ] Lists all active receipts (status = GIVEN) with deposit held
-- [ ] Shows customer name, phone, items, deposit amount, days since rented
-- [ ] Total outstanding deposit prominently shown
+- [x] Lists all active receipts (status = GIVEN) with deposit held
+- [x] Shows customer name, phone, items, deposit amount, days since rented
+- [x] Total outstanding deposit prominently shown
 
 **US-703 — Overdue Rentals:**
-- [ ] Lists all receipts where end_datetime < now and status = GIVEN
-- [ ] Shows customer phone for easy follow-up
-- [ ] Overdue duration shown in hours/days
+- [x] Lists all receipts where end_datetime < now and status = GIVEN
+- [x] Shows customer phone for easy follow-up
+- [x] Overdue duration shown in hours/days
 
 ---
 

@@ -15,4 +15,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     List<Receipt> findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status status, OffsetDateTime now);
 
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);
+
+    List<Receipt> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
 }
