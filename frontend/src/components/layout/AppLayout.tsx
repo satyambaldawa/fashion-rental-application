@@ -13,6 +13,7 @@ import ReceiptsPage from '../../pages/receipts/ReceiptsPage'
 import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
 import ProcessReturnPage from '../../pages/receipts/ProcessReturnPage'
 import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
+import ReportsPage from '../../pages/reports/ReportsPage'
 
 const { Sider, Content, Header } = Layout
 
@@ -49,7 +50,7 @@ export default function AppLayout() {
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
             <Route path="/receipts/:id/return" element={<ProcessReturnPage />} />
             <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-            <Route path="/reports" element={<div>Reports (coming soon)</div>} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Content>
