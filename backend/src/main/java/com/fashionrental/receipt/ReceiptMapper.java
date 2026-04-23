@@ -47,7 +47,8 @@ public class ReceiptMapper {
                 li.getRateSnapshot(),
                 li.getDepositSnapshot(),
                 li.getLineRent(),
-                li.getLineDeposit()
+                li.getLineDeposit(),
+                item.getPurchaseRate()
         );
     }
 }

@@ -69,7 +69,7 @@ class ReceiptControllerTest {
                 List.of(new ReceiptLineItemResponse(
                         UUID.randomUUID(), UUID.randomUUID(), "Blue Sherwani",
                         "M", "COSTUME", null,
-                        1, 200, 1000, 600, 1000
+                        1, 200, 1000, 600, 1000, null
                 )),
                 OffsetDateTime.now()
         );

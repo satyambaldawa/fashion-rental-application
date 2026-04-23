@@ -11,6 +11,8 @@ import RegisterCustomerPage from '../../pages/customers/RegisterCustomerPage'
 import CheckoutPage from '../../pages/checkout/CheckoutPage'
 import ReceiptsPage from '../../pages/receipts/ReceiptsPage'
 import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
+import ProcessReturnPage from '../../pages/receipts/ProcessReturnPage'
+import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
 
 const { Sider, Content, Header } = Layout
 
@@ -45,6 +47,8 @@ export default function AppLayout() {
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/receipts" element={<ReceiptsPage />} />
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
+            <Route path="/receipts/:id/return" element={<ProcessReturnPage />} />
+            <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="/reports" element={<div>Reports (coming soon)</div>} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

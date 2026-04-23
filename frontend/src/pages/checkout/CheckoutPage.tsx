@@ -49,6 +49,9 @@ export default function CheckoutPage() {
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
+  // Customer selection — declared before the useEffect that references setSelectedCustomer
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
+
   // Auto-select customer returned from registration page
   useEffect(() => {
     const newCustomerId = searchParams.get('newCustomerId')
@@ -82,9 +85,6 @@ export default function CheckoutPage() {
 
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
-
-  // Customer selection
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
 
   // Items query — only runs when cart exists and we're browsing/previewing
   const { data: itemsPage, isLoading: itemsLoading } = useQuery({
