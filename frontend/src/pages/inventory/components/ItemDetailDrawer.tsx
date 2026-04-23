@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Modal, Descriptions, Tag, Space, DatePicker, Button, Typography, Divider, Spin } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -20,6 +20,7 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null)
   const [checkingAvailability, setCheckingAvailability] = useState(false)
   const [photos, setPhotos] = useState<ItemPhoto[]>([])
+  const [syncedItemId, setSyncedItemId] = useState<string | null>(null)
 
   const { data: item, isLoading } = useQuery<ItemDetail>({
     queryKey: ['item', itemId],
@@ -27,9 +28,13 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
     enabled: itemId != null,
   })
 
-  useEffect(() => {
-    if (item) setPhotos(item.photos)
-  }, [item])
+  // Sync local photo state when a new item loads.
+  // Calling setState during render (not in an effect) is the React-documented
+  // pattern for deriving state from a changing prop/query result.
+  if (item && item.id !== syncedItemId) {
+    setSyncedItemId(item.id)
+    setPhotos(item.photos)
+  }
 
   async function handleDateRangeChange(dates: [Dayjs | null, Dayjs | null] | null) {
     if (!dates || !dates[0] || !dates[1] || !itemId) {

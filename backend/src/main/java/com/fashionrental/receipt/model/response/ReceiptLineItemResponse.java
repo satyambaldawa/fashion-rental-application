@@ -13,5 +13,6 @@ public record ReceiptLineItemResponse(
         int rateSnapshot,
         int depositSnapshot,
         int lineRent,
-        int lineDeposit
+        int lineDeposit,
+        Integer itemPurchaseRate  // null if not recorded; used to gate damage-by-percentage
 ) {}

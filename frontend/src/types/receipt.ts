@@ -51,6 +51,7 @@ export interface ReceiptLineItem {
   depositSnapshot: number
   lineRent: number
   lineDeposit: number
+  itemPurchaseRate: number | null  // null = no purchase cost recorded; disables damage-by-percentage
 }
 
 export interface Receipt {

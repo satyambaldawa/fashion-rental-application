@@ -11,6 +11,8 @@ public interface LateFeeRuleRepository extends JpaRepository<LateFeeRule, UUID> 
 
     List<LateFeeRule> findAllByOrderBySortOrderAsc();
 
+    List<LateFeeRule> findByIsActiveTrueOrderBySortOrderAsc();
+
     @Modifying
     @Query("UPDATE LateFeeRule r SET r.isActive = false")
     void deactivateAll();
