@@ -59,8 +59,11 @@ export default function ReceiptDetailPage() {
       render: (_: unknown, row: ReceiptLineItem) => (
         <div>
           <div style={{ fontWeight: 500 }}>{row.itemName}</div>
+          <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+            #{row.itemId.slice(0, 8)}
+          </Typography.Text>
           {row.itemSize && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
               Size: {row.itemSize}
             </Typography.Text>
           )}

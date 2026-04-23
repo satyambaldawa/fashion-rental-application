@@ -9,6 +9,8 @@ import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
+import com.fashionrental.inventory.PackageComponent;
+import com.fashionrental.inventory.PackageComponentRepository;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
@@ -28,6 +30,7 @@ public class CheckoutService {
     private final ItemRepository itemRepository;
     private final CustomerRepository customerRepository;
     private final AvailabilityService availabilityService;
+    private final PackageComponentRepository packageComponentRepository;
     private final ReceiptRepository receiptRepository;
     private final ReceiptNumberService receiptNumberService;
     private final DateTimeUtil dateTimeUtil;
@@ -37,6 +40,7 @@ public class CheckoutService {
             ItemRepository itemRepository,
             CustomerRepository customerRepository,
             AvailabilityService availabilityService,
+            PackageComponentRepository packageComponentRepository,
             ReceiptRepository receiptRepository,
             ReceiptNumberService receiptNumberService,
             DateTimeUtil dateTimeUtil,
@@ -45,6 +49,7 @@ public class CheckoutService {
         this.itemRepository = itemRepository;
         this.customerRepository = customerRepository;
         this.availabilityService = availabilityService;
+        this.packageComponentRepository = packageComponentRepository;
         this.receiptRepository = receiptRepository;
         this.receiptNumberService = receiptNumberService;
         this.dateTimeUtil = dateTimeUtil;
@@ -137,21 +142,22 @@ public class CheckoutService {
                 );
             }
 
-            int lineRent = item.getRate() * rentalDays * lineItemRequest.quantity();
-            int lineDeposit = item.getDeposit() * lineItemRequest.quantity();
+            // Billed line item for the item (or package)
+            ReceiptLineItem billedLine = buildLineItem(
+                    receipt, item, lineItemRequest.quantity(),
+                    item.getRate(), item.getDeposit(), rentalDays);
+            lineItems.add(billedLine);
+            totalRent    += billedLine.getLineRent();
+            totalDeposit += billedLine.getLineDeposit();
 
-            ReceiptLineItem lineItem = new ReceiptLineItem();
-            lineItem.setReceipt(receipt);
-            lineItem.setItem(item);
-            lineItem.setQuantity(lineItemRequest.quantity());
-            lineItem.setRateSnapshot(item.getRate());
-            lineItem.setDepositSnapshot(item.getDeposit());
-            lineItem.setLineRent(lineRent);
-            lineItem.setLineDeposit(lineDeposit);
-
-            lineItems.add(lineItem);
-            totalRent += lineRent;
-            totalDeposit += lineDeposit;
+            // For packages: add zero-rate reservation lines for each component
+            if (item.getItemType() == Item.ItemType.PACKAGE) {
+                List<PackageComponent> components = packageComponentRepository.findByPackageItem_Id(item.getId());
+                for (PackageComponent comp : components) {
+                    int reserveQty = comp.getQuantity() * lineItemRequest.quantity();
+                    lineItems.add(buildLineItem(receipt, comp.getComponentItem(), reserveQty, 0, 0, rentalDays));
+                }
+            }
         }
 
         receipt.setTotalRent(totalRent);
@@ -162,6 +168,18 @@ public class CheckoutService {
 
         Receipt saved = receiptRepository.save(receipt);
         return receiptMapper.toReceiptResponse(saved);
+    }
+
+    private ReceiptLineItem buildLineItem(Receipt receipt, Item item, int qty, int rate, int deposit, int rentalDays) {
+        ReceiptLineItem li = new ReceiptLineItem();
+        li.setReceipt(receipt);
+        li.setItem(item);
+        li.setQuantity(qty);
+        li.setRateSnapshot(rate);
+        li.setDepositSnapshot(deposit);
+        li.setLineRent(rate * rentalDays * qty);
+        li.setLineDeposit(deposit * qty);
+        return li;
     }
 
     private void validateDateRange(OffsetDateTime start, OffsetDateTime end) {

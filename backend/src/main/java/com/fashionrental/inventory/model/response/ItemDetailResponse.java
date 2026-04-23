@@ -21,6 +21,8 @@ public record ItemDetailResponse(
         // Internal purchase tracking — visible to shop owner only, never shown to customers
         Integer purchaseRate,
         String vendorName,
+        // Non-null only when itemType = PACKAGE
+        List<PackageComponentResponse> components,
         List<ItemPhotoResponse> photos,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

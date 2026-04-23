@@ -1,7 +1,9 @@
 package com.fashionrental.inventory;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
+import com.fashionrental.inventory.model.request.PackageComponentRequest;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,9 @@ class ItemServiceTest {
 
     @Mock
     private AvailabilityService availabilityService;
+
+    @Mock
+    private com.fashionrental.inventory.PackageComponentRepository packageComponentRepository;
 
     @InjectMocks
     private ItemService itemService;
@@ -164,12 +169,14 @@ class ItemServiceTest {
         CreateItemRequest request = new CreateItemRequest(
                 "Maharaja Costume",
                 Item.Category.COSTUME,
+                Item.ItemType.INDIVIDUAL,
                 "L",
                 "A royal costume",
                 500,
                 1000,
                 3,
                 "Handle with care",
+                null,
                 null,
                 null
         );
@@ -208,7 +215,7 @@ class ItemServiceTest {
     @Test
     void should_create_item_with_is_active_true_by_default() {
         CreateItemRequest request = new CreateItemRequest(
-                "New Item", Item.Category.ACCESSORIES, null, null, 100, 0, 1, null, null, null
+                "New Item", Item.Category.ACCESSORIES, Item.ItemType.INDIVIDUAL, null, null, 100, 0, 1, null, null, null, null
         );
         when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
             Item item = inv.getArgument(0);
@@ -231,7 +238,7 @@ class ItemServiceTest {
     @Test
     void should_create_item_with_zero_deposit_allowed() {
         CreateItemRequest request = new CreateItemRequest(
-                "Simple Pagdi", Item.Category.PAGDI, null, null, 50, 0, 2, null, null, null
+                "Simple Pagdi", Item.Category.PAGDI, Item.ItemType.INDIVIDUAL, null, null, 50, 0, 2, null, null, null, null
         );
         when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
             Item item = inv.getArgument(0);
@@ -258,6 +265,81 @@ class ItemServiceTest {
 
         assertThatThrownBy(() -> itemService.getItem(itemId))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── Package creation ──────────────────────────────────────────────────────
+
+    @Test
+    void should_throw_validation_when_package_has_no_components() {
+        CreateItemRequest request = new CreateItemRequest(
+                "Empty Package", Item.Category.COSTUME, Item.ItemType.PACKAGE,
+                null, null, 500, 2000, 2, null, null, null,
+                null
+        );
+
+        assertThatThrownBy(() -> itemService.createItem(request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("at least one component");
+    }
+
+    @Test
+    void should_throw_validation_when_package_component_is_itself_a_package() {
+        UUID componentId = UUID.randomUUID();
+        CreateItemRequest request = new CreateItemRequest(
+                "Nested Package", Item.Category.COSTUME, Item.ItemType.PACKAGE,
+                null, null, 500, 2000, 1, null, null, null,
+                List.of(new PackageComponentRequest(componentId, 1))
+        );
+
+        Item anotherPackage = buildActiveItem("Other Package", Item.Category.COSTUME, 300, 1000, 2);
+        anotherPackage.setItemType(Item.ItemType.PACKAGE);
+
+        when(itemRepository.findById(componentId)).thenReturn(Optional.of(anotherPackage));
+
+        assertThatThrownBy(() -> itemService.createItem(request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("INDIVIDUAL items can be package components");
+    }
+
+    @Test
+    void should_throw_not_found_when_package_component_does_not_exist() {
+        UUID missingId = UUID.randomUUID();
+        CreateItemRequest request = new CreateItemRequest(
+                "Set", Item.Category.COSTUME, Item.ItemType.PACKAGE,
+                null, null, 500, 2000, 1, null, null, null,
+                List.of(new PackageComponentRequest(missingId, 1))
+        );
+
+        when(itemRepository.findById(missingId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> itemService.createItem(request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Component item not found");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void should_include_component_names_in_package_summary() {
+        Item componentItem = buildActiveItem("Pagdi", Item.Category.PAGDI, 50, 200, 5);
+
+        PackageComponent pc = new PackageComponent();
+        pc.setComponentItem(componentItem);
+        pc.setQuantity(2);
+
+        Item packageItem = buildActiveItem("Maharaja Set", Item.Category.COSTUME, 500, 2000, 3);
+        packageItem.setItemType(Item.ItemType.PACKAGE);
+        packageItem.getPackageComponents().add(pc);
+        pc.setPackageItem(packageItem);
+
+        Page<Item> page = new PageImpl<>(List.of(packageItem), PageRequest.of(0, 20), 1);
+        when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(3);
+
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+
+        ItemSummaryResponse summary = result.getContent().get(0);
+        assertThat(summary.itemType()).isEqualTo(Item.ItemType.PACKAGE);
+        assertThat(summary.componentNames()).containsExactly("Pagdi ×2");
     }
 
     @Test

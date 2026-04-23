@@ -56,10 +56,15 @@ export default function InvoiceDetailPage() {
       render: (_: unknown, row: InvoiceLineItem) => (
         <div>
           <div style={{ fontWeight: 500 }}>{row.itemName}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
-              .filter(Boolean).join(' · ')}
+          <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+            #{row.itemId.slice(0, 8)}
           </Typography.Text>
+          {(row.itemSize || row.itemCategory) && (
+            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+              {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
+                .filter(Boolean).join(' · ')}
+            </Typography.Text>
+          )}
           {row.isDamaged && (
             <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>Damaged</Tag>
           )}

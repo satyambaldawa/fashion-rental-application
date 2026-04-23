@@ -100,8 +100,12 @@ export default function ItemCard({ item, onClick }: Props) {
         title={item.name}
         description={
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#999' }}>#{item.id.slice(0, 8)}</div>
             <Space>
               <Tag color="blue">{item.category}</Tag>
+              {item.itemType === 'PACKAGE'
+                ? <Tag color="purple">Combo</Tag>
+                : <Tag>Individual</Tag>}
               {item.size && <Tag>{item.size}</Tag>}
             </Space>
             <div>{formatCurrency(item.rate)}/day</div>

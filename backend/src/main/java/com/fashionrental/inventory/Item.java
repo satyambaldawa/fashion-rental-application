@@ -70,6 +70,9 @@ public class Item {
     @OrderBy("sortOrder ASC")
     private List<ItemPhoto> photos = new ArrayList<>();
 
+    @OneToMany(mappedBy = "packageItem", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PackageComponent> packageComponents = new ArrayList<>();
+
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
@@ -109,4 +112,5 @@ public class Item {
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public List<ItemPhoto> getPhotos() { return photos; }
+    public List<PackageComponent> getPackageComponents() { return packageComponents; }
 }

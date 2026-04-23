@@ -15,9 +15,12 @@ import java.util.stream.Collectors;
 public class AvailabilityService {
 
     private final ItemRepository itemRepository;
+    private final PackageComponentRepository packageComponentRepository;
 
-    public AvailabilityService(ItemRepository itemRepository) {
+    public AvailabilityService(ItemRepository itemRepository,
+                               PackageComponentRepository packageComponentRepository) {
         this.itemRepository = itemRepository;
+        this.packageComponentRepository = packageComponentRepository;
     }
 
     public int getAvailableQuantity(UUID itemId, OffsetDateTime start, OffsetDateTime end) {
@@ -28,14 +31,24 @@ public class AvailabilityService {
             return 0;
         }
 
-        int booked;
-        if (start == null || end == null) {
-            booked = itemRepository.countCurrentlyBookedUnits(itemId);
-        } else {
-            booked = itemRepository.countBookedUnits(itemId, start, end);
+        int booked = (start == null || end == null)
+                ? itemRepository.countCurrentlyBookedUnits(itemId)
+                : itemRepository.countBookedUnits(itemId, start, end);
+
+        int available = Math.max(0, item.getQuantity() - booked);
+
+        // For packages: further constrain by each component's availability
+        if (item.getItemType() == Item.ItemType.PACKAGE) {
+            List<PackageComponent> components = packageComponentRepository.findByPackageItem_Id(itemId);
+            for (PackageComponent comp : components) {
+                int compAvail = getAvailableQuantity(comp.getComponentItem().getId(), start, end);
+                // How many complete sets can this component cover?
+                int setsFromComp = compAvail / comp.getQuantity();
+                available = Math.min(available, setsFromComp);
+            }
         }
 
-        return Math.max(0, item.getQuantity() - booked);
+        return available;
     }
 
     public Map<UUID, Integer> getAvailableQuantities(List<UUID> itemIds, OffsetDateTime start, OffsetDateTime end) {

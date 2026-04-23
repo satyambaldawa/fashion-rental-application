@@ -9,12 +9,15 @@ public record ItemSummaryResponse(
         UUID id,
         String name,
         Item.Category category,
+        Item.ItemType itemType,
         String size,
+        String description,
         int rate,
         int deposit,
         int totalQuantity,
         int availableQuantity,
         boolean isAvailable,
         String thumbnailUrl,
-        List<String> photoUrls
+        List<String> photoUrls,
+        List<String> componentNames   // null for INDIVIDUAL, list of "ItemName ×qty" strings for PACKAGE
 ) {}

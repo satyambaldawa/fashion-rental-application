@@ -53,8 +53,10 @@ class ItemControllerTest {
 
     private ItemSummaryResponse summaryResponse(UUID id, String name) {
         return new ItemSummaryResponse(
-                id, name, Item.Category.COSTUME, "M",
-                200, 1000, 3, 2, true, null, List.of()
+                id, name, Item.Category.COSTUME, Item.ItemType.INDIVIDUAL, "M",
+                null,   // description
+                200, 1000, 3, 2, true, null, List.of(),
+                null    // componentNames
         );
     }
 
@@ -62,7 +64,7 @@ class ItemControllerTest {
         return new ItemDetailResponse(
                 id, name, Item.Category.COSTUME, Item.ItemType.INDIVIDUAL,
                 "M", "A fine costume", 200, 1000, 3, true, null,
-                null, null,
+                null, null, null,
                 List.of(), OffsetDateTime.now(), OffsetDateTime.now()
         );
     }
@@ -155,8 +157,8 @@ class ItemControllerTest {
     void should_return_201_when_item_created_with_valid_request() throws Exception {
         UUID id = UUID.randomUUID();
         CreateItemRequest request = new CreateItemRequest(
-                "Blue Sherwani", Item.Category.COSTUME, "M",
-                "Traditional sherwani", 200, 1000, 3, null, null, null
+                "Blue Sherwani", Item.Category.COSTUME, Item.ItemType.INDIVIDUAL, "M",
+                "Traditional sherwani", 200, 1000, 3, null, null, null, null
         );
         when(itemService.createItem(any(CreateItemRequest.class))).thenReturn(detailResponse(id, "Blue Sherwani"));
 
@@ -172,7 +174,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_name_is_blank() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "", Item.Category.COSTUME, null, null, 200, 1000, 1, null, null, null
+                "", Item.Category.COSTUME, Item.ItemType.INDIVIDUAL, null, null, 200, 1000, 1, null, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())
@@ -186,7 +188,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_rate_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "Test Item", Item.Category.DRESS, null, null, 0, 0, 1, null, null, null
+                "Test Item", Item.Category.DRESS, Item.ItemType.INDIVIDUAL, null, null, 0, 0, 1, null, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())
@@ -200,7 +202,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_400_when_quantity_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
-                "Test Item", Item.Category.DRESS, null, null, 100, 0, 0, null, null, null
+                "Test Item", Item.Category.DRESS, Item.ItemType.INDIVIDUAL, null, null, 100, 0, 0, null, null, null, null
         );
 
         mockMvc.perform(post("/api/items").with(csrf())

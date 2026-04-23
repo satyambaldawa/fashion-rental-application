@@ -23,6 +23,9 @@ class AvailabilityServiceTest {
     @Mock
     private ItemRepository itemRepository;
 
+    @Mock
+    private PackageComponentRepository packageComponentRepository;
+
     @InjectMocks
     private AvailabilityService availabilityService;
 
@@ -30,6 +33,21 @@ class AvailabilityServiceTest {
         Item item = new Item();
         item.setQuantity(quantity);
         item.setIsActive(true);
+        return item;
+    }
+
+    private Item activeItemWithId(UUID id, int quantity, Item.ItemType type) {
+        Item item = new Item();
+        item.setQuantity(quantity);
+        item.setIsActive(true);
+        item.setItemType(type);
+        try {
+            var f = Item.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(item, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return item;
     }
 
@@ -196,5 +214,118 @@ class AvailabilityServiceTest {
         int available = availabilityService.getAvailableQuantity(itemId, null, null);
 
         assertThat(available).isEqualTo(5);
+    }
+
+    // ── Package availability ──────────────────────────────────────────────────
+
+    @Test
+    void should_constrain_package_availability_to_component_stock() {
+        // Package has 3 sets in stock; component has only 2 units → max 2 sets
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item packageItem = activeItemWithId(packageId, 3, Item.ItemType.PACKAGE);
+        Item componentItem = activeItemWithId(componentId, 2, Item.ItemType.INDIVIDUAL);
+
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(1);
+
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(itemRepository.countBookedUnits(packageId, start, end)).thenReturn(0);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(comp));
+        when(itemRepository.findById(componentId)).thenReturn(Optional.of(componentItem));
+        when(itemRepository.countBookedUnits(componentId, start, end)).thenReturn(0);
+
+        int available = availabilityService.getAvailableQuantity(packageId, start, end);
+
+        assertThat(available).isEqualTo(2);
+    }
+
+    @Test
+    void should_divide_component_stock_by_quantity_per_set() {
+        // Package stock=5; component has 4 units but needs 2 per set → floor(4/2)=2 sets
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item packageItem = activeItemWithId(packageId, 5, Item.ItemType.PACKAGE);
+        Item componentItem = activeItemWithId(componentId, 4, Item.ItemType.INDIVIDUAL);
+
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(2); // 2 units of this component per set
+
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(itemRepository.countBookedUnits(packageId, start, end)).thenReturn(0);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(comp));
+        when(itemRepository.findById(componentId)).thenReturn(Optional.of(componentItem));
+        when(itemRepository.countBookedUnits(componentId, start, end)).thenReturn(0);
+
+        int available = availabilityService.getAvailableQuantity(packageId, start, end);
+
+        assertThat(available).isEqualTo(2);
+    }
+
+    @Test
+    void should_return_zero_package_availability_when_component_fully_booked() {
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item packageItem = activeItemWithId(packageId, 3, Item.ItemType.PACKAGE);
+        Item componentItem = activeItemWithId(componentId, 2, Item.ItemType.INDIVIDUAL);
+
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(1);
+
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(itemRepository.countBookedUnits(packageId, start, end)).thenReturn(0);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(comp));
+        when(itemRepository.findById(componentId)).thenReturn(Optional.of(componentItem));
+        when(itemRepository.countBookedUnits(componentId, start, end)).thenReturn(2); // all booked
+
+        int available = availabilityService.getAvailableQuantity(packageId, start, end);
+
+        assertThat(available).isZero();
+    }
+
+    @Test
+    void should_use_most_constrained_component_when_package_has_multiple() {
+        // 2 components: comp-A has 4 available, comp-B has 1 available → package limited to 1
+        UUID packageId = UUID.randomUUID();
+        UUID compAId = UUID.randomUUID();
+        UUID compBId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item packageItem = activeItemWithId(packageId, 10, Item.ItemType.PACKAGE);
+        Item compA = activeItemWithId(compAId, 4, Item.ItemType.INDIVIDUAL);
+        Item compB = activeItemWithId(compBId, 1, Item.ItemType.INDIVIDUAL);
+
+        PackageComponent pcA = new PackageComponent();
+        pcA.setComponentItem(compA);
+        pcA.setQuantity(1);
+
+        PackageComponent pcB = new PackageComponent();
+        pcB.setComponentItem(compB);
+        pcB.setQuantity(1);
+
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(itemRepository.countBookedUnits(packageId, start, end)).thenReturn(0);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(pcA, pcB));
+        when(itemRepository.findById(compAId)).thenReturn(Optional.of(compA));
+        when(itemRepository.countBookedUnits(compAId, start, end)).thenReturn(0); // 4 available
+        when(itemRepository.findById(compBId)).thenReturn(Optional.of(compB));
+        when(itemRepository.countBookedUnits(compBId, start, end)).thenReturn(0); // 1 available
+
+        int available = availabilityService.getAvailableQuantity(packageId, start, end);
+
+        assertThat(available).isEqualTo(1); // bottlenecked by comp-B
     }
 }

@@ -39,6 +39,7 @@ import type { CustomerSummary } from '../../types/customer'
 import type { ItemSummary } from '../../types/inventory'
 import type { CartItem, CheckoutRequest } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import ItemBrowseModal from './ItemBrowseModal'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
@@ -82,6 +83,7 @@ export default function CheckoutPage() {
   // Browse screen
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<string | undefined>()
+  const [packageModal, setPackageModal] = useState<ItemSummary | null>(null)
 
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
@@ -97,6 +99,18 @@ export default function CheckoutPage() {
       endDatetime: cart!.endDatetime,
     }),
     enabled: !!cart,
+  })
+
+  // Fresh item data for the preview screen — no search/category filter so all cart items are included.
+  // Needed because localStorage cart items may be missing category/size/componentNames (stale data).
+  const { data: previewItemsPage } = useQuery({
+    queryKey: ['items-for-preview', cart?.startDatetime, cart?.endDatetime],
+    queryFn: () => itemsApi.list({
+      size: 200,
+      startDatetime: cart!.startDatetime,
+      endDatetime: cart!.endDatetime,
+    }),
+    enabled: !!cart && screen === 'preview',
   })
 
   // Only show items that are actually available for the cart's dates
@@ -142,6 +156,10 @@ export default function CheckoutPage() {
     const cartItem: CartItem = {
       itemId: item.id,
       itemName: item.name,
+      itemType: item.itemType,
+      category: item.category,
+      size: item.size,
+      componentNames: item.componentNames ?? null,
       thumbnailUrl: item.thumbnailUrl,
       rate: item.rate,
       deposit: item.deposit,
@@ -262,6 +280,8 @@ export default function CheckoutPage() {
             return (
               <Col key={item.id} xs={24} sm={12} lg={8}>
                 <Card
+                  onClick={() => setPackageModal(item)}
+                  style={{ cursor: 'pointer' }}
                   cover={
                     item.thumbnailUrl ? (
                       <img
@@ -277,7 +297,11 @@ export default function CheckoutPage() {
                   }
                   actions={[
                     inCart ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }} key="qty">
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}
+                        key="qty"
+                        onClick={e => e.stopPropagation()}
+                      >
                         <Button
                           size="small"
                           icon={<MinusOutlined />}
@@ -298,7 +322,7 @@ export default function CheckoutPage() {
                         type="primary"
                         ghost
                         icon={<PlusOutlined />}
-                        onClick={() => handleAddToCart(item)}
+                        onClick={(e) => { e.stopPropagation(); handleAddToCart(item) }}
                         key="add"
                       >
                         Add to Cart
@@ -310,14 +334,26 @@ export default function CheckoutPage() {
                     title={item.name}
                     description={
                       <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                          #{item.id.slice(0, 8)}
+                        </Typography.Text>
                         <Space>
                           <Tag color="blue">{item.category}</Tag>
+                          {item.itemType === 'PACKAGE'
+                            ? <Tag color="purple">Combo</Tag>
+                            : <Tag>Individual</Tag>}
                           {item.size && <Tag>{item.size}</Tag>}
                         </Space>
                         <div>{formatCurrency(item.rate)}/day</div>
                         <div style={{ color: '#666' }}>Deposit: {formatCurrency(item.deposit)}</div>
                         <Tag color="success">{item.availableQuantity} available</Tag>
                         {inCart && <Tag color="orange">In cart ×{inCart.quantity}</Tag>}
+                        {item.itemType === 'PACKAGE' && item.componentNames && item.componentNames.length > 0 && (
+                          <div style={{ marginTop: 4, fontSize: 12, color: '#722ed1' }}>
+                            <span style={{ fontWeight: 500 }}>Includes: </span>
+                            {item.componentNames.join(', ')}
+                          </div>
+                        )}
                       </Space>
                     }
                   />
@@ -352,14 +388,61 @@ export default function CheckoutPage() {
             </Button>
           </Space>
         </div>
+
+        <ItemBrowseModal
+          item={packageModal}
+          onClose={() => setPackageModal(null)}
+          onAddToCart={handleAddToCart}
+          onRemoveFromCart={removeItem}
+          onUpdateQty={updateQuantity}
+          inCartQty={packageModal ? (cart!.items.find(c => c.itemId === packageModal.id)?.quantity ?? 0) : 0}
+          maxQty={packageModal?.availableQuantity ?? 1}
+        />
       </div>
     )
   }
 
   // ---- PREVIEW ----
   if (screen === 'preview') {
+    // Build a lookup map from fresh API data so stale localStorage cart entries get enriched
+    const freshItemMap = new Map((previewItemsPage?.content ?? []).map(i => [i.id, i]))
+
     const previewColumns = [
-      { title: 'Item', dataIndex: 'itemName', key: 'name' },
+      {
+        title: 'Item',
+        key: 'name',
+        render: (_: unknown, r: CartItem) => {
+          const fresh = freshItemMap.get(r.itemId)
+          const category = fresh?.category ?? r.category
+          const size = fresh?.size ?? r.size ?? null
+          const componentNames = fresh?.componentNames ?? r.componentNames ?? null
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                <span style={{ fontWeight: 500 }}>{r.itemName}</span>
+                {r.itemType === 'PACKAGE'
+                  ? <Tag color="purple" style={{ margin: 0 }}>Combo</Tag>
+                  : <Tag style={{ margin: 0 }}>Individual</Tag>}
+                {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
+                {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
+              </div>
+              <div style={{ marginBottom: componentNames ? 4 : 0 }}>
+                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#999' }}>#{r.itemId.slice(0, 8)}</span>
+              </div>
+              {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
+                <div style={{ fontSize: 12, paddingLeft: 2 }}>
+                  <div style={{ color: '#722ed1', fontWeight: 500, marginBottom: 3 }}>Includes:</div>
+                  {componentNames.map((name, i) => (
+                    <div key={i} style={{ color: '#444', paddingLeft: 8, lineHeight: '20px' }}>
+                      · {name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        },
+      },
       {
         title: 'Qty',
         dataIndex: 'quantity',

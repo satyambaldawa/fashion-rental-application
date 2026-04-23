@@ -92,6 +92,10 @@ export interface ReceiptSummary {
 export interface CartItem {
   itemId: string
   itemName: string
+  itemType: 'INDIVIDUAL' | 'PACKAGE'
+  category: string
+  size: string | null
+  componentNames: string[] | null   // null for INDIVIDUAL; ["Name ×qty", ...] for PACKAGE
   thumbnailUrl: string | null
   rate: number
   deposit: number

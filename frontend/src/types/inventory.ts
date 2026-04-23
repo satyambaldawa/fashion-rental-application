@@ -12,7 +12,9 @@ export interface ItemSummary {
   id: string
   name: string
   category: ItemCategory
+  itemType: ItemType
   size: string | null
+  description: string | null
   rate: number
   deposit: number
   totalQuantity: number
@@ -20,6 +22,7 @@ export interface ItemSummary {
   isAvailable: boolean
   thumbnailUrl: string | null
   photoUrls: string[]
+  componentNames: string[] | null   // null for INDIVIDUAL, ["Name ×qty"] for PACKAGE
 }
 
 export interface ItemDetail extends ItemSummary {
@@ -31,14 +34,32 @@ export interface ItemDetail extends ItemSummary {
   vendorName: string | null
   quantity: number
   isActive: boolean
+  // Non-null only when itemType = 'PACKAGE'
+  components: PackageComponent[] | null
   photos: ItemPhoto[]
   createdAt: string
   updatedAt: string
 }
 
+export interface PackageComponentRequest {
+  componentItemId: string
+  quantity: number
+}
+
+export interface PackageComponent {
+  componentItemId: string
+  componentItemName: string
+  componentItemCategory: ItemCategory
+  componentItemSize: string | null
+  componentItemDescription: string | null
+  componentItemPhotos: ItemPhoto[]
+  quantity: number
+}
+
 export interface CreateItemRequest {
   name: string
   category: ItemCategory
+  itemType: ItemType
   size?: string
   description?: string
   rate: number
@@ -48,6 +69,8 @@ export interface CreateItemRequest {
   // Internal purchase tracking — not shown to customers
   purchaseRate?: number
   vendorName?: string
+  // Required when itemType = 'PACKAGE'
+  components?: PackageComponentRequest[]
 }
 
 export interface AvailabilityResult {

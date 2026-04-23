@@ -9,6 +9,8 @@ import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
+import com.fashionrental.inventory.PackageComponent;
+import com.fashionrental.inventory.PackageComponentRepository;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
@@ -39,6 +41,7 @@ class CheckoutServiceTest {
     @Mock ItemRepository itemRepository;
     @Mock CustomerRepository customerRepository;
     @Mock AvailabilityService availabilityService;
+    @Mock PackageComponentRepository packageComponentRepository;
     @Mock ReceiptRepository receiptRepository;
     @Mock ReceiptNumberService receiptNumberService;
     @Mock DateTimeUtil dateTimeUtil;
@@ -233,6 +236,142 @@ class CheckoutServiceTest {
         ReceiptResponse response = checkoutService.createReceipt(request);
 
         assertThat(response.rentalDays()).isGreaterThanOrEqualTo(1);
+    }
+
+    // ─── Package component reservation ───────────────────────────────────────
+
+    @Test
+    void should_add_zero_rate_reservation_lines_for_package_components_on_checkout() {
+        UUID customerId = UUID.randomUUID();
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+
+        Customer customer = makeCustomer(customerId, "Ramesh", "9876543210");
+
+        Item componentItem = new Item();
+        componentItem.setName("Pagdi");
+        componentItem.setCategory(Item.Category.PAGDI);
+        componentItem.setRate(100);
+        componentItem.setDeposit(500);
+        componentItem.setQuantity(5);
+        componentItem.setIsActive(true);
+        injectId(componentItem, componentId);
+
+        Item packageItem = new Item();
+        packageItem.setName("Maharaja Set");
+        packageItem.setCategory(Item.Category.COSTUME);
+        packageItem.setItemType(Item.ItemType.PACKAGE);
+        packageItem.setRate(500);
+        packageItem.setDeposit(2000);
+        packageItem.setQuantity(3);
+        packageItem.setIsActive(true);
+        injectId(packageItem, packageId);
+
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(packageId, 1)),
+                null
+        );
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(availabilityService.getAvailableQuantity(packageId, START, END)).thenReturn(3);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(comp));
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260422-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        // 1 billed line for the package + 1 zero-rate reservation for the component
+        assertThat(saved.getLineItems()).hasSize(2);
+
+        ReceiptLineItem billedLine = saved.getLineItems().get(0);
+        assertThat(billedLine.getRateSnapshot()).isEqualTo(500);
+        assertThat(billedLine.getDepositSnapshot()).isEqualTo(2000);
+        assertThat(billedLine.getLineRent()).isEqualTo(500 * 3 * 1);
+
+        ReceiptLineItem reservationLine = saved.getLineItems().get(1);
+        assertThat(reservationLine.getItem().getName()).isEqualTo("Pagdi");
+        assertThat(reservationLine.getRateSnapshot()).isZero();
+        assertThat(reservationLine.getDepositSnapshot()).isZero();
+        assertThat(reservationLine.getLineRent()).isZero();
+        assertThat(reservationLine.getLineDeposit()).isZero();
+        assertThat(reservationLine.getQuantity()).isEqualTo(1); // 1 per set × 1 package
+    }
+
+    @Test
+    void should_scale_component_reservation_quantity_by_package_quantity() {
+        // Renting 2 packages, component ×2 per set → reserve 4 component units
+        UUID customerId = UUID.randomUUID();
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+
+        Customer customer = makeCustomer(customerId, "Suresh", "9000000099");
+
+        Item componentItem = new Item();
+        componentItem.setName("Belt");
+        componentItem.setCategory(Item.Category.ACCESSORIES);
+        componentItem.setRate(50);
+        componentItem.setDeposit(200);
+        componentItem.setQuantity(10);
+        componentItem.setIsActive(true);
+        injectId(componentItem, componentId);
+
+        Item packageItem = new Item();
+        packageItem.setName("Warrior Set");
+        packageItem.setCategory(Item.Category.COSTUME);
+        packageItem.setItemType(Item.ItemType.PACKAGE);
+        packageItem.setRate(400);
+        packageItem.setDeposit(1500);
+        packageItem.setQuantity(5);
+        packageItem.setIsActive(true);
+        injectId(packageItem, packageId);
+
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(2); // 2 belts per set
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(packageId, 2)), // renting 2 packages
+                null
+        );
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(packageId)).thenReturn(Optional.of(packageItem));
+        when(availabilityService.getAvailableQuantity(packageId, START, END)).thenReturn(5);
+        when(packageComponentRepository.findByPackageItem_Id(packageId)).thenReturn(List.of(comp));
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-20260422-002");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        ReceiptLineItem reservationLine = saved.getLineItems().get(1);
+        assertThat(reservationLine.getQuantity()).isEqualTo(4); // 2 per set × 2 packages
+    }
+
+    private void injectId(Item item, UUID id) {
+        try {
+            var field = Item.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(item, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

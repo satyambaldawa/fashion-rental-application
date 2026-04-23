@@ -90,11 +90,14 @@ export default function ProcessReturnPage() {
   function buildRequest(): ProcessReturnRequest {
     const lineItems: ReturnLineItemRequest[] = receipt!.lineItems.map(li => {
       const state = lineStates[li.id] ?? { isDamaged: false, damageMode: 'percentage' }
+      // When no purchase rate the percentage radio is hidden and damageMode stays 'percentage',
+      // so we must fall back to adHoc regardless of damageMode in that case.
+      const useAdHoc = state.damageMode === 'adhoc' || li.itemPurchaseRate == null
       return {
         receiptLineItemId: li.id,
         isDamaged: state.isDamaged,
-        damagePercentage: state.isDamaged && state.damageMode === 'percentage' ? state.damagePercentage : undefined,
-        adHocDamageAmount: state.isDamaged && state.damageMode === 'adhoc' ? state.adHocDamageAmount : undefined,
+        damagePercentage: state.isDamaged && !useAdHoc ? state.damagePercentage : undefined,
+        adHocDamageAmount: state.isDamaged && useAdHoc ? state.adHocDamageAmount : undefined,
       }
     })
     return {
@@ -174,6 +177,11 @@ export default function ProcessReturnPage() {
                 <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 13 }}>
                   ×{li.quantity} · {formatCurrency(li.rateSnapshot)}/day
                 </Typography.Text>
+                <div>
+                  <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                    #{li.itemId.slice(0, 8)}
+                  </Typography.Text>
+                </div>
               </div>
               <Checkbox
                 checked={state.isDamaged}

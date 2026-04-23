@@ -88,8 +88,8 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
             </Descriptions.Item>
             <Descriptions.Item label="Category">
               <Tag color="blue">{item.category}</Tag>
+              {item.itemType === 'PACKAGE' && <Tag color="purple" style={{ marginLeft: 4 }}>Package</Tag>}
             </Descriptions.Item>
-            <Descriptions.Item label="Type">{item.itemType}</Descriptions.Item>
             {item.size && <Descriptions.Item label="Size">{item.size}</Descriptions.Item>}
             <Descriptions.Item label="Daily Rate">{formatCurrency(item.rate)}</Descriptions.Item>
             <Descriptions.Item label="Deposit">{formatCurrency(item.deposit)}</Descriptions.Item>
@@ -101,6 +101,27 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
               <Descriptions.Item label="Notes">{item.notes}</Descriptions.Item>
             )}
           </Descriptions>
+
+          {/* Package components */}
+          {item.itemType === 'PACKAGE' && item.components && item.components.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                Includes
+              </Typography.Text>
+              {item.components.map(c => (
+                <div
+                  key={c.componentItemId}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0' }}
+                >
+                  <Typography.Text>{c.componentItemName}</Typography.Text>
+                  <Space>
+                    <Tag>{c.componentItemCategory}</Tag>
+                    <Typography.Text type="secondary">×{c.quantity}</Typography.Text>
+                  </Space>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Divider />
 
