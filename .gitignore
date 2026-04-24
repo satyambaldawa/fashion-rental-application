@@ -42,8 +42,14 @@ frontend/*.ipr
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.local
 .env*.js
 *.env
+
+# Local backend env overrides (may contain real secrets)
+backend/.env.production.local
+frontend/.env.production.local
 
 # Spring Boot local config overrides (may contain real secrets)
 backend/src/main/resources/application-local.yml
