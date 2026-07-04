@@ -11,6 +11,8 @@ spring:
     show-sql: true
 
 app:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
     secret: ${APP_JWT_SECRET:dev-secret-key-min-32-chars-long-for-testing}
   auth:
