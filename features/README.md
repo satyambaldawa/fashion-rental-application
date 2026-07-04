@@ -36,13 +36,14 @@ Each file contains everything a developer needs to implement the feature end-to-
 | `US-105-edit-item.md` | Edit item details | P1 | ⏳ |
 | `US-106-adjust-unit-count.md` | Increase/decrease unit count | P1 | ⏳ |
 | `US-107-item-photo-upload.md` | Upload photos to Cloudflare R2 | P0 | ✅ |
+| `US-108-109-package-items.md` | Combo/package items with components | P0 | ✅ |
 
 ### 02 — Customer Management
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-201-register-customer.md` | Register new customer | P0 | ⏳ |
-| `US-202-search-customer.md` | Search customer by phone or name | P0 | ⏳ |
+| `US-201-register-customer.md` | Register new customer | P0 | ✅ |
+| `US-202-search-customer.md` | Search customer by phone or name | P0 | ✅ |
 | `US-203-customer-rental-history.md` | View rental history | P1 | ⏳ |
 | `US-204-edit-customer.md` | Edit customer contact details | P1 | ⏳ |
 
@@ -50,15 +51,15 @@ Each file contains everything a developer needs to implement the feature end-to-
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-301-303-create-receipt.md` | Full checkout flow: select customer, items, dates; calculate billing; create receipt | P0 | ⏳ |
-| `US-304-305-view-receipts.md` | View active and overdue receipts | P0 | ⏳ |
-| `US-502-availability-guard.md` | Prevent double-booking (embedded in checkout) | P0 | ⏳ |
+| `US-301-303-create-receipt.md` | Full checkout flow: select customer, items, dates; calculate billing; create receipt | P0 | ✅ |
+| `US-304-305-view-receipts.md` | View active and overdue receipts | P0 | ✅ |
+| `US-502-availability-guard.md` | Prevent double-booking (embedded in checkout) | P0 | ✅ |
 
 ### 04 — Return & Invoice
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-401-404-process-return.md` | Process return: late fees + damage + deposit refund + invoice generation | P0 | ⏳ |
+| `US-401-404-process-return.md` | Process return: late fees + damage + deposit refund + invoice generation | P0 | ✅ |
 
 ### 05 — Configuration
 
@@ -70,7 +71,7 @@ Each file contains everything a developer needs to implement the feature end-to-
 
 | File | Story | Priority | Status |
 |------|-------|----------|--------|
-| `US-701-703-reports.md` | Daily revenue, outstanding deposits, overdue rentals | P0 | ⏳ |
+| `US-701-703-reports.md` | Daily revenue, outstanding deposits, overdue rentals | P0 | ✅ |
 
 ---
 
