@@ -1,0 +1,107 @@
+name: CD — Deploy Backend
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/fashion-rental-backend
+
+jobs:
+  verify-ci:
+    name: Verify CI passed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check latest CI status on main
+        run: |
+          STATUS=$(gh run list --repo ${{ github.repository }} --branch main --workflow ci.yml --limit 1 --json conclusion -q '.[0].conclusion')
+          if [ "$STATUS" != "success" ]; then
+            echo "❌ CI has not passed on main (status: $STATUS). Aborting deploy."
+            exit 1
+          fi
+          echo "✅ CI passed on main. Proceeding with deploy."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-backend:
+    name: Deploy backend → GCP
+    runs-on: ubuntu-latest
+    needs: [verify-ci]
+    environment: Prod
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy to GCP VM
+        run: |
+          gcloud compute ssh fashion-rental-backend \
+            --zone=us-central1-a \
+            --command="
+              docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+              # Stop existing container (if running)
+              docker stop fashion-rental-backend 2>/dev/null || true
+              docker rm fashion-rental-backend 2>/dev/null || true
+
+              # Run new container with health check
+              docker run -d \
+                --name fashion-rental-backend \
+                --restart unless-stopped \
+                -p 80:8080 \
+                --health-cmd='wget -qO- http://localhost:8080/actuator/health || exit 1' \
+                --health-interval=30s \
+                --health-timeout=5s \
+                --health-start-period=60s \
+                --health-retries=3 \
+                --log-opt max-size=50m \
+                --log-opt max-file=3 \
+                -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
+                -e DATABASE_USERNAME='${{ secrets.DATABASE_USERNAME }}' \
+                -e DATABASE_PASSWORD='${{ secrets.DATABASE_PASSWORD }}' \
+                -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+                -e APP_USERNAME='${{ secrets.APP_USERNAME }}' \
+                -e APP_PASSWORD='${{ secrets.APP_PASSWORD }}' \
+                -e ALLOWED_ORIGINS='${{ secrets.ALLOWED_ORIGINS }}' \
+                -e R2_ACCOUNT_ID='${{ secrets.R2_ACCOUNT_ID }}' \
+                -e R2_ACCESS_KEY_ID='${{ secrets.R2_ACCESS_KEY_ID }}' \
+                -e R2_SECRET_ACCESS_KEY='${{ secrets.R2_SECRET_ACCESS_KEY }}' \
+                -e R2_BUCKET_NAME='${{ secrets.R2_BUCKET_NAME }}' \
+                -e R2_PUBLIC_URL_BASE='${{ secrets.R2_PUBLIC_URL_BASE }}' \
+                -e SPRING_PROFILES_ACTIVE=prod \
+                ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+              # Wait and verify health
+              sleep 30
+              docker ps | grep fashion-rental-backend
+              docker logs --tail 20 fashion-rental-backend
+
+              # Prune images older than 7 days (keep recent for rollback)
+              docker image prune -af --filter 'until=168h'
+            "
