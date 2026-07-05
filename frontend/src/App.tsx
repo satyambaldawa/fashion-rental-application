@@ -17,7 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={{ token: { colorPrimary: '#1677ff' } }}>
+      <ConfigProvider theme={{ token: { colorPrimary: '#C2185B' } }}>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

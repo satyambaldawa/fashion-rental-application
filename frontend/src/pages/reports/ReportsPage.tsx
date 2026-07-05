@@ -133,7 +133,7 @@ function OutstandingDepositsTab() {
         alignItems: 'center',
       }}>
         <Typography.Text strong>Total Outstanding Deposit</Typography.Text>
-        <Typography.Title level={4} style={{ margin: 0, color: '#1677ff' }}>
+        <Typography.Title level={4} style={{ margin: 0, color: '#C2185B' }}>
           {formatCurrency(data.totalOutstanding)}
         </Typography.Title>
       </div>
@@ -285,7 +285,7 @@ function MonthlyRevenueTab() {
                   title="Deposits Collected"
                   value={data.totalDepositsCollected}
                   formatter={v => formatCurrency(v as number)}
-                  valueStyle={{ color: '#1677ff', fontSize: 18 }}
+                  valueStyle={{ color: '#C2185B', fontSize: 18 }}
                 />
               </Card>
             </Col>
@@ -345,7 +345,7 @@ function MonthlyRevenueTab() {
                 <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                 <Legend />
                 <Bar dataKey="Rent" stackId="a" fill="#52c41a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="Deposit In" stackId="a" fill="#1677ff" />
+                <Bar dataKey="Deposit In" stackId="a" fill="#C2185B" />
                 <Bar dataKey="Late Fee + Damage" stackId="a" fill="#fa8c16" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

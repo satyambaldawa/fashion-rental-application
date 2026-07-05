@@ -29,7 +29,9 @@ export default function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={220} theme="light">
-        <div style={{ padding: '16px', fontWeight: 700, fontSize: 16 }}>Fashion Rental</div>
+        <div style={{ padding: '16px', textAlign: 'center' }}>
+          <img src="/logo.png" alt="Manisha's Drapery" style={{ width: '100%', maxWidth: 180 }} />
+        </div>
         <Sidebar />
       </Sider>
       <Layout>

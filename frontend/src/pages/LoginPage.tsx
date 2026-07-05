@@ -33,9 +33,9 @@ export default function LoginPage() {
       background: '#f0f2f5'
     }}>
       <Card
-        title="Fashion Rental"
+        title={<img src="/logo.png" alt="Manisha's Drapery" style={{ height: 80 }} />}
         style={{ width: 400 }}
-        styles={{ header: { textAlign: 'center', fontSize: 20, fontWeight: 700 } }}
+        styles={{ header: { textAlign: 'center', padding: '24px 0 8px' } }}
       >
         <Form layout="vertical" onFinish={handleSubmit} autoComplete="off">
           <Form.Item

@@ -201,7 +201,7 @@ export default function ReceiptDetailPage() {
             {/* Deposit-to-return callout */}
             <div style={{
               flex: '1 1 220px',
-              border: '2px solid #1677ff',
+              border: '2px solid #C2185B',
               borderRadius: 8,
               padding: '16px 20px',
               background: '#e6f4ff',
@@ -212,7 +212,7 @@ export default function ReceiptDetailPage() {
               <Typography.Text style={{ fontSize: 13, color: '#555' }}>
                 Deposit refundable on return
               </Typography.Text>
-              <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#1677ff' }}>
+              <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#C2185B' }}>
                 {formatCurrency(receipt.totalDeposit)}
               </Typography.Title>
               <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
