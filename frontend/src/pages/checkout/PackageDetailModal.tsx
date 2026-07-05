@@ -129,7 +129,7 @@ export default function PackageDetailModal({ item, onClose, onAddToCart, inCartQ
               <button
                 onClick={() => { onAddToCart(item); onClose() }}
                 style={{
-                  background: '#1677ff', color: '#fff', border: 'none',
+                  background: '#C2185B', color: '#fff', border: 'none',
                   borderRadius: 6, padding: '8px 20px', fontSize: 14,
                   cursor: 'pointer', fontWeight: 500,
                 }}

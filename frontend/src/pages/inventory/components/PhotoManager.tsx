@@ -171,7 +171,7 @@ export default function PhotoManager({ itemId, photos, onPhotosChange }: Props) 
               borderRadius: 6,
               overflow: 'hidden',
               cursor: 'pointer',
-              border: i === safeIndex ? '2px solid #1677ff' : '2px solid transparent',
+              border: i === safeIndex ? '2px solid #C2185B' : '2px solid transparent',
               flexShrink: 0,
             }}
           >
