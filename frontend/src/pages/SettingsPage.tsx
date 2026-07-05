@@ -154,6 +154,7 @@ export default function SettingsPage() {
         loading={isLoading}
         rowKey="key"
         size="small"
+        scroll={{ x: 'max-content' }}
         style={{ marginBottom: 16 }}
       />
 

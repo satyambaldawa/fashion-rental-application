@@ -159,7 +159,7 @@ export default function ReceiptDetailPage() {
           </div>
 
           {/* Customer & rental details */}
-          <Descriptions bordered column={2} size="small" style={{ marginBottom: 20 }}>
+          <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 20 }}>
             <Descriptions.Item label="Customer">{receipt.customerName}</Descriptions.Item>
             <Descriptions.Item label="Phone">
               <a href={`tel:${receipt.customerPhone}`}>{receipt.customerPhone}</a>
@@ -184,6 +184,7 @@ export default function ReceiptDetailPage() {
             rowKey="id"
             pagination={false}
             size="small"
+            scroll={{ x: 'max-content' }}
             style={{ marginBottom: 20 }}
           />
 
