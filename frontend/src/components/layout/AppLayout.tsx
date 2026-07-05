@@ -40,7 +40,7 @@ export default function AppLayout() {
         </Header>
         <Content style={{ margin: '24px', background: '#fff', borderRadius: 8, padding: '24px' }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/inventory" replace />} />
+            <Route path="/" element={<Navigate to="/checkout" replace />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/inventory/add" element={<AddItemPage />} />
             <Route path="/customers" element={<CustomersPage />} />
@@ -52,6 +52,7 @@ export default function AppLayout() {
             <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/checkout" replace />} />
           </Routes>
         </Content>
       </Layout>
