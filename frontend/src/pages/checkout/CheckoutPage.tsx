@@ -15,6 +15,7 @@ import {
   Row,
   Select,
   Space,
+  Grid,
   Spin,
   Table,
   Tag,
@@ -46,6 +47,8 @@ type Screen = 'home' | 'browse' | 'preview' | 'customer'
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.lg
   const { cart, createCart, addItem, removeItem, updateQuantity, clearCart } = useCart()
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
@@ -365,9 +368,9 @@ export default function CheckoutPage() {
 
         {/* Sticky bottom bar */}
         <div style={{
-          position: 'fixed', bottom: 0, left: 220, right: 0,
+          position: 'fixed', bottom: 0, left: isMobile ? 0 : 220, right: 0,
           background: '#fff', borderTop: '1px solid #f0f0f0',
-          padding: '12px 24px',
+          padding: isMobile ? '8px 12px' : '12px 24px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 100,
         }}>
@@ -491,6 +494,7 @@ export default function CheckoutPage() {
           rowKey="itemId"
           pagination={false}
           size="small"
+          scroll={{ x: 'max-content' }}
           style={{ marginBottom: 24 }}
         />
 

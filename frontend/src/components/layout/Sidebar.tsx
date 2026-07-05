@@ -18,7 +18,11 @@ const NAV_ITEMS = [
   { key: '/settings', label: 'Settings', icon: <SettingOutlined /> },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -27,7 +31,10 @@ export function Sidebar() {
       mode="inline"
       selectedKeys={[location.pathname]}
       items={NAV_ITEMS}
-      onClick={({ key }) => navigate(key)}
+      onClick={({ key }) => {
+        navigate(key)
+        onNavigate?.()
+      }}
       style={{ height: '100%', borderRight: 0 }}
     />
   )

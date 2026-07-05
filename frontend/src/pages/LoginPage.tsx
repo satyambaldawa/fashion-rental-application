@@ -30,11 +30,12 @@ export default function LoginPage() {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: '#f0f2f5'
+      background: '#f0f2f5',
+      padding: '16px',
     }}>
       <Card
         title={<img src="/logo.png" alt="Manisha's Drapery" style={{ height: 80 }} />}
-        style={{ width: 400 }}
+        style={{ width: '100%', maxWidth: 400 }}
         styles={{ header: { textAlign: 'center', padding: '24px 0 8px' } }}
       >
         <Form layout="vertical" onFinish={handleSubmit} autoComplete="off">

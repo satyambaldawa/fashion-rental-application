@@ -271,6 +271,7 @@ export default function AddItemPage() {
                     rowKey="componentItemId"
                     size="small"
                     pagination={false}
+                    scroll={{ x: 'max-content' }}
                     columns={[
                       { title: 'Item', dataIndex: 'componentItemName', key: 'name' },
                       {

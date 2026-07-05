@@ -132,7 +132,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Customer & return details */}
-          <Descriptions bordered column={2} size="small" style={{ marginBottom: 20 }}>
+          <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 20 }}>
             <Descriptions.Item label="Customer">{invoice.customerName}</Descriptions.Item>
             <Descriptions.Item label="Phone">
               <a href={`tel:${invoice.customerPhone}`}>{invoice.customerPhone}</a>
@@ -156,6 +156,7 @@ export default function InvoiceDetailPage() {
             rowKey="id"
             pagination={false}
             size="small"
+            scroll={{ x: 'max-content' }}
             style={{ marginBottom: 20 }}
           />
 

@@ -132,7 +132,7 @@ export default function ProcessReturnPage() {
       </Typography.Title>
 
       {/* Receipt summary */}
-      <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
+      <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 24 }}>
         <Descriptions.Item label="Customer">{receipt.customerName}</Descriptions.Item>
         <Descriptions.Item label="Phone">{receipt.customerPhone}</Descriptions.Item>
         <Descriptions.Item label="Due By">
