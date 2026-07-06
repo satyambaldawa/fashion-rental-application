@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface PackageComponentRepository extends JpaRepository<PackageComponent, UUID> {
     List<PackageComponent> findByPackageItem_Id(UUID packageItemId);
+    List<PackageComponent> findByComponentItem_IdAndPackageItem_IsActiveTrue(UUID componentItemId);
 }

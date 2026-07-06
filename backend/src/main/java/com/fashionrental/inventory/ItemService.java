@@ -166,6 +166,33 @@ public class ItemService {
     }
 
     @Transactional
+    public void deleteItem(UUID id) {
+        Item item = itemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + id));
+
+        if (!item.getIsActive()) {
+            throw new ResourceNotFoundException("Item not found: " + id);
+        }
+
+        // Guard: block deletion if this item is a component of any active package
+        List<PackageComponent> parentLinks =
+                packageComponentRepository.findByComponentItem_IdAndPackageItem_IsActiveTrue(id);
+        if (!parentLinks.isEmpty()) {
+            List<String> packageNames = parentLinks.stream()
+                    .map(pc -> pc.getPackageItem().getName())
+                    .distinct()
+                    .toList();
+            throw new ValidationException(
+                    "Cannot delete '" + item.getName() + "': it is a component of active package(s): " +
+                    String.join(", ", packageNames) +
+                    ". Remove it from these packages first.");
+        }
+
+        item.setIsActive(false);
+        itemRepository.save(item);
+    }
+
+    @Transactional
     public ItemDetailResponse updateItem(UUID id, UpdateItemRequest request) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + id));
@@ -215,6 +242,11 @@ public class ItemService {
             Item componentItem = itemRepository.findById(req.componentItemId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Component item not found: " + req.componentItemId()));
+
+            if (!componentItem.getIsActive()) {
+                throw new ValidationException(
+                        "Component item '" + componentItem.getName() + "' has been deleted.");
+            }
 
             if (componentItem.getItemType() != Item.ItemType.INDIVIDUAL) {
                 throw new ValidationException(
