@@ -226,6 +226,7 @@ public class ItemService {
         // Update package components if this is a PACKAGE item
         if (item.getItemType() == Item.ItemType.PACKAGE) {
             item.getPackageComponents().clear();
+            itemRepository.flush(); // flush deletes before re-adding to avoid constraint violations
             validateAndAttachComponents(item, request.components());
         }
 
