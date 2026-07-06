@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +54,7 @@ class ItemServiceTest {
 
     private Item buildActiveItem(String name, Item.Category category, int rate, int deposit, int quantity) {
         Item item = new Item();
+        setItemId(item, UUID.randomUUID());
         item.setName(name);
         item.setCategory(category);
         item.setRate(rate);
@@ -61,6 +63,16 @@ class ItemServiceTest {
         item.setIsActive(true);
         item.setItemType(Item.ItemType.INDIVIDUAL);
         return item;
+    }
+
+    private void setItemId(Item item, UUID id) {
+        try {
+            java.lang.reflect.Field field = Item.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(item, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Item buildItemWithTimestamps(String name, Item.Category category, int rate, int deposit, int quantity, boolean active) {
@@ -88,6 +100,7 @@ class ItemServiceTest {
     void should_return_empty_page_when_no_items() {
         Page<Item> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(emptyPage);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any())).thenReturn(Map.of());
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
@@ -102,7 +115,8 @@ class ItemServiceTest {
         item.setSize("M");
         Page<Item> page = new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
-        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(2);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(item.getId(), 2));
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
@@ -124,7 +138,8 @@ class ItemServiceTest {
         Item item = buildActiveItem("Red Lehenga", Item.Category.DRESS, 300, 2000, 2);
         Page<Item> page = new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
-        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(0);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(item.getId(), 0));
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
@@ -140,7 +155,8 @@ class ItemServiceTest {
         // item.getPhotos() returns empty list by default
         Page<Item> page = new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
-        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(1);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(item.getId(), 1));
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
@@ -166,7 +182,8 @@ class ItemServiceTest {
 
         Page<Item> page = new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
-        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(1);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(item.getId(), 1));
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 
@@ -342,7 +359,8 @@ class ItemServiceTest {
 
         Page<Item> page = new PageImpl<>(List.of(packageItem), PageRequest.of(0, 20), 1);
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
-        when(availabilityService.getAvailableQuantity(any(), any(), any())).thenReturn(3);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(packageItem.getId(), 3));
 
         Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
 

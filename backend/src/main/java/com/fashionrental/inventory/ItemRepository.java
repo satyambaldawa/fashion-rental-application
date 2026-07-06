@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificationExecutor<Item> {
@@ -34,6 +35,32 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
             """, nativeQuery = true)
     Integer countBookedUnits(
             @Param("itemId") UUID itemId,
+            @Param("startDatetime") OffsetDateTime startDatetime,
+            @Param("endDatetime") OffsetDateTime endDatetime
+    );
+
+    @Query(value = """
+            SELECT rli.item_id, COALESCE(SUM(rli.quantity), 0)
+            FROM receipt_line_items rli
+            JOIN receipts r ON rli.receipt_id = r.id
+            WHERE rli.item_id IN :itemIds
+            AND r.status = 'GIVEN'
+            GROUP BY rli.item_id
+            """, nativeQuery = true)
+    List<Object[]> batchCountCurrentlyBookedUnits(@Param("itemIds") List<UUID> itemIds);
+
+    @Query(value = """
+            SELECT rli.item_id, COALESCE(SUM(rli.quantity), 0)
+            FROM receipt_line_items rli
+            JOIN receipts r ON rli.receipt_id = r.id
+            WHERE rli.item_id IN :itemIds
+            AND r.status = 'GIVEN'
+            AND r.start_datetime < :endDatetime
+            AND r.end_datetime > :startDatetime
+            GROUP BY rli.item_id
+            """, nativeQuery = true)
+    List<Object[]> batchCountBookedUnits(
+            @Param("itemIds") List<UUID> itemIds,
             @Param("startDatetime") OffsetDateTime startDatetime,
             @Param("endDatetime") OffsetDateTime endDatetime
     );

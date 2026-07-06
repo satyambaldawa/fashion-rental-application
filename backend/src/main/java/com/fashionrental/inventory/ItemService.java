@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -65,8 +66,11 @@ public class ItemService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        return itemRepository.findAll(spec, pageable)
-                .map(item -> toSummaryResponse(item, startDatetime, endDatetime));
+        Page<Item> itemPage = itemRepository.findAll(spec, pageable);
+        Map<UUID, Integer> availabilityMap = availabilityService.batchGetAvailableQuantities(
+                itemPage.getContent(), startDatetime, endDatetime);
+
+        return itemPage.map(item -> toSummaryResponse(item, availabilityMap.getOrDefault(item.getId(), 0)));
     }
 
     @Transactional(readOnly = true)
@@ -263,8 +267,7 @@ public class ItemService {
         }
     }
 
-    private ItemSummaryResponse toSummaryResponse(Item item, OffsetDateTime startDatetime, OffsetDateTime endDatetime) {
-        int available = availabilityService.getAvailableQuantity(item.getId(), startDatetime, endDatetime);
+    private ItemSummaryResponse toSummaryResponse(Item item, int available) {
         List<String> photoUrls = item.getPhotos().stream().map(ItemPhoto::getUrl).toList();
         String thumbnailUrl = item.getPhotos().isEmpty() ? null : item.getPhotos().get(0).getThumbnailUrl();
 
