@@ -3,6 +3,7 @@ package com.fashionrental.inventory;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
+import com.fashionrental.inventory.model.request.UpdateItemRequest;
 import com.fashionrental.inventory.model.request.PackageComponentRequest;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
@@ -536,5 +537,98 @@ class ItemServiceTest {
 
         assertThatThrownBy(() -> itemService.cloneItem(itemId))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── Update item ──────────────────────────────────────────────────────────
+
+    @Test
+    void should_update_item_fields() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Blue Sherwani", Item.Category.COSTUME, 500, 2000, 3, true);
+        item.setSize("L");
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Red Sherwani", Item.Category.DRESS, "XL", "Updated description",
+                600, 2500, 5, "New notes", 400, "New Vendor", null
+        );
+
+        ItemDetailResponse result = itemService.updateItem(itemId, request);
+
+        assertThat(result.name()).isEqualTo("Red Sherwani");
+        assertThat(result.category()).isEqualTo(Item.Category.DRESS);
+        assertThat(result.size()).isEqualTo("XL");
+        assertThat(result.description()).isEqualTo("Updated description");
+        assertThat(result.rate()).isEqualTo(600);
+        assertThat(result.deposit()).isEqualTo(2500);
+        assertThat(result.quantity()).isEqualTo(5);
+        assertThat(result.notes()).isEqualTo("New notes");
+        assertThat(result.purchaseRate()).isEqualTo(400);
+        assertThat(result.vendorName()).isEqualTo("New Vendor");
+    }
+
+    @Test
+    void should_throw_not_found_when_updating_nonexistent_item() {
+        UUID itemId = UUID.randomUUID();
+        when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> itemService.updateItem(itemId, request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_throw_not_found_when_updating_inactive_item() {
+        UUID itemId = UUID.randomUUID();
+        Item inactiveItem = buildItemWithTimestamps("Old Item", Item.Category.COSTUME, 100, 500, 1, false);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> itemService.updateItem(itemId, request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_throw_validation_when_reducing_quantity_below_booked_units() {
+        UUID itemId = UUID.randomUUID();
+        // Item has quantity 5, 3 are currently rented (available = 2)
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(2);
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 2, null, null, null, null
+        );
+
+        // Trying to reduce to 2, but 3 are booked — should fail
+        assertThatThrownBy(() -> itemService.updateItem(itemId, request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("3 unit(s) are currently rented out");
+    }
+
+    @Test
+    void should_allow_reducing_quantity_when_above_booked_units() {
+        UUID itemId = UUID.randomUUID();
+        // Item has quantity 5, 2 are currently rented (available = 3)
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(3);
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null
+        );
+
+        // Reducing to 3 when 2 are booked — should succeed
+        ItemDetailResponse result = itemService.updateItem(itemId, request);
+        assertThat(result.quantity()).isEqualTo(3);
     }
 }

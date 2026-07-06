@@ -3,6 +3,7 @@ package com.fashionrental.inventory;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
+import com.fashionrental.inventory.model.request.UpdateItemRequest;
 import com.fashionrental.inventory.model.response.AvailabilityResponse;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
@@ -58,6 +59,16 @@ public class ItemController {
     ) {
         ItemDetailResponse created = itemService.createItem(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(created));
+    }
+
+    @Operation(summary = "Update an existing inventory item")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<ItemDetailResponse>> updateItem(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateItemRequest request
+    ) {
+        ItemDetailResponse updated = itemService.updateItem(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(updated));
     }
 
     @Operation(summary = "Clone an existing item with all details and photos")

@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
@@ -11,6 +11,7 @@ import {
   Radio,
   Select,
   Space,
+  Spin,
   Steps,
   Table,
   Tag,
@@ -26,6 +27,7 @@ import type {
   ItemSummary,
   ItemType,
   PackageComponentRequest,
+  UpdateItemRequest,
 } from '../../types/inventory'
 import PhotoManager from './components/PhotoManager'
 
@@ -45,15 +47,55 @@ interface ComponentDraft {
 
 export default function AddItemPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { id: editId } = useParams<{ id: string }>()
+  const isEditMode = !!editId
+
   const [form] = Form.useForm()
   const [itemType, setItemType] = useState<ItemType>('INDIVIDUAL')
   const [createdItem, setCreatedItem] = useState<ItemDetail | null>(null)
   const [photos, setPhotos] = useState<ItemPhoto[]>([])
+  const [formReady, setFormReady] = useState(!isEditMode)
 
   // Package component state
   const [componentSearch, setComponentSearch] = useState('')
   const [components, setComponents] = useState<ComponentDraft[]>([])
   const [componentError, setComponentError] = useState<string | null>(null)
+
+  // Load existing item in edit mode
+  const { data: existingItem, isLoading: loadingItem, isError: loadError } = useQuery<ItemDetail>({
+    queryKey: ['item', editId],
+    queryFn: () => itemsApi.get(editId!),
+    enabled: isEditMode,
+  })
+
+  // Pre-fill form when existing item loads
+  useEffect(() => {
+    if (existingItem && !formReady) {
+      form.setFieldsValue({
+        name: existingItem.name,
+        category: existingItem.category,
+        size: existingItem.size,
+        description: existingItem.description,
+        rate: existingItem.rate,
+        deposit: existingItem.deposit,
+        quantity: existingItem.quantity,
+        notes: existingItem.notes,
+        purchaseRate: existingItem.purchaseRate,
+        vendorName: existingItem.vendorName,
+      })
+      setItemType(existingItem.itemType)
+      setPhotos(existingItem.photos)
+      if (existingItem.components) {
+        setComponents(existingItem.components.map(c => ({
+          componentItemId: c.componentItemId,
+          componentItemName: c.componentItemName,
+          quantity: c.quantity,
+        })))
+      }
+      setFormReady(true)
+    }
+  }, [existingItem, formReady, form])
 
   // Search individual items for component picker
   const { data: searchResults } = useQuery({
@@ -66,13 +108,24 @@ export default function AddItemPage() {
     (i: ItemSummary) => i.itemType === 'INDIVIDUAL' && !components.some(c => c.componentItemId === i.id)
   )
 
-  const mutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: (data: CreateItemRequest) => itemsApi.create(data),
     onSuccess: (item) => {
       setCreatedItem(item)
       setPhotos([])
     },
   })
+
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdateItemRequest) => itemsApi.update(editId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      queryClient.invalidateQueries({ queryKey: ['item', editId] })
+      navigate('/inventory')
+    },
+  })
+
+  const mutation = isEditMode ? updateMutation : createMutation
 
   function handleAddComponent(item: ItemSummary) {
     setComponents(prev => [...prev, { componentItemId: item.id, componentItemName: item.name, quantity: 1 }])
@@ -99,53 +152,97 @@ export default function AddItemPage() {
       quantity: c.quantity,
     }))
 
-    const request: CreateItemRequest = {
-      name: values.name as string,
-      category: values.category as ItemCategory,
-      itemType,
-      size: itemType === 'INDIVIDUAL' ? (values.size as string | undefined) : undefined,
-      description: values.description as string | undefined,
-      rate: values.rate as number,
-      deposit: values.deposit as number,
-      quantity: values.quantity as number,
-      notes: values.notes as string | undefined,
-      purchaseRate: values.purchaseRate as number | undefined,
-      vendorName: values.vendorName as string | undefined,
-      components: itemType === 'PACKAGE' ? componentRequests : undefined,
+    if (isEditMode) {
+      const request: UpdateItemRequest = {
+        name: values.name as string,
+        category: values.category as ItemCategory,
+        size: itemType === 'INDIVIDUAL' ? (values.size as string | undefined) : undefined,
+        description: values.description as string | undefined,
+        rate: values.rate as number,
+        deposit: values.deposit as number,
+        quantity: values.quantity as number,
+        notes: values.notes as string | undefined,
+        purchaseRate: values.purchaseRate as number | undefined,
+        vendorName: values.vendorName as string | undefined,
+        components: itemType === 'PACKAGE' ? componentRequests : undefined,
+      }
+      updateMutation.mutate(request)
+    } else {
+      const request: CreateItemRequest = {
+        name: values.name as string,
+        category: values.category as ItemCategory,
+        itemType,
+        size: itemType === 'INDIVIDUAL' ? (values.size as string | undefined) : undefined,
+        description: values.description as string | undefined,
+        rate: values.rate as number,
+        deposit: values.deposit as number,
+        quantity: values.quantity as number,
+        notes: values.notes as string | undefined,
+        purchaseRate: values.purchaseRate as number | undefined,
+        vendorName: values.vendorName as string | undefined,
+        components: itemType === 'PACKAGE' ? componentRequests : undefined,
+      }
+      createMutation.mutate(request)
     }
+  }
 
-    mutation.mutate(request)
+  if (isEditMode && loadingItem) {
+    return <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>
+  }
+
+  if (isEditMode && loadError) {
+    return (
+      <Alert
+        type="error"
+        message="Failed to load item"
+        description="The item could not be found or an error occurred. Please go back and try again."
+        showIcon
+        action={<Button onClick={() => navigate('/inventory')}>Back to Inventory</Button>}
+      />
+    )
   }
 
   const step = createdItem ? 1 : 0
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <Typography.Title level={4} style={{ marginBottom: 24 }}>Add New Item</Typography.Title>
+      <Typography.Title level={4} style={{ marginBottom: 24 }}>
+        {isEditMode ? 'Edit Item' : 'Add New Item'}
+      </Typography.Title>
 
-      <Steps
-        current={step}
-        items={[{ title: 'Item Details' }, { title: 'Photos' }]}
-        style={{ marginBottom: 32 }}
-      />
+      {!isEditMode && (
+        <Steps
+          current={step}
+          items={[{ title: 'Item Details' }, { title: 'Photos' }]}
+          style={{ marginBottom: 32 }}
+        />
+      )}
 
       {step === 0 && (
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
-          initialValues={{ quantity: 1, deposit: 0 }}
+          initialValues={isEditMode ? undefined : { quantity: 1, deposit: 0 }}
         >
-          {/* Item type toggle */}
-          <Form.Item label="Item Type">
-            <Radio.Group
-              value={itemType}
-              onChange={e => { setItemType(e.target.value); setComponents([]); setComponentError(null) }}
-            >
-              <Radio value="INDIVIDUAL">Individual item</Radio>
-              <Radio value="PACKAGE">Package / Group offering</Radio>
-            </Radio.Group>
-          </Form.Item>
+          {/* Item type toggle — only for create */}
+          {!isEditMode && (
+            <Form.Item label="Item Type">
+              <Radio.Group
+                value={itemType}
+                onChange={e => { setItemType(e.target.value); setComponents([]); setComponentError(null) }}
+              >
+                <Radio value="INDIVIDUAL">Individual item</Radio>
+                <Radio value="PACKAGE">Package / Group offering</Radio>
+              </Radio.Group>
+            </Form.Item>
+          )}
+
+          {isEditMode && (
+            <Form.Item label="Item Type">
+              <Tag color={itemType === 'PACKAGE' ? 'purple' : 'blue'}>{itemType}</Tag>
+            </Form.Item>
+          )}
 
           <Form.Item
             name="name"
@@ -323,13 +420,17 @@ export default function AddItemPage() {
           </Form.Item>
 
           {mutation.isError && (
-            <Alert type="error" message="Failed to create item. Please try again." style={{ marginBottom: 12 }} />
+            <Alert
+              type="error"
+              message={isEditMode ? 'Failed to update item. Please try again.' : 'Failed to create item. Please try again.'}
+              style={{ marginBottom: 12 }}
+            />
           )}
 
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={mutation.isPending}>
-                Next: Add Photos
+                {isEditMode ? 'Save Changes' : 'Next: Add Photos'}
               </Button>
               <Button onClick={() => navigate('/inventory')}>Cancel</Button>
             </Space>

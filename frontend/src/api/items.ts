@@ -7,6 +7,7 @@ import type {
   ItemPhoto,
   ItemSummary,
   PageResult,
+  UpdateItemRequest,
 } from '../types/inventory'
 
 export const itemsApi = {
@@ -18,6 +19,9 @@ export const itemsApi = {
 
   create: (data: CreateItemRequest) =>
     client.post<ApiResponse<ItemDetail>>('/items', data).then(r => r.data.data!),
+
+  update: (id: string, data: UpdateItemRequest) =>
+    client.put<ApiResponse<ItemDetail>>(`/items/${id}`, data).then(r => r.data.data!),
 
   clone: (id: string) =>
     client.post<ApiResponse<ItemDetail>>(`/items/${id}/clone`).then(r => r.data.data!),

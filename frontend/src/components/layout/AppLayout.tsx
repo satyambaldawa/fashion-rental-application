@@ -100,7 +100,8 @@ export default function AppLayout() {
           <Routes>
             <Route path="/" element={<Navigate to="/checkout" replace />} />
             <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/inventory/add" element={<AddItemPage />} />
+            <Route path="/inventory/add" element={<AddItemPage key="add" />} />
+            <Route path="/inventory/:id/edit" element={<AddItemPage key="edit" />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/register" element={<RegisterCustomerPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
