@@ -59,6 +59,28 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
+    public UploadResult copyImage(UUID newItemId, String sourceFullUrl, String sourceThumbnailUrl) throws IOException {
+        Path newItemDir = Paths.get(BASE_DIR, newItemId.toString());
+        Files.createDirectories(newItemDir);
+
+        String fileId = UUID.randomUUID().toString();
+        Path newFullPath = newItemDir.resolve(fileId + "-full.jpg");
+        Path newThumbPath = newItemDir.resolve(fileId + "-thumb.jpg");
+
+        Path sourceFullPath = Paths.get("." + URI.create(sourceFullUrl).getPath());
+        Path sourceThumbPath = Paths.get("." + URI.create(sourceThumbnailUrl).getPath());
+
+        Files.copy(sourceFullPath, newFullPath);
+        Files.copy(sourceThumbPath, newThumbPath);
+
+        String fullUrl = BASE_URL + "/" + newItemId + "/" + fileId + "-full.jpg";
+        String thumbnailUrl = BASE_URL + "/" + newItemId + "/" + fileId + "-thumb.jpg";
+
+        log.debug("Copied image for new item {}: full={}, thumb={}", newItemId, newFullPath, newThumbPath);
+        return new UploadResult(fullUrl, thumbnailUrl);
+    }
+
+    @Override
     public void deleteImage(String fullUrl, String thumbnailUrl) {
         deleteFile(fullUrl);
         deleteFile(thumbnailUrl);

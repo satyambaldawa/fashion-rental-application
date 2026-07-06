@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Modal, Descriptions, Tag, Space, DatePicker, Button, Typography, Divider, Spin } from 'antd'
+import { Modal, Descriptions, Tag, Space, DatePicker, Button, Typography, Divider, Spin, message } from 'antd'
+import { CopyOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Dayjs } from 'dayjs'
 import type { ItemDetail, AvailabilityResult, ItemPhoto } from '../../../types/inventory'
 import { itemsApi } from '../../../api/items'
@@ -17,8 +18,10 @@ interface Props {
 
 export default function ItemDetailDrawer({ itemId, onClose }: Props) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null)
   const [checkingAvailability, setCheckingAvailability] = useState(false)
+  const [cloning, setCloning] = useState(false)
   const [photos, setPhotos] = useState<ItemPhoto[]>([])
   const [syncedItemId, setSyncedItemId] = useState<string | null>(null)
 
@@ -55,6 +58,21 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
       setAvailability(null)
     } finally {
       setCheckingAvailability(false)
+    }
+  }
+
+  async function handleClone() {
+    if (!itemId) return
+    setCloning(true)
+    try {
+      const cloned = await itemsApi.clone(itemId)
+      message.success(`Cloned as "${cloned.name}"`)
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      onClose()
+    } catch {
+      message.error('Failed to clone item')
+    } finally {
+      setCloning(false)
     }
   }
 
@@ -150,7 +168,14 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
             )}
           </div>
 
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button
+              icon={<CopyOutlined />}
+              loading={cloning}
+              onClick={handleClone}
+            >
+              Clone
+            </Button>
             <Button onClick={() => navigate(`/inventory/${item.id}/edit`)}>Edit Item</Button>
           </div>
         </Space>

@@ -60,6 +60,13 @@ public class ItemController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(created));
     }
 
+    @Operation(summary = "Clone an existing item with all details and photos")
+    @PostMapping("/{id}/clone")
+    public ResponseEntity<ApiResponse<ItemDetailResponse>> cloneItem(@PathVariable UUID id) {
+        ItemDetailResponse cloned = itemService.cloneItem(id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(cloned));
+    }
+
     @Operation(summary = "Check item availability for a date range")
     @GetMapping("/{id}/availability")
     public ResponseEntity<ApiResponse<AvailabilityResponse>> checkAvailability(
