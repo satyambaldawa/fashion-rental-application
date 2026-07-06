@@ -16,6 +16,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fashionrental.inventory.storage.ImageStorageService;
+import com.fashionrental.inventory.storage.UploadResult;
+
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,13 +31,16 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final AvailabilityService availabilityService;
     private final PackageComponentRepository packageComponentRepository;
+    private final ImageStorageService imageStorageService;
 
     public ItemService(ItemRepository itemRepository,
                        AvailabilityService availabilityService,
-                       PackageComponentRepository packageComponentRepository) {
+                       PackageComponentRepository packageComponentRepository,
+                       ImageStorageService imageStorageService) {
         this.itemRepository = itemRepository;
         this.availabilityService = availabilityService;
         this.packageComponentRepository = packageComponentRepository;
+        this.imageStorageService = imageStorageService;
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +102,65 @@ public class ItemService {
         }
 
         Item saved = itemRepository.save(item);
+        return toDetailResponse(saved);
+    }
+
+    @Transactional
+    public ItemDetailResponse cloneItem(UUID sourceItemId) {
+        Item source = itemRepository.findById(sourceItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + sourceItemId));
+
+        if (!source.getIsActive()) {
+            throw new ResourceNotFoundException("Item not found: " + sourceItemId);
+        }
+
+        Item clone = new Item();
+        clone.setName(source.getName() + " (copy)");
+        clone.setCategory(source.getCategory());
+        clone.setItemType(source.getItemType());
+        clone.setSize(source.getSize());
+        clone.setDescription(source.getDescription());
+        clone.setRate(source.getRate());
+        clone.setDeposit(source.getDeposit());
+        clone.setQuantity(source.getQuantity());
+        clone.setNotes(source.getNotes());
+        clone.setPurchaseRate(source.getPurchaseRate());
+        clone.setVendorName(source.getVendorName());
+
+        // Copy package components
+        if (source.getItemType() == Item.ItemType.PACKAGE) {
+            for (PackageComponent srcPc : source.getPackageComponents()) {
+                PackageComponent pc = new PackageComponent();
+                pc.setPackageItem(clone);
+                pc.setComponentItem(srcPc.getComponentItem());
+                pc.setQuantity(srcPc.getQuantity());
+                clone.getPackageComponents().add(pc);
+            }
+        }
+
+        Item saved = itemRepository.save(clone);
+
+        // Copy photos
+        for (ItemPhoto srcPhoto : source.getPhotos()) {
+            try {
+                UploadResult result = imageStorageService.copyImage(
+                        saved.getId(), srcPhoto.getUrl(), srcPhoto.getThumbnailUrl());
+
+                ItemPhoto newPhoto = new ItemPhoto();
+                newPhoto.setItem(saved);
+                newPhoto.setUrl(result.fullUrl());
+                newPhoto.setThumbnailUrl(result.thumbnailUrl());
+                newPhoto.setSortOrder(srcPhoto.getSortOrder());
+                saved.getPhotos().add(newPhoto);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to copy photo: " + e.getMessage(), e);
+            }
+        }
+
+        if (!source.getPhotos().isEmpty()) {
+            saved = itemRepository.save(saved);
+        }
+
         return toDetailResponse(saved);
     }
 

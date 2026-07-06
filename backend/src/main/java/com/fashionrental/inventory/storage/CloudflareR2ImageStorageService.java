@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -58,6 +59,31 @@ public class CloudflareR2ImageStorageService implements ImageStorageService {
 
         log.debug("Uploaded image for item {} to R2: full={}", itemId, fullKey);
         return new UploadResult(fullUrl, thumbnailUrl);
+    }
+
+    @Override
+    public UploadResult copyImage(UUID newItemId, String sourceFullUrl, String sourceThumbnailUrl) {
+        String fileId = UUID.randomUUID().toString();
+        String newFullKey = "items/" + newItemId + "/" + fileId + "-full.jpg";
+        String newThumbKey = "items/" + newItemId + "/" + fileId + "-thumb.jpg";
+
+        String sourceFullKey = sourceFullUrl.replace(publicUrlBase + "/", "");
+        String sourceThumbKey = sourceThumbnailUrl.replace(publicUrlBase + "/", "");
+
+        copyObject(sourceFullKey, newFullKey);
+        copyObject(sourceThumbKey, newThumbKey);
+
+        log.debug("Copied image for new item {} from source: {}", newItemId, sourceFullKey);
+        return new UploadResult(publicUrlBase + "/" + newFullKey, publicUrlBase + "/" + newThumbKey);
+    }
+
+    private void copyObject(String sourceKey, String destKey) {
+        s3Client.copyObject(CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(destKey)
+                .build());
     }
 
     @Override

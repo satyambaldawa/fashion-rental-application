@@ -6,6 +6,8 @@ import com.fashionrental.inventory.model.request.CreateItemRequest;
 import com.fashionrental.inventory.model.request.PackageComponentRequest;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
+import com.fashionrental.inventory.storage.ImageStorageService;
+import com.fashionrental.inventory.storage.UploadResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +28,7 @@ import org.springframework.data.jpa.domain.Specification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +42,9 @@ class ItemServiceTest {
 
     @Mock
     private com.fashionrental.inventory.PackageComponentRepository packageComponentRepository;
+
+    @Mock
+    private ImageStorageService imageStorageService;
 
     @InjectMocks
     private ItemService itemService;
@@ -396,5 +403,138 @@ class ItemServiceTest {
         assertThat(result.photos().get(0).url()).isEqualTo("https://cdn.example.com/full.jpg");
         assertThat(result.photos().get(0).thumbnailUrl()).isEqualTo("https://cdn.example.com/thumb.jpg");
         assertThat(result.photos().get(0).sortOrder()).isZero();
+    }
+
+    // ── Clone item ───────────────────────────────────────────────────────────
+
+    @Test
+    void should_clone_item_with_copy_suffix_in_name() {
+        UUID sourceId = UUID.randomUUID();
+        Item source = buildItemWithTimestamps("Blue Sherwani", Item.Category.COSTUME, 500, 2000, 3, true);
+        source.setSize("L");
+        source.setDescription("A fine costume");
+        source.setNotes("Handle with care");
+        source.setVendorName("Rajesh Textiles");
+        source.setPurchaseRate(300);
+
+        when(itemRepository.findById(sourceId)).thenReturn(Optional.of(source));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
+            Item item = inv.getArgument(0);
+            try {
+                java.lang.reflect.Field createdAt = Item.class.getDeclaredField("createdAt");
+                java.lang.reflect.Field updatedAt = Item.class.getDeclaredField("updatedAt");
+                createdAt.setAccessible(true);
+                updatedAt.setAccessible(true);
+                createdAt.set(item, OffsetDateTime.now());
+                updatedAt.set(item, OffsetDateTime.now());
+            } catch (Exception ignored) {}
+            return item;
+        });
+
+        ItemDetailResponse result = itemService.cloneItem(sourceId);
+
+        assertThat(result.name()).isEqualTo("Blue Sherwani (copy)");
+        assertThat(result.category()).isEqualTo(Item.Category.COSTUME);
+        assertThat(result.size()).isEqualTo("L");
+        assertThat(result.rate()).isEqualTo(500);
+        assertThat(result.deposit()).isEqualTo(2000);
+        assertThat(result.quantity()).isEqualTo(3);
+        assertThat(result.description()).isEqualTo("A fine costume");
+        assertThat(result.notes()).isEqualTo("Handle with care");
+        assertThat(result.vendorName()).isEqualTo("Rajesh Textiles");
+        assertThat(result.purchaseRate()).isEqualTo(300);
+    }
+
+    @Test
+    void should_clone_item_with_photos() throws IOException {
+        UUID sourceId = UUID.randomUUID();
+        Item source = buildItemWithTimestamps("Silk Saree", Item.Category.DRESS, 400, 1500, 2, true);
+
+        ItemPhoto photo = new ItemPhoto();
+        photo.setUrl("https://cdn.example.com/full.jpg");
+        photo.setThumbnailUrl("https://cdn.example.com/thumb.jpg");
+        photo.setSortOrder(0);
+        photo.setItem(source);
+        source.getPhotos().add(photo);
+
+        when(itemRepository.findById(sourceId)).thenReturn(Optional.of(source));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
+            Item item = inv.getArgument(0);
+            try {
+                java.lang.reflect.Field createdAt = Item.class.getDeclaredField("createdAt");
+                java.lang.reflect.Field updatedAt = Item.class.getDeclaredField("updatedAt");
+                createdAt.setAccessible(true);
+                updatedAt.setAccessible(true);
+                createdAt.set(item, OffsetDateTime.now());
+                updatedAt.set(item, OffsetDateTime.now());
+            } catch (Exception ignored) {}
+            return item;
+        });
+        when(imageStorageService.copyImage(any(),
+                eq("https://cdn.example.com/full.jpg"),
+                eq("https://cdn.example.com/thumb.jpg")))
+                .thenReturn(new UploadResult("https://cdn.example.com/new-full.jpg", "https://cdn.example.com/new-thumb.jpg"));
+
+        ItemDetailResponse result = itemService.cloneItem(sourceId);
+
+        assertThat(result.name()).isEqualTo("Silk Saree (copy)");
+        assertThat(result.photos()).hasSize(1);
+        assertThat(result.photos().get(0).url()).isEqualTo("https://cdn.example.com/new-full.jpg");
+        assertThat(result.photos().get(0).thumbnailUrl()).isEqualTo("https://cdn.example.com/new-thumb.jpg");
+    }
+
+    @Test
+    void should_clone_package_item_with_components() {
+        UUID sourceId = UUID.randomUUID();
+        Item source = buildItemWithTimestamps("Maharaja Set", Item.Category.COSTUME, 800, 3000, 2, true);
+        source.setItemType(Item.ItemType.PACKAGE);
+
+        Item componentItem = buildActiveItem("Pagdi", Item.Category.PAGDI, 50, 200, 5);
+        PackageComponent pc = new PackageComponent();
+        pc.setPackageItem(source);
+        pc.setComponentItem(componentItem);
+        pc.setQuantity(2);
+        source.getPackageComponents().add(pc);
+
+        when(itemRepository.findById(sourceId)).thenReturn(Optional.of(source));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> {
+            Item item = inv.getArgument(0);
+            try {
+                java.lang.reflect.Field createdAt = Item.class.getDeclaredField("createdAt");
+                java.lang.reflect.Field updatedAt = Item.class.getDeclaredField("updatedAt");
+                createdAt.setAccessible(true);
+                updatedAt.setAccessible(true);
+                createdAt.set(item, OffsetDateTime.now());
+                updatedAt.set(item, OffsetDateTime.now());
+            } catch (Exception ignored) {}
+            return item;
+        });
+
+        ItemDetailResponse result = itemService.cloneItem(sourceId);
+
+        assertThat(result.name()).isEqualTo("Maharaja Set (copy)");
+        assertThat(result.itemType()).isEqualTo(Item.ItemType.PACKAGE);
+        assertThat(result.components()).hasSize(1);
+        assertThat(result.components().get(0).componentItemName()).isEqualTo("Pagdi");
+        assertThat(result.components().get(0).quantity()).isEqualTo(2);
+    }
+
+    @Test
+    void should_throw_not_found_when_cloning_nonexistent_item() {
+        UUID itemId = UUID.randomUUID();
+        when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> itemService.cloneItem(itemId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_throw_not_found_when_cloning_inactive_item() {
+        UUID itemId = UUID.randomUUID();
+        Item inactiveItem = buildItemWithTimestamps("Old Item", Item.Category.COSTUME, 100, 500, 1, false);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
+
+        assertThatThrownBy(() -> itemService.cloneItem(itemId))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }

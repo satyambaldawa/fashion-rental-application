@@ -19,6 +19,9 @@ export const itemsApi = {
   create: (data: CreateItemRequest) =>
     client.post<ApiResponse<ItemDetail>>('/items', data).then(r => r.data.data!),
 
+  clone: (id: string) =>
+    client.post<ApiResponse<ItemDetail>>(`/items/${id}/clone`).then(r => r.data.data!),
+
   checkAvailability: (id: string, startDatetime: string, endDatetime: string) =>
     client.get<ApiResponse<AvailabilityResult>>(`/items/${id}/availability`, {
       params: { startDatetime, endDatetime }

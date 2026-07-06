@@ -284,4 +284,39 @@ class ItemControllerTest {
                 .andExpect(jsonPath("$.data.availableQuantity").value(3))
                 .andExpect(jsonPath("$.data.isAvailable").value(true));
     }
+
+    // ─── POST /api/items/{id}/clone ─────────────────────────────────────────
+
+    @Test
+    @WithMockUser
+    void should_return_201_when_item_cloned_successfully() throws Exception {
+        UUID sourceId = UUID.randomUUID();
+        UUID clonedId = UUID.randomUUID();
+        when(itemService.cloneItem(sourceId)).thenReturn(detailResponse(clonedId, "Blue Sherwani (copy)"));
+
+        mockMvc.perform(post("/api/items/{id}/clone", sourceId).with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Blue Sherwani (copy)"))
+                .andExpect(jsonPath("$.data.id").value(clonedId.toString()));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_cloning_nonexistent_item() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(itemService.cloneItem(id)).thenThrow(new ResourceNotFoundException("Item not found: " + id));
+
+        mockMvc.perform(post("/api/items/{id}/clone", id).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void should_return_401_when_cloning_without_authentication() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/items/{id}/clone", id).with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
 }

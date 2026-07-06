@@ -9,4 +9,6 @@ public interface ImageStorageService {
     UploadResult uploadImage(UUID itemId, InputStream inputStream, String originalFilename, long fileSize) throws IOException;
 
     void deleteImage(String fullUrl, String thumbnailUrl);
+
+    UploadResult copyImage(UUID newItemId, String sourceFullUrl, String sourceThumbnailUrl) throws IOException;
 }
