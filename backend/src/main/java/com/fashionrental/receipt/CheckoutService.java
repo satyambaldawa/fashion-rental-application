@@ -71,6 +71,10 @@ public class CheckoutService {
             Item item = itemRepository.findById(lineItem.itemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + lineItem.itemId()));
 
+            if (!item.getIsActive()) {
+                throw new ValidationException("Item '" + item.getName() + "' is no longer available.");
+            }
+
             int available = availabilityService.getAvailableQuantity(lineItem.itemId(), start, end);
 
             if (available < lineItem.quantity()) {
@@ -134,6 +138,10 @@ public class CheckoutService {
         for (var lineItemRequest : request.items()) {
             Item item = itemRepository.findById(lineItemRequest.itemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + lineItemRequest.itemId()));
+
+            if (!item.getIsActive()) {
+                throw new ValidationException("Item '" + item.getName() + "' is no longer available.");
+            }
 
             int available = availabilityService.getAvailableQuantity(lineItemRequest.itemId(), start, end);
             if (available < lineItemRequest.quantity()) {

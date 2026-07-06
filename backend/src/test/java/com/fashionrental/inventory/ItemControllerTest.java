@@ -26,6 +26,8 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -318,6 +320,39 @@ class ItemControllerTest {
         UUID id = UUID.randomUUID();
 
         mockMvc.perform(post("/api/items/{id}/clone", id).with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ─── DELETE /api/items/{id} ─────────────────────────────────────────────
+
+    @Test
+    @WithMockUser
+    void should_return_200_when_item_deleted_successfully() throws Exception {
+        UUID id = UUID.randomUUID();
+        doNothing().when(itemService).deleteItem(id);
+
+        mockMvc.perform(delete("/api/items/{id}", id).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_deleting_nonexistent_item() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ResourceNotFoundException("Item not found: " + id))
+                .when(itemService).deleteItem(id);
+
+        mockMvc.perform(delete("/api/items/{id}", id).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void should_return_401_when_deleting_without_authentication() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/items/{id}", id).with(csrf()))
                 .andExpect(status().isUnauthorized());
     }
 

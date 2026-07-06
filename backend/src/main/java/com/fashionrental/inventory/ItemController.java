@@ -78,6 +78,13 @@ public class ItemController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(cloned));
     }
 
+    @Operation(summary = "Soft-delete an inventory item")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteItem(@PathVariable UUID id) {
+        itemService.deleteItem(id);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
     @Operation(summary = "Check item availability for a date range")
     @GetMapping("/{id}/availability")
     public ResponseEntity<ApiResponse<AvailabilityResponse>> checkAvailability(

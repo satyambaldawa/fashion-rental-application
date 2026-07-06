@@ -26,6 +26,9 @@ export const itemsApi = {
   clone: (id: string) =>
     client.post<ApiResponse<ItemDetail>>(`/items/${id}/clone`).then(r => r.data.data!),
 
+  delete: (id: string) =>
+    client.delete<ApiResponse<null>>(`/items/${id}`).then(r => r.data),
+
   checkAvailability: (id: string, startDatetime: string, endDatetime: string) =>
     client.get<ApiResponse<AvailabilityResult>>(`/items/${id}/availability`, {
       params: { startDatetime, endDatetime }

@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -536,6 +537,39 @@ class ItemServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
 
         assertThatThrownBy(() -> itemService.cloneItem(itemId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── Delete item ─────────────────────────────────────────────────────────
+
+    @Test
+    void should_soft_delete_active_item() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Blue Sherwani", Item.Category.COSTUME, 500, 2000, 3, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        itemService.deleteItem(itemId);
+
+        assertThat(item.getIsActive()).isFalse();
+    }
+
+    @Test
+    void should_throw_not_found_when_deleting_nonexistent_item() {
+        UUID itemId = UUID.randomUUID();
+        when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> itemService.deleteItem(itemId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_throw_not_found_when_deleting_already_deleted_item() {
+        UUID itemId = UUID.randomUUID();
+        Item inactiveItem = buildItemWithTimestamps("Old Item", Item.Category.COSTUME, 100, 500, 1, false);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
+
+        assertThatThrownBy(() -> itemService.deleteItem(itemId))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 

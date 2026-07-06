@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal, Descriptions, Tag, Space, DatePicker, Button, Typography, Divider, Spin, message } from 'antd'
-import { CopyOutlined } from '@ant-design/icons'
+import { CopyOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Dayjs } from 'dayjs'
@@ -169,6 +169,33 @@ export default function ItemDetailDrawer({ itemId, onClose }: Props) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Delete Item',
+                  content: 'Are you sure you want to delete this item? This action cannot be undone.',
+                  okText: 'Delete',
+                  okType: 'danger',
+                  cancelText: 'Cancel',
+                  onOk: async () => {
+                    try {
+                      await itemsApi.delete(item.id)
+                      message.success('Item deleted successfully')
+                      queryClient.invalidateQueries({ queryKey: ['items'] })
+                      onClose()
+                    } catch (err: unknown) {
+                      const apiError = err as { response?: { data?: { error?: string } } }
+                      const msg = apiError?.response?.data?.error || 'Failed to delete item'
+                      message.error(msg, 5)
+                    }
+                  },
+                })
+              }}
+            >
+              Delete
+            </Button>
             <Button
               icon={<CopyOutlined />}
               loading={cloning}
