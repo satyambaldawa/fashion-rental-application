@@ -73,6 +73,20 @@ export interface CreateItemRequest {
   components?: PackageComponentRequest[]
 }
 
+export interface UpdateItemRequest {
+  name: string
+  category: ItemCategory
+  size?: string
+  description?: string
+  rate: number
+  deposit: number
+  quantity: number
+  notes?: string
+  purchaseRate?: number
+  vendorName?: string
+  components?: PackageComponentRequest[]
+}
+
 export interface AvailabilityResult {
   itemId: string
   availableQuantity: number

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
+import com.fashionrental.inventory.model.request.UpdateItemRequest;
 import com.fashionrental.inventory.model.response.AvailabilityResponse;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
@@ -318,5 +319,58 @@ class ItemControllerTest {
 
         mockMvc.perform(post("/api/items/{id}/clone", id).with(csrf()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ─── PUT /api/items/{id} ────────────────────────────────────────────────
+
+    @Test
+    @WithMockUser
+    void should_return_200_when_item_updated_successfully() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Updated Sherwani", Item.Category.DRESS, "XL", "Updated desc",
+                600, 2500, 5, null, null, null, null
+        );
+        when(itemService.updateItem(eq(id), any(UpdateItemRequest.class)))
+                .thenReturn(detailResponse(id, "Updated Sherwani"));
+
+        mockMvc.perform(put("/api/items/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Updated Sherwani"));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_updating_nonexistent_item() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+        );
+        when(itemService.updateItem(eq(id), any(UpdateItemRequest.class)))
+                .thenThrow(new ResourceNotFoundException("Item not found: " + id));
+
+        mockMvc.perform(put("/api/items/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_400_when_update_has_blank_name() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateItemRequest request = new UpdateItemRequest(
+                "", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+        );
+
+        mockMvc.perform(put("/api/items/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 }

@@ -4,6 +4,7 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
 import com.fashionrental.inventory.model.request.PackageComponentRequest;
+import com.fashionrental.inventory.model.request.UpdateItemRequest;
 import com.fashionrental.inventory.model.response.ItemDetailResponse;
 import com.fashionrental.inventory.model.response.ItemPhotoResponse;
 import com.fashionrental.inventory.model.response.ItemSummaryResponse;
@@ -161,6 +162,47 @@ public class ItemService {
             saved = itemRepository.save(saved);
         }
 
+        return toDetailResponse(saved);
+    }
+
+    @Transactional
+    public ItemDetailResponse updateItem(UUID id, UpdateItemRequest request) {
+        Item item = itemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + id));
+
+        if (!item.getIsActive()) {
+            throw new ResourceNotFoundException("Item not found: " + id);
+        }
+
+        // Guard: prevent reducing quantity below currently rented-out units
+        if (request.quantity() < item.getQuantity()) {
+            int available = availabilityService.getAvailableQuantity(id, null, null);
+            int currentlyBooked = item.getQuantity() - available;
+            if (request.quantity() < currentlyBooked) {
+                throw new ValidationException(
+                        "Cannot reduce quantity to " + request.quantity() +
+                        ": " + currentlyBooked + " unit(s) are currently rented out.");
+            }
+        }
+
+        item.setName(request.name());
+        item.setCategory(request.category());
+        item.setSize(request.size());
+        item.setDescription(request.description());
+        item.setRate(request.rate());
+        item.setDeposit(request.deposit());
+        item.setQuantity(request.quantity());
+        item.setNotes(request.notes());
+        item.setPurchaseRate(request.purchaseRate());
+        item.setVendorName(request.vendorName());
+
+        // Update package components if this is a PACKAGE item
+        if (item.getItemType() == Item.ItemType.PACKAGE) {
+            item.getPackageComponents().clear();
+            validateAndAttachComponents(item, request.components());
+        }
+
+        Item saved = itemRepository.save(item);
         return toDetailResponse(saved);
     }
 
