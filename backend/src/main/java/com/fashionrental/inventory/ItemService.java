@@ -47,6 +47,7 @@ public class ItemService {
 
     @Transactional(readOnly = true)
     public Page<ItemSummaryResponse> listItems(String search, Item.Category category, String itemSize,
+                                               Item.ItemType itemType,
                                                int page, int size,
                                                OffsetDateTime startDatetime, OffsetDateTime endDatetime) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
@@ -62,6 +63,9 @@ public class ItemService {
             }
             if (itemSize != null && !itemSize.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("size")), "%" + itemSize.toLowerCase() + "%"));
+            }
+            if (itemType != null) {
+                predicates.add(cb.equal(root.get("itemType"), itemType));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };

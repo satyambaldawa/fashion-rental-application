@@ -82,7 +82,7 @@ class ItemControllerTest {
                 List.of(summaryResponse(id, "Blue Sherwani")),
                 PageRequest.of(0, 20), 1
         );
-        when(itemService.listItems(null, null, null, 0, 20, null, null)).thenReturn(page);
+        when(itemService.listItems(null, null, null, null, 0, 20, null, null)).thenReturn(page);
 
         mockMvc.perform(get("/api/items").param("page", "0").param("size", "20"))
                 .andExpect(status().isOk())
@@ -102,7 +102,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_pass_search_and_category_filters_to_service() throws Exception {
         Page<ItemSummaryResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
-        when(itemService.listItems(eq("sherwani"), eq(Item.Category.COSTUME), eq(null), eq(0), eq(20), any(), any()))
+        when(itemService.listItems(eq("sherwani"), eq(Item.Category.COSTUME), eq(null), eq(null), eq(0), eq(20), any(), any()))
                 .thenReturn(emptyPage);
 
         mockMvc.perform(get("/api/items")
@@ -116,7 +116,7 @@ class ItemControllerTest {
     @WithMockUser
     void should_return_empty_page_when_no_items_match_filters() throws Exception {
         Page<ItemSummaryResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
-        when(itemService.listItems(any(), any(), any(), eq(0), eq(20), any(), any())).thenReturn(emptyPage);
+        when(itemService.listItems(any(), any(), any(), any(), eq(0), eq(20), any(), any())).thenReturn(emptyPage);
 
         mockMvc.perform(get("/api/items").param("search", "zzz"))
                 .andExpect(status().isOk())
@@ -407,5 +407,18 @@ class ItemControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_pass_item_type_filter_to_service() throws Exception {
+        Page<ItemSummaryResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
+        when(itemService.listItems(any(), any(), any(), eq(Item.ItemType.INDIVIDUAL), eq(0), eq(20), any(), any()))
+                .thenReturn(emptyPage);
+
+        mockMvc.perform(get("/api/items")
+                        .param("itemType", "INDIVIDUAL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(0)));
     }
 }
