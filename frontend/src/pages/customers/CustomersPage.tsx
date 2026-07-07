@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Input, Typography, Badge, Card, Space, Tag, Alert, Spin } from 'antd'
 import { PlusOutlined, UserOutlined } from '@ant-design/icons'
+import PageHeader from '../../components/common/PageHeader'
 import { customersApi } from '../../api/customers'
 import { useDebounce } from '../../hooks/useDebounce'
 import type { CustomerType } from '../../types/customer'
@@ -40,16 +41,21 @@ export default function CustomersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Customers</Typography.Title>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/customers/register')}
-        >
-          Register New Customer
-        </Button>
-      </div>
+      <PageHeader
+        label="Customers"
+        title="Our"
+        accent="Customers"
+        action={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/customers/register')}
+            style={{ background: '#A81259', borderColor: '#A81259', fontFamily: '"Jost", system-ui, sans-serif', fontWeight: 500 }}
+          >
+            Register Customer
+          </Button>
+        }
+      />
 
       <Input
         prefix={<UserOutlined />}

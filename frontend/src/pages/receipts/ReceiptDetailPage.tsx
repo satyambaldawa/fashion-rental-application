@@ -192,7 +192,12 @@ export default function ReceiptDetailPage() {
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
             {/* Totals */}
             <Descriptions bordered column={1} size="small" style={{ flex: '1 1 280px' }}>
-              <Descriptions.Item label="Total Rent">{formatCurrency(receipt.totalRent)}</Descriptions.Item>
+              <Descriptions.Item label="Total Rent">
+                {formatCurrency(receipt.totalRent)}
+                <span style={{ color: '#999', fontSize: 12, marginLeft: 6 }}>
+                  ({formatCurrency(receipt.totalRent / receipt.rentalDays)}/day × {receipt.rentalDays} day{receipt.rentalDays !== 1 ? 's' : ''})
+                </span>
+              </Descriptions.Item>
               <Descriptions.Item label="Total Deposit">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
               <Descriptions.Item label={<strong>Grand Total Paid</strong>}>
                 <strong>{formatCurrency(receipt.grandTotal)}</strong>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Table, Button, InputNumber, Alert, Space, Typography, Popconfirm, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import type { LateFeeRuleItem } from '../types/config'
 
@@ -135,7 +136,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ maxWidth: 700 }}>
-      <Title level={4} style={{ marginBottom: 4 }}>Late Fee Rules</Title>
+      <PageHeader label="Settings" title="Late Fee" accent="Rules" />
       <Alert
         type="warning"
         showIcon
