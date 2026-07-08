@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import PageHeader from '../../components/common/PageHeader'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -115,9 +116,7 @@ export default function ReceiptsPage() {
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 24 }}>
-        Active Rentals
-      </Typography.Title>
+      <PageHeader label="Rentals" title="Active" accent="Rentals" />
       <Tabs items={tabs} />
     </div>
   )

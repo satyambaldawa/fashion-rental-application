@@ -12,7 +12,9 @@ import java.util.UUID;
 public class Item {
 
     public enum Category {
-        COSTUME, ACCESSORIES, PAGDI, DRESS, ORNAMENTS
+        COSTUME, ACCESSORIES, PAGDI, DRESS, ORNAMENTS,
+        TRADITIONAL, MYTHOLOGICAL, FREEDOM_FIGHTER, PROFESSIONS,
+        FANCY_DRESS, SEASONAL, OTHER
     }
 
     public enum ItemType {

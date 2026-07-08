@@ -144,6 +144,14 @@ export default function ProcessReturnPage() {
         <Descriptions.Item label="Deposit Collected">
           {formatCurrency(receipt.totalDeposit)}
         </Descriptions.Item>
+        <Descriptions.Item label="Rental Start">{dayjs(receipt.startDatetime).format('DD MMM YYYY, h:mm A')}</Descriptions.Item>
+        <Descriptions.Item label="Rental Days">{receipt.rentalDays} day{receipt.rentalDays !== 1 ? 's' : ''}</Descriptions.Item>
+        <Descriptions.Item label="Rent Charged">
+          {formatCurrency(receipt.totalRent)}
+          <span style={{ color: '#999', fontSize: 12, marginLeft: 6 }}>
+            ({formatCurrency(receipt.totalRent / receipt.rentalDays)}/day × {receipt.rentalDays} day{receipt.rentalDays !== 1 ? 's' : ''})
+          </span>
+        </Descriptions.Item>
       </Descriptions>
 
       {/* Return datetime */}
@@ -272,7 +280,9 @@ export default function ProcessReturnPage() {
           title="Invoice Preview"
         >
           <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="Rent Charged">{formatCurrency(receipt.totalRent)}</Descriptions.Item>
+            <Descriptions.Item label={`Rent Charged (${receipt.rentalDays} day${receipt.rentalDays !== 1 ? 's' : ''})`}>
+              {formatCurrency(receipt.totalRent)}
+            </Descriptions.Item>
             <Descriptions.Item label="Deposit Collected">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
             {preview.totalLateFee > 0 && (
               <Descriptions.Item label="Late Fee">

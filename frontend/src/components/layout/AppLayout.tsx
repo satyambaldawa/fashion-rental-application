@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { Layout, Button, Drawer, Grid } from 'antd'
-import { LogoutOutlined, MenuOutlined } from '@ant-design/icons'
-import { Sidebar } from './Sidebar'
+import { Layout, Button } from 'antd'
+import { LogoutOutlined } from '@ant-design/icons'
+import { TopNav } from './Sidebar'
 import { useAuthStore } from '../../store/authStore'
 import SettingsPage from '../../pages/SettingsPage'
 import InventoryPage from '../../pages/inventory/InventoryPage'
@@ -16,87 +15,84 @@ import ProcessReturnPage from '../../pages/receipts/ProcessReturnPage'
 import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
 import ReportsPage from '../../pages/reports/ReportsPage'
 
-const { Sider, Content, Header } = Layout
-const { useBreakpoint } = Grid
-
-const SIDER_WIDTH = 220
+const { Header, Content } = Layout
 
 export default function AppLayout() {
   const clearToken = useAuthStore((s) => s.clearToken)
   const navigate = useNavigate()
-  const screens = useBreakpoint()
-  const [drawerOpen, setDrawerOpen] = useState(false)
-
-  const isMobile = !screens.lg
 
   function handleLogout() {
     clearToken()
     navigate('/login', { replace: true })
   }
 
-  function handleNavClick() {
-    if (isMobile) setDrawerOpen(false)
-  }
-
-  const siderContent = (
-    <>
-      <div style={{ padding: '16px', textAlign: 'center' }}>
-        <img src="/logo.png" alt="Manisha's Drapery" style={{ width: '100%', maxWidth: 180 }} />
-      </div>
-      <Sidebar onNavigate={handleNavClick} />
-    </>
-  )
-
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {!isMobile && (
-        <Sider width={SIDER_WIDTH} theme="light" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 10 }}>
-          {siderContent}
-        </Sider>
-      )}
-
-      {isMobile && (
-        <Drawer
-          placement="left"
-          onClose={() => setDrawerOpen(false)}
-          open={drawerOpen}
-          width={SIDER_WIDTH}
-          styles={{ body: { padding: 0 } }}
-        >
-          {siderContent}
-        </Drawer>
-      )}
-
-      <Layout style={{ marginLeft: isMobile ? 0 : SIDER_WIDTH }}>
-        <Header style={{
-          background: '#fff',
+    <Layout style={{ minHeight: '100vh', background: '#FBF1F5' }}>
+      {/* Single sticky header: logo · nav · logout */}
+      <Header
+        style={{
+          background: '#6E0B37',
           display: 'flex',
-          justifyContent: isMobile ? 'space-between' : 'flex-end',
           alignItems: 'center',
-          padding: '0 16px',
+          padding: '0 24px',
           position: 'sticky',
           top: 0,
-          zIndex: 9,
-          borderBottom: '1px solid #f0f0f0',
-        }}>
-          {isMobile && (
-            <Button
-              type="text"
-              icon={<MenuOutlined />}
-              onClick={() => setDrawerOpen(true)}
-              style={{ fontSize: 18 }}
-            />
-          )}
-          <Button icon={<LogoutOutlined />} onClick={handleLogout}>
-            Logout
-          </Button>
-        </Header>
-        <Content style={{
-          margin: isMobile ? '12px' : '24px',
-          background: '#fff',
-          borderRadius: 8,
-          padding: isMobile ? '12px' : '24px',
-        }}>
+          zIndex: 100,
+          height: 64,
+          boxShadow: '0 2px 8px rgba(110,11,55,0.25)',
+          gap: 16,
+        }}
+      >
+        {/* Logo + brand label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <img src="/logo.png" alt="Manisha's Drapery" style={{ height: 40 }} />
+          <span
+            style={{
+              fontFamily: '"Jost", system-ui, sans-serif',
+              fontWeight: 600,
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.6)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Manisha's Drapery
+          </span>
+        </div>
+
+        {/* Nav — fills remaining space */}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+          <TopNav />
+        </div>
+
+        {/* Logout */}
+        <Button
+          onClick={handleLogout}
+          style={{
+            background: 'transparent',
+            borderColor: 'rgba(234,185,207,0.5)',
+            color: 'rgba(255,255,255,0.85)',
+            fontFamily: '"Jost", system-ui, sans-serif',
+            fontWeight: 500,
+            borderRadius: 8,
+            flexShrink: 0,
+          }}
+          icon={<LogoutOutlined />}
+        >
+          Logout
+        </Button>
+      </Header>
+
+      {/* Page content */}
+      <Content style={{ background: '#FBF1F5' }}>
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: '0 auto',
+            padding: '24px',
+          }}
+        >
           <Routes>
             <Route path="/" element={<Navigate to="/checkout" replace />} />
             <Route path="/inventory" element={<InventoryPage />} />
@@ -113,8 +109,8 @@ export default function AppLayout() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/checkout" replace />} />
           </Routes>
-        </Content>
-      </Layout>
+        </div>
+      </Content>
     </Layout>
   )
 }

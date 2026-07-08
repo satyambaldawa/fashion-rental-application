@@ -17,7 +17,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={{ token: { colorPrimary: '#C2185B' } }}>
+      <ConfigProvider
+        theme={{
+          token: {
+            colorPrimary: '#A81259',
+            colorBgBase: '#FBF1F5',
+            borderRadius: 8,
+            fontFamily: '"Mulish", system-ui, sans-serif',
+          },
+          components: {
+            Layout: { siderBg: '#6E0B37', headerBg: '#6E0B37' },
+            Menu: {
+              darkItemBg: '#6E0B37',
+              darkItemSelectedBg: '#A81259',
+              darkItemColor: 'rgba(255,255,255,0.75)',
+              darkItemSelectedColor: '#fff',
+            },
+            Card: { borderRadiusLG: 14 },
+            Button: { borderRadius: 8 },
+            Table: { borderRadius: 14 },
+          },
+        }}
+      >
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

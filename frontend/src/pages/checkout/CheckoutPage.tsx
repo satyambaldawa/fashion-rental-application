@@ -12,8 +12,8 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Row,
-  Select,
   Space,
   Grid,
   Spin,
@@ -22,11 +22,12 @@ import {
   Typography,
 } from 'antd'
 import {
-  ShopOutlined,
   ShoppingCartOutlined,
   PlusOutlined,
   MinusOutlined,
 } from '@ant-design/icons'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
+import PageHeader from '../../components/common/PageHeader'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import DatePicker from 'antd/es/date-picker'
@@ -86,6 +87,9 @@ export default function CheckoutPage() {
   // Browse screen
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<string | undefined>()
+  const [itemSize, setItemSize] = useState('')
+  const [itemType, setItemType] = useState<'INDIVIDUAL' | 'PACKAGE' | undefined>(undefined)
+  const [browsePage, setBrowsePage] = useState(0)
   const [packageModal, setPackageModal] = useState<ItemSummary | null>(null)
 
   // Preview / confirm
@@ -93,11 +97,14 @@ export default function CheckoutPage() {
 
   // Items query — only runs when cart exists and we're browsing/previewing
   const { data: itemsPage, isLoading: itemsLoading } = useQuery({
-    queryKey: ['items-for-cart', search, category, cart?.startDatetime, cart?.endDatetime],
+    queryKey: ['items-for-cart', search, category, itemSize, itemType, browsePage, cart?.startDatetime, cart?.endDatetime],
     queryFn: () => itemsApi.list({
       search: search || undefined,
       category: category || undefined,
-      size: 100,
+      itemSize: itemSize || undefined,
+      itemType: itemType || undefined,
+      page: browsePage,
+      size: 20,
       startDatetime: cart!.startDatetime,
       endDatetime: cart!.endDatetime,
     }),
@@ -233,41 +240,111 @@ export default function CheckoutPage() {
     return (
       <div style={{ paddingBottom: 100 }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>Select Items</Typography.Title>
-          <Space>
-            <Tag color="blue">
-              {dayjs(cart!.startDatetime).format('DD MMM HH:mm')} → {dayjs(cart!.endDatetime).format('DD MMM HH:mm')}
-            </Tag>
-            <Tag color="purple">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Tag>
-          </Space>
-        </div>
+        <PageHeader
+          label="New Rental"
+          title="Browse"
+          accent="Items"
+          action={
+            <Space>
+              <Tag color="blue">{dayjs(cart!.startDatetime).format('DD MMM HH:mm')} → {dayjs(cart!.endDatetime).format('DD MMM HH:mm')}</Tag>
+              <Tag color="purple">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Tag>
+            </Space>
+          }
+        />
 
         {/* Filters */}
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Input.Search
-            placeholder="Search items..."
-            style={{ width: 220 }}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            allowClear
-            onClear={() => setSearch('')}
-          />
-          <Select
-            allowClear
-            placeholder="Category"
-            style={{ width: 160 }}
-            value={category}
-            onChange={(v) => setCategory(v)}
-            options={[
+        <div style={{ marginBottom: 16 }}>
+          {/* Category chips */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            {([
+              { label: 'All', value: undefined },
               { label: 'Costume', value: 'COSTUME' },
               { label: 'Accessories', value: 'ACCESSORIES' },
               { label: 'Pagdi', value: 'PAGDI' },
               { label: 'Dress', value: 'DRESS' },
               { label: 'Ornaments', value: 'ORNAMENTS' },
-            ]}
-          />
-        </Space>
+              { label: 'Traditional', value: 'TRADITIONAL' },
+              { label: 'Mythological', value: 'MYTHOLOGICAL' },
+              { label: 'Freedom Fighter', value: 'FREEDOM_FIGHTER' },
+              { label: 'Professions', value: 'PROFESSIONS' },
+              { label: 'Fancy Dress', value: 'FANCY_DRESS' },
+              { label: 'Seasonal', value: 'SEASONAL' },
+              { label: 'Other', value: 'OTHER' },
+            ] as { label: string; value: string | undefined }[]).map(opt => {
+              const isActive = (opt.value ?? undefined) === category
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => { setCategory(opt.value); setBrowsePage(0); }}
+                  style={{
+                    padding: '5px 16px',
+                    borderRadius: 999,
+                    border: `1px solid ${isActive ? '#A81259' : '#eed6e0'}`,
+                    background: isActive ? '#6E0B37' : '#fff',
+                    color: isActive ? '#fff' : '#7a5361',
+                    fontFamily: '"Jost", system-ui, sans-serif',
+                    fontWeight: 500,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    letterSpacing: '0.01em',
+                    lineHeight: '22px',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Search + size + type filters */}
+          <Space wrap>
+            <Input.Search
+              placeholder="Search items..."
+              style={{ width: 240, borderColor: '#eed6e0' }}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setBrowsePage(0); }}
+              allowClear
+              onClear={() => { setSearch(''); setBrowsePage(0); }}
+            />
+            <Input
+              placeholder="Size"
+              value={itemSize}
+              onChange={e => { setItemSize(e.target.value); setBrowsePage(0); }}
+              style={{ width: 120, borderColor: '#eed6e0' }}
+              allowClear
+            />
+            {([
+              { label: 'All Types', value: undefined },
+              { label: 'Individual', value: 'INDIVIDUAL' as const },
+              { label: 'Combo', value: 'PACKAGE' as const },
+            ]).map(opt => {
+              const isActive = opt.value === itemType
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => { setItemType(opt.value); setBrowsePage(0); }}
+                  style={{
+                    padding: '5px 16px',
+                    borderRadius: 999,
+                    border: `1px solid ${isActive ? '#A81259' : '#eed6e0'}`,
+                    background: isActive ? '#6E0B37' : '#fff',
+                    color: isActive ? '#fff' : '#7a5361',
+                    fontFamily: '"Jost", system-ui, sans-serif',
+                    fontWeight: 500,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    letterSpacing: '0.01em',
+                    lineHeight: '22px',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </Space>
+        </div>
 
         {itemsLoading && <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>}
 
@@ -293,8 +370,8 @@ export default function CheckoutPage() {
                         style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover' }}
                       />
                     ) : (
-                      <div style={{ width: '100%', aspectRatio: '1/1', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <ShopOutlined style={{ fontSize: 48, color: '#bbb' }} />
+                      <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden' }}>
+                        <ItemPhotoPlaceholder />
                       </div>
                     )
                   }
@@ -337,9 +414,6 @@ export default function CheckoutPage() {
                     title={item.name}
                     description={
                       <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                        <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                          #{item.id.slice(0, 8)}
-                        </Typography.Text>
                         <Space>
                           <Tag color="blue">{item.category}</Tag>
                           {item.itemType === 'PACKAGE'
@@ -365,6 +439,18 @@ export default function CheckoutPage() {
             )
           })}
         </Row>
+
+        {itemsPage && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24, marginBottom: 80 }}>
+            <Pagination
+              current={browsePage + 1}
+              total={itemsPage.totalElements}
+              pageSize={20}
+              onChange={p => setBrowsePage(p - 1)}
+              showSizeChanger={false}
+            />
+          </div>
+        )}
 
         {/* Sticky bottom bar */}
         <div style={{
@@ -428,9 +514,6 @@ export default function CheckoutPage() {
                   : <Tag style={{ margin: 0 }}>Individual</Tag>}
                 {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
                 {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
-              </div>
-              <div style={{ marginBottom: componentNames ? 4 : 0 }}>
-                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#999' }}>#{r.itemId.slice(0, 8)}</span>
               </div>
               {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
                 <div style={{ fontSize: 12, paddingLeft: 2 }}>

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Card, Tag, Space, Button } from 'antd'
-import { ShopOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import type { ItemSummary } from '../../../types/inventory'
 import { formatCurrency } from '../../../utils/currency'
+import ItemPhotoPlaceholder from '../../../components/common/ItemPhotoPlaceholder'
 
 interface Props {
   item: ItemSummary
@@ -33,9 +34,7 @@ export default function ItemCard({ item, onClick }: Props) {
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ShopOutlined style={{ fontSize: 48, color: '#bbb' }} />
-        </div>
+        <ItemPhotoPlaceholder />
       )}
 
       {photos.length > 1 && (
@@ -93,7 +92,14 @@ export default function ItemCard({ item, onClick }: Props) {
     <Card
       hoverable
       onClick={onClick}
-      style={{ opacity: item.isAvailable ? 1 : 0.6 }}
+      style={{
+        opacity: item.isAvailable ? 1 : 0.6,
+        border: '1px solid #eed6e0',
+        borderRadius: 14,
+        boxShadow: '0 10px 30px -18px rgba(110,11,55,0.4)',
+        overflow: 'hidden',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      }}
       cover={cover}
     >
       <Card.Meta

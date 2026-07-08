@@ -102,7 +102,7 @@ class ItemServiceTest {
         when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(emptyPage);
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any())).thenReturn(Map.of());
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isZero();
@@ -118,7 +118,7 @@ class ItemServiceTest {
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
                 .thenReturn(Map.of(item.getId(), 2));
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         ItemSummaryResponse summary = result.getContent().get(0);
@@ -141,7 +141,7 @@ class ItemServiceTest {
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
                 .thenReturn(Map.of(item.getId(), 0));
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         ItemSummaryResponse summary = result.getContent().get(0);
         assertThat(summary.availableQuantity()).isZero();
@@ -158,7 +158,7 @@ class ItemServiceTest {
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
                 .thenReturn(Map.of(item.getId(), 1));
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent().get(0).thumbnailUrl()).isNull();
     }
@@ -185,7 +185,7 @@ class ItemServiceTest {
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
                 .thenReturn(Map.of(item.getId(), 1));
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         assertThat(result.getContent().get(0).thumbnailUrl()).isEqualTo("https://cdn.example.com/thumb1.jpg");
     }
@@ -362,7 +362,7 @@ class ItemServiceTest {
         when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
                 .thenReturn(Map.of(packageItem.getId(), 3));
 
-        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, 0, 20, null, null);
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, null, 0, 20, null, null);
 
         ItemSummaryResponse summary = result.getContent().get(0);
         assertThat(summary.itemType()).isEqualTo(Item.ItemType.PACKAGE);
@@ -682,5 +682,22 @@ class ItemServiceTest {
         // Reducing to 3 when 2 are booked — should succeed
         ItemDetailResponse result = itemService.updateItem(itemId, request);
         assertThat(result.quantity()).isEqualTo(3);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void should_filter_items_by_item_type_when_specified() {
+        Item individual = buildActiveItem("Pagdi", Item.Category.PAGDI, 100, 500, 2);
+        individual.setItemType(Item.ItemType.INDIVIDUAL);
+
+        Page<Item> page = new PageImpl<>(List.of(individual), PageRequest.of(0, 20), 1);
+        when(itemRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any()))
+                .thenReturn(Map.of(individual.getId(), 2));
+
+        Page<ItemSummaryResponse> result = itemService.listItems(null, null, null, Item.ItemType.INDIVIDUAL, 0, 20, null, null);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).itemType()).isEqualTo(Item.ItemType.INDIVIDUAL);
     }
 }

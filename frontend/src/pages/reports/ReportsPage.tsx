@@ -18,6 +18,7 @@ import {
   Typography,
 } from 'antd'
 import { PhoneOutlined } from '@ant-design/icons'
+import PageHeader from '../../components/common/PageHeader'
 import {
   Bar,
   BarChart,
@@ -359,7 +360,7 @@ function MonthlyRevenueTab() {
 export default function ReportsPage() {
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 20 }}>Reports</Typography.Title>
+      <PageHeader label="Reports" title="Revenue &" accent="Insights" />
       <Tabs
         defaultActiveKey="monthly-revenue"
         items={[
