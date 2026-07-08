@@ -6,7 +6,7 @@ import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import type { LateFeeRuleItem } from '../types/config'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 type EditableRule = LateFeeRuleItem & { key: string }
 
