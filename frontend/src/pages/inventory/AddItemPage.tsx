@@ -426,6 +426,16 @@ export default function AddItemPage() {
             <Input placeholder="e.g. Rajesh Textiles" />
           </Form.Item>
 
+          {isEditMode && (
+            <Form.Item label="Photos">
+              <PhotoManager
+                itemId={editId!}
+                photos={photos}
+                onPhotosChange={setPhotos}
+              />
+            </Form.Item>
+          )}
+
           {mutation.isError && (
             <Alert
               type="error"
