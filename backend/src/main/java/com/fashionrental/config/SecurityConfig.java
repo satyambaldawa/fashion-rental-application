@@ -1,5 +1,6 @@
 package com.fashionrental.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -8,7 +9,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.context.annotation.Bean;
 
 @Configuration
 @EnableWebSecurity
@@ -31,8 +31,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/users").hasRole("OWNER")
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        // Inventory writes are owner-only; reads are open to any authenticated user
+                        .requestMatchers(HttpMethod.POST, "/api/items/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.PUT, "/api/items/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/items/**").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/items/**").hasRole("OWNER")
+                        .requestMatchers("/api/reports/**").hasRole("OWNER")
+                        .requestMatchers("/api/config/**").hasRole("OWNER")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )

@@ -8,14 +8,14 @@ import type { LoginRequest } from '../types/auth'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
-  const setToken = useAuthStore((s) => s.setToken)
+  const setAuth = useAuthStore((s) => s.setAuth)
   const navigate = useNavigate()
 
   async function handleSubmit(values: LoginRequest) {
     setLoading(true)
     try {
-      const token = await login(values)
-      setToken(token)
+      const { token, role } = await login(values)
+      setAuth(token, role)
       navigate('/checkout', { replace: true })
     } catch {
       message.error('Invalid credentials')

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Button, InputNumber, Alert, Space, Typography, Popconfirm, message } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Button, InputNumber, Alert, Space, Typography, Popconfirm, message, Form, Input, Select, Card, Divider } from 'antd'
+import { PlusOutlined, DeleteOutlined, UserAddOutlined } from '@ant-design/icons'
 import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
+import { authApi } from '../api/auth'
 import type { LateFeeRuleItem } from '../types/config'
+import type { CreateUserRequest } from '../types/auth'
 
 const { Text } = Typography
 
@@ -18,6 +20,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const [rows, setRows] = useState<EditableRule[] | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [userForm] = Form.useForm<CreateUserRequest>()
 
   const { data: savedRules, isLoading } = useQuery({
     queryKey: ['late-fee-rules'],
@@ -38,6 +41,17 @@ export default function SettingsPage() {
     },
     onError: (err: { response?: { data?: { error?: string } } }) => {
       setValidationError(err.response?.data?.error ?? 'Failed to save rules.')
+    },
+  })
+
+  const { mutate: createUser, isPending: isCreatingUser } = useMutation({
+    mutationFn: (data: CreateUserRequest) => authApi.createUser(data),
+    onSuccess: () => {
+      message.success('User created successfully.')
+      userForm.resetFields()
+    },
+    onError: (err: { response?: { data?: { error?: string } } }) => {
+      message.error(err.response?.data?.error ?? 'Failed to create user.')
     },
   })
 
@@ -69,6 +83,10 @@ export default function SettingsPage() {
   function handleSave() {
     setValidationError(null)
     save({ rules: editableRows.map(({ key: _key, ...r }) => r) })
+  }
+
+  function handleCreateUser(values: CreateUserRequest) {
+    createUser(values)
   }
 
   const columns = [
@@ -163,6 +181,60 @@ export default function SettingsPage() {
         <Button icon={<PlusOutlined />} onClick={addRow}>Add Tier</Button>
         <Button type="primary" loading={isSaving} onClick={handleSave}>Save Rules</Button>
       </Space>
+
+      <Divider />
+
+      <Card
+        title={
+          <span>
+            <UserAddOutlined style={{ marginRight: 8 }} />
+            Manage Users
+          </span>
+        }
+        style={{ marginTop: 8 }}
+      >
+        <Form
+          form={userForm}
+          layout="vertical"
+          onFinish={handleCreateUser}
+          initialValues={{ role: 'EXECUTIVE' }}
+          style={{ maxWidth: 400 }}
+        >
+          <Form.Item
+            name="username"
+            label="Username"
+            rules={[{ required: true, message: 'Username is required' }]}
+          >
+            <Input placeholder="e.g. staff01" autoComplete="off" />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label="Password"
+            rules={[
+              { required: true, message: 'Password is required' },
+              { min: 6, message: 'Password must be at least 6 characters' },
+            ]}
+          >
+            <Input.Password placeholder="Min 6 characters" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item name="role" label="Role">
+            <Select>
+              <Select.Option value="EXECUTIVE">Executive (Staff)</Select.Option>
+              <Select.Option value="OWNER">Owner</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={isCreatingUser}
+              icon={<UserAddOutlined />}
+            >
+              Create User
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
     </div>
   )
 }

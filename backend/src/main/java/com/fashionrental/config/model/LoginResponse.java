@@ -1,3 +1,3 @@
 package com.fashionrental.config.model;
 
-public record LoginResponse(String token) {}
+public record LoginResponse(String token, String role) {}

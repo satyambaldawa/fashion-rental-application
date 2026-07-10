@@ -1,13 +1,21 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Menu } from 'antd'
+import { useAuth } from '../../hooks/useAuth'
+import type { UserRole } from '../../types/auth'
 
-const NAV_ITEMS = [
-  { key: '/inventory', label: 'Inventory' },
-  { key: '/customers', label: 'Customers' },
-  { key: '/checkout', label: 'New Rental' },
-  { key: '/receipts', label: 'Active Rentals' },
-  { key: '/reports', label: 'Reports' },
-  { key: '/settings', label: 'Settings' },
+interface NavItem {
+  key: string
+  label: string
+  roles: UserRole[]
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: '/checkout',  label: 'New Rental',     roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/receipts',  label: 'Active Rentals',  roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/customers', label: 'Customers',       roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },
+  { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
+  { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
 ]
 
 // Active-tab underline indicator using petal color
@@ -46,6 +54,7 @@ const TOP_NAV_STYLE = `
 export function TopNav() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { role } = useAuth()
 
   // Inject scoped styles once
   if (typeof document !== 'undefined' && !document.getElementById('top-nav-styles')) {
@@ -55,13 +64,17 @@ export function TopNav() {
     document.head.appendChild(style)
   }
 
+  const visibleItems = NAV_ITEMS
+    .filter(item => item.roles.includes(role))
+    .map(({ key, label }) => ({ key, label }))
+
   return (
     <Menu
       className="top-nav"
       mode="horizontal"
       theme="dark"
       selectedKeys={[location.pathname]}
-      items={NAV_ITEMS}
+      items={visibleItems}
       onClick={({ key }) => navigate(key)}
       style={{
         background: '#6E0B37',
@@ -82,12 +95,17 @@ interface SidebarProps {
 export function Sidebar({ onNavigate }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { role } = useAuth()
+
+  const visibleItems = NAV_ITEMS
+    .filter(item => item.roles.includes(role))
+    .map(({ key, label }) => ({ key, label }))
 
   return (
     <Menu
       mode="inline"
       selectedKeys={[location.pathname]}
-      items={NAV_ITEMS}
+      items={visibleItems}
       onClick={({ key }) => {
         navigate(key)
         onNavigate?.()

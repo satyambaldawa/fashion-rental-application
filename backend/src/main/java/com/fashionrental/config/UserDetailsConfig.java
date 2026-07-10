@@ -1,33 +1,29 @@
 package com.fashionrental.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 @Configuration
 public class UserDetailsConfig {
 
-    @Value("${app.auth.username}")
-    private String appUsername;
-
-    @Value("${app.auth.password}")
-    private String appPassword;
-
     @Bean
-    public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        var user = User.builder()
-                .username(appUsername)
-                .password(passwordEncoder.encode(appPassword))
-                .roles("USER")
-                .build();
-        return new InMemoryUserDetailsManager(user);
+    public UserDetailsService userDetailsService(AppUserRepository userRepository) {
+        return username -> {
+            AppUser user = userRepository.findByUsernameAndIsActiveTrue(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+            return User.builder()
+                    .username(user.getUsername())
+                    .password(user.getPasswordHash())
+                    .roles(user.getRole().name())
+                    .build();
+        };
     }
 
     @Bean

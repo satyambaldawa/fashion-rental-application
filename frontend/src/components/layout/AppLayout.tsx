@@ -3,6 +3,7 @@ import { Layout, Button } from 'antd'
 import { LogoutOutlined } from '@ant-design/icons'
 import { TopNav } from './Sidebar'
 import { useAuthStore } from '../../store/authStore'
+import { useAuth } from '../../hooks/useAuth'
 import SettingsPage from '../../pages/SettingsPage'
 import InventoryPage from '../../pages/inventory/InventoryPage'
 import AddItemPage from '../../pages/inventory/AddItemPage'
@@ -14,8 +15,14 @@ import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
 import ProcessReturnPage from '../../pages/receipts/ProcessReturnPage'
 import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
 import ReportsPage from '../../pages/reports/ReportsPage'
+import UnauthorizedPage from '../../pages/UnauthorizedPage'
 
 const { Header, Content } = Layout
+
+function OwnerRoute({ children }: { children: React.ReactNode }) {
+  const { role } = useAuth()
+  return role === 'OWNER' ? <>{children}</> : <Navigate to="/unauthorized" replace />
+}
 
 export default function AppLayout() {
   const clearToken = useAuthStore((s) => s.clearToken)
@@ -95,9 +102,9 @@ export default function AppLayout() {
         >
           <Routes>
             <Route path="/" element={<Navigate to="/checkout" replace />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/inventory/add" element={<AddItemPage key="add" />} />
-            <Route path="/inventory/:id/edit" element={<AddItemPage key="edit" />} />
+            <Route path="/inventory" element={<OwnerRoute><InventoryPage /></OwnerRoute>} />
+            <Route path="/inventory/add" element={<OwnerRoute><AddItemPage key="add" /></OwnerRoute>} />
+            <Route path="/inventory/:id/edit" element={<OwnerRoute><AddItemPage key="edit" /></OwnerRoute>} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/register" element={<RegisterCustomerPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
@@ -105,8 +112,9 @@ export default function AppLayout() {
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
             <Route path="/receipts/:id/return" element={<ProcessReturnPage />} />
             <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/reports" element={<OwnerRoute><ReportsPage /></OwnerRoute>} />
+            <Route path="/settings" element={<OwnerRoute><SettingsPage /></OwnerRoute>} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="*" element={<Navigate to="/checkout" replace />} />
           </Routes>
         </div>

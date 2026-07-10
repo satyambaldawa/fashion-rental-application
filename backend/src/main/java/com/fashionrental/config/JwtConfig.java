@@ -23,11 +23,12 @@ public class JwtConfig {
         this.expirationMillis = (long) expirationHours * 3600 * 1000;
     }
 
-    public String generateToken(String username) {
+    public String generateToken(String username, String role) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMillis);
         return Jwts.builder()
                 .subject(username)
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(signingKey)
@@ -45,6 +46,10 @@ public class JwtConfig {
 
     public String extractUsername(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    public String extractRole(String token) {
+        return parseClaims(token).get("role", String.class);
     }
 
     private Claims parseClaims(String token) {

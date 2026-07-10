@@ -51,8 +51,6 @@ class ItemControllerTest {
     // ── Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest ──
     @MockitoBean
     private com.fashionrental.config.JwtConfig jwtConfig;
-    @MockitoBean
-    private org.springframework.security.core.userdetails.UserDetailsService userDetailsService;
 
     private ItemSummaryResponse summaryResponse(UUID id, String name) {
         return new ItemSummaryResponse(
@@ -156,7 +154,7 @@ class ItemControllerTest {
     // ─── POST /api/items ─────────────────────────────────────────────────────
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_201_when_item_created_with_valid_request() throws Exception {
         UUID id = UUID.randomUUID();
         CreateItemRequest request = new CreateItemRequest(
@@ -174,7 +172,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_400_when_name_is_blank() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
                 "", Item.Category.COSTUME, Item.ItemType.INDIVIDUAL, null, null, 200, 1000, 1, null, null, null, null
@@ -188,7 +186,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_400_when_rate_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
                 "Test Item", Item.Category.DRESS, Item.ItemType.INDIVIDUAL, null, null, 0, 0, 1, null, null, null, null
@@ -202,7 +200,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_400_when_quantity_is_zero() throws Exception {
         CreateItemRequest request = new CreateItemRequest(
                 "Test Item", Item.Category.DRESS, Item.ItemType.INDIVIDUAL, null, null, 100, 0, 0, null, null, null, null
@@ -216,7 +214,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_400_when_category_is_missing() throws Exception {
         // Omit category (null) — @NotNull should trigger
         String body = "{\"name\":\"Test\",\"rate\":100,\"deposit\":0,\"quantity\":1}";
@@ -291,7 +289,7 @@ class ItemControllerTest {
     // ─── POST /api/items/{id}/clone ─────────────────────────────────────────
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_201_when_item_cloned_successfully() throws Exception {
         UUID sourceId = UUID.randomUUID();
         UUID clonedId = UUID.randomUUID();
@@ -305,7 +303,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_404_when_cloning_nonexistent_item() throws Exception {
         UUID id = UUID.randomUUID();
         when(itemService.cloneItem(id)).thenThrow(new ResourceNotFoundException("Item not found: " + id));
@@ -326,7 +324,7 @@ class ItemControllerTest {
     // ─── DELETE /api/items/{id} ─────────────────────────────────────────────
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_200_when_item_deleted_successfully() throws Exception {
         UUID id = UUID.randomUUID();
         doNothing().when(itemService).deleteItem(id);
@@ -337,7 +335,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_404_when_deleting_nonexistent_item() throws Exception {
         UUID id = UUID.randomUUID();
         doThrow(new ResourceNotFoundException("Item not found: " + id))
@@ -359,7 +357,7 @@ class ItemControllerTest {
     // ─── PUT /api/items/{id} ────────────────────────────────────────────────
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_200_when_item_updated_successfully() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
@@ -378,7 +376,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_404_when_updating_nonexistent_item() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
@@ -395,7 +393,7 @@ class ItemControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OWNER")
     void should_return_400_when_update_has_blank_name() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
