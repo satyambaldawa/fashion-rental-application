@@ -18,6 +18,7 @@ public class ReceiptMapper {
         return new ReceiptResponse(
                 receipt.getId(),
                 receipt.getReceiptNumber(),
+                receipt.getShareToken(),
                 receipt.getCustomer().getId(),
                 receipt.getCustomer().getName(),
                 receipt.getCustomer().getPhone(),

@@ -9,7 +9,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptLineItem } from '../../types/receipt'
@@ -28,6 +28,27 @@ const PRINT_STYLES = `
   .no-print { display: none !important; }
 }
 `
+
+function buildReceiptWhatsAppUrl(receipt: import('../../types/receipt').Receipt): string {
+  const publicUrl = `${window.location.origin}/public/receipts/${receipt.shareToken}`
+  const start = dayjs(receipt.startDatetime).format('DD MMM YYYY')
+  const end = dayjs(receipt.endDatetime).format('DD MMM YYYY')
+  const message = [
+    `Hello ${receipt.customerName}!`,
+    '',
+    `Here's your rental receipt from Fashion Rental:`,
+    '',
+    `Receipt #${receipt.receiptNumber}`,
+    `Rental: ${start} – ${end}`,
+    `Grand Total: ₹${receipt.grandTotal}`,
+    '',
+    `View full details: ${publicUrl}`,
+    '',
+    'Thank you for choosing Fashion Rental!',
+  ].join('\n')
+  const phone = receipt.customerPhone.replace(/\D/g, '')
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+}
 
 function formatCategory(cat: string | null): string {
   if (!cat) return '—'
@@ -136,6 +157,15 @@ export default function ReceiptDetailPage() {
           <Space>
             <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
               Print / Share
+            </Button>
+            <Button
+              icon={<WhatsAppOutlined />}
+              style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#fff' }}
+              href={buildReceiptWhatsAppUrl(receipt)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Send on WhatsApp
             </Button>
             {receipt.status === 'GIVEN' && (
               <Button type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>

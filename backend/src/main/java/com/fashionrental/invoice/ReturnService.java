@@ -2,6 +2,7 @@ package com.fashionrental.invoice;
 
 import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.configuration.LateFeeRule;
 import com.fashionrental.configuration.LateFeeRuleRepository;
 import com.fashionrental.invoice.model.request.ProcessReturnRequest;
@@ -32,19 +33,22 @@ public class ReturnService {
     private final LateFeeRuleRepository lateFeeRuleRepository;
     private final BillingService billingService;
     private final InvoiceNumberService invoiceNumberService;
+    private final ShareTokenService shareTokenService;
 
     public ReturnService(
             ReceiptRepository receiptRepository,
             InvoiceRepository invoiceRepository,
             LateFeeRuleRepository lateFeeRuleRepository,
             BillingService billingService,
-            InvoiceNumberService invoiceNumberService
+            InvoiceNumberService invoiceNumberService,
+            ShareTokenService shareTokenService
     ) {
         this.receiptRepository = receiptRepository;
         this.invoiceRepository = invoiceRepository;
         this.lateFeeRuleRepository = lateFeeRuleRepository;
         this.billingService = billingService;
         this.invoiceNumberService = invoiceNumberService;
+        this.shareTokenService = shareTokenService;
     }
 
     @Transactional(readOnly = true)
@@ -85,6 +89,7 @@ public class ReturnService {
 
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumberService.generateInvoiceNumber());
+        invoice.setShareToken(shareTokenService.generate());
         invoice.setReceipt(receipt);
         invoice.setCustomer(receipt.getCustomer());
         invoice.setReturnDatetime(request.returnDatetime());
@@ -194,7 +199,7 @@ public class ReturnService {
         }
     }
 
-    private InvoiceResponse toInvoiceResponse(Invoice invoice) {
+    public InvoiceResponse toInvoiceResponse(Invoice invoice) {
         List<InvoiceLineItemResponse> lineItems = invoice.getLineItems().stream()
                 .map(this::toLineItemResponse)
                 .toList();
@@ -202,6 +207,7 @@ public class ReturnService {
         return new InvoiceResponse(
                 invoice.getId(),
                 invoice.getInvoiceNumber(),
+                invoice.getShareToken(),
                 invoice.getReceipt().getId(),
                 invoice.getReceipt().getReceiptNumber(),
                 invoice.getCustomer().getId(),

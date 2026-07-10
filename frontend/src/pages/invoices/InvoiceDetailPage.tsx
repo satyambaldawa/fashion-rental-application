@@ -9,7 +9,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { invoicesApi } from '../../api/invoices'
 import type { InvoiceLineItem } from '../../types/invoice'
@@ -28,6 +28,27 @@ const PRINT_STYLES = `
   .no-print { display: none !important; }
 }
 `
+
+function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice): string {
+  const publicUrl = `${window.location.origin}/public/invoices/${invoice.shareToken}`
+  const action = invoice.transactionType === 'REFUND' ? 'Amount Refunded' : 'Amount Collected'
+  const message = [
+    `Hello ${invoice.customerName}!`,
+    '',
+    `Here's your return invoice from Fashion Rental:`,
+    '',
+    `Invoice #${invoice.invoiceNumber}`,
+    `Receipt #${invoice.receiptNumber}`,
+    `Returned: ${dayjs(invoice.returnDatetime).format('DD MMM YYYY')}`,
+    `${action}: ₹${invoice.finalAmount}`,
+    '',
+    `View full details: ${publicUrl}`,
+    '',
+    'Thank you for choosing Fashion Rental!',
+  ].join('\n')
+  const phone = invoice.customerPhone.replace(/\D/g, '')
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+}
 
 function formatCategory(cat: string | null): string {
   if (!cat) return ''
@@ -116,6 +137,15 @@ export default function InvoiceDetailPage() {
           <Space>
             <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
               Print / Share
+            </Button>
+            <Button
+              icon={<WhatsAppOutlined />}
+              style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#fff' }}
+              href={buildInvoiceWhatsAppUrl(invoice)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Send on WhatsApp
             </Button>
           </Space>
         </div>

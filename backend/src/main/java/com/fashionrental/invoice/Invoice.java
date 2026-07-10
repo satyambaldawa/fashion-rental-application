@@ -26,6 +26,9 @@ public class Invoice {
     @Column(name = "invoice_number", nullable = false)
     private String invoiceNumber;
 
+    @Column(name = "share_token", nullable = false, unique = true, length = 12)
+    private String shareToken;
+
     @OneToOne(fetch = LAZY)
     @JoinColumn(name = "receipt_id", nullable = false)
     private Receipt receipt;
@@ -81,6 +84,8 @@ public class Invoice {
     public UUID getId() { return id; }
     public String getInvoiceNumber() { return invoiceNumber; }
     public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }
+    public String getShareToken() { return shareToken; }
+    public void setShareToken(String shareToken) { this.shareToken = shareToken; }
     public Receipt getReceipt() { return receipt; }
     public void setReceipt(Receipt receipt) { this.receipt = receipt; }
     public Customer getCustomer() { return customer; }

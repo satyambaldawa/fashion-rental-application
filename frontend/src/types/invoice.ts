@@ -52,6 +52,7 @@ export interface InvoiceLineItem {
 export interface Invoice {
   id: string
   invoiceNumber: string
+  shareToken: string
   receiptId: string
   receiptNumber: string
   customerId: string

@@ -4,6 +4,7 @@ import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
+import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
@@ -33,6 +34,7 @@ public class CheckoutService {
     private final PackageComponentRepository packageComponentRepository;
     private final ReceiptRepository receiptRepository;
     private final ReceiptNumberService receiptNumberService;
+    private final ShareTokenService shareTokenService;
     private final DateTimeUtil dateTimeUtil;
     private final ReceiptMapper receiptMapper;
 
@@ -43,6 +45,7 @@ public class CheckoutService {
             PackageComponentRepository packageComponentRepository,
             ReceiptRepository receiptRepository,
             ReceiptNumberService receiptNumberService,
+            ShareTokenService shareTokenService,
             DateTimeUtil dateTimeUtil,
             ReceiptMapper receiptMapper
     ) {
@@ -52,6 +55,7 @@ public class CheckoutService {
         this.packageComponentRepository = packageComponentRepository;
         this.receiptRepository = receiptRepository;
         this.receiptNumberService = receiptNumberService;
+        this.shareTokenService = shareTokenService;
         this.dateTimeUtil = dateTimeUtil;
         this.receiptMapper = receiptMapper;
     }
@@ -130,6 +134,7 @@ public class CheckoutService {
         receipt.setRentalDays(rentalDays);
         receipt.setNotes(request.notes());
         receipt.setStatus(Receipt.Status.GIVEN);
+        receipt.setShareToken(shareTokenService.generate());
 
         List<ReceiptLineItem> lineItems = new ArrayList<>();
         int totalRent = 0;
