@@ -1,10 +1,13 @@
 package com.fashionrental.config;
 
+import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.config.model.CreateUserRequest;
 import com.fashionrental.config.model.LoginRequest;
 import com.fashionrental.config.model.LoginResponse;
+import com.fashionrental.config.model.UpdateUserRequest;
+import com.fashionrental.config.model.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -13,10 +16,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
 
 @Tag(name = "Auth", description = "Authentication — obtain a JWT token")
 @RestController
@@ -52,7 +55,7 @@ public class AuthController {
 
     @Operation(summary = "Create a new user (owner only)")
     @PostMapping("/users")
-    public ResponseEntity<ApiResponse<Void>> createUser(@Valid @RequestBody CreateUserRequest request) {
+    public ResponseEntity<ApiResponse<UserResponse>> createUser(@Valid @RequestBody CreateUserRequest request) {
         if (userRepository.existsByUsername(request.username())) {
             throw new ValidationException("Username already exists: " + request.username());
         }
@@ -60,7 +63,48 @@ public class AuthController {
         user.setUsername(request.username());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(request.role());
+        AppUser saved = userRepository.save(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(toResponse(saved)));
+    }
+
+    @Operation(summary = "List all active users (owner only)")
+    @GetMapping("/users")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> listUsers() {
+        List<UserResponse> users = userRepository.findAllByIsActiveTrueOrderByCreatedAtAsc()
+                .stream().map(this::toResponse).toList();
+        return ResponseEntity.ok(ApiResponse.ok(users));
+    }
+
+    @Operation(summary = "Update a user's role or password (owner only)")
+    @PutMapping("/users/{id}")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUser(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRequest request) {
+        AppUser user = userRepository.findById(id)
+                .filter(AppUser::isActive)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+
+        if (request.role() != null) {
+            user.setRole(request.role());
+        }
+        if (request.password() != null && !request.password().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(toResponse(userRepository.save(user))));
+    }
+
+    @Operation(summary = "Deactivate a user (owner only)")
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID id) {
+        AppUser user = userRepository.findById(id)
+                .filter(AppUser::isActive)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+        user.setActive(false);
         userRepository.save(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(null));
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    private UserResponse toResponse(AppUser user) {
+        return new UserResponse(user.getId(), user.getUsername(), user.getRole(), user.getCreatedAt());
     }
 }

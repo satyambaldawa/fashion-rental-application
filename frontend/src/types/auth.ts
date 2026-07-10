@@ -15,3 +15,15 @@ export interface CreateUserRequest {
   password: string
   role: UserRole
 }
+
+export interface UpdateUserRequest {
+  role?: UserRole
+  password?: string
+}
+
+export interface UserRecord {
+  id: string
+  username: string
+  role: UserRole
+  createdAt: string
+}

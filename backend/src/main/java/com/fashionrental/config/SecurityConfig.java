@@ -31,7 +31,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/users").hasRole("OWNER")
+                        .requestMatchers("/api/auth/users").hasRole("OWNER")
+                        .requestMatchers("/api/auth/users/**").hasRole("OWNER")
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         // Inventory writes are owner-only; reads are open to any authenticated user

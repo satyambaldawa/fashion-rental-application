@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Button, InputNumber, Alert, Space, Typography, Popconfirm, message, Form, Input, Select, Card, Divider } from 'antd'
-import { PlusOutlined, DeleteOutlined, UserAddOutlined } from '@ant-design/icons'
+import {
+  Table, Button, InputNumber, Alert, Space, Typography, Popconfirm, message,
+  Form, Input, Select, Card, Divider, Tag, Modal,
+} from 'antd'
+import { PlusOutlined, DeleteOutlined, UserAddOutlined, EditOutlined } from '@ant-design/icons'
 import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import { authApi } from '../api/auth'
 import type { LateFeeRuleItem } from '../types/config'
-import type { CreateUserRequest } from '../types/auth'
+import type { CreateUserRequest, UpdateUserRequest, UserRecord } from '../types/auth'
 
 const { Text } = Typography
 
@@ -21,15 +24,20 @@ export default function SettingsPage() {
   const [rows, setRows] = useState<EditableRule[] | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [userForm] = Form.useForm<CreateUserRequest>()
+  const [editForm] = Form.useForm<UpdateUserRequest>()
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
 
   const { data: savedRules, isLoading } = useQuery({
     queryKey: ['late-fee-rules'],
     queryFn: getLateFeeRules,
-    select: (data) => data,
   })
 
-  // Initialise local rows from server data on first load
   const editableRows: EditableRule[] = rows ?? toEditableRules(savedRules ?? [])
+
+  const { data: users, isLoading: usersLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: authApi.listUsers,
+  })
 
   const { mutate: save, isPending: isSaving } = useMutation({
     mutationFn: updateLateFeeRules,
@@ -49,10 +57,33 @@ export default function SettingsPage() {
     onSuccess: () => {
       message.success('User created successfully.')
       userForm.resetFields()
+      queryClient.invalidateQueries({ queryKey: ['users'] })
     },
     onError: (err: { response?: { data?: { error?: string } } }) => {
       message.error(err.response?.data?.error ?? 'Failed to create user.')
     },
+  })
+
+  const { mutate: updateUser, isPending: isUpdatingUser } = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateUserRequest }) =>
+      authApi.updateUser(id, data),
+    onSuccess: () => {
+      message.success('User updated successfully.')
+      setEditingUser(null)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err: { response?: { data?: { error?: string } } }) => {
+      message.error(err.response?.data?.error ?? 'Failed to update user.')
+    },
+  })
+
+  const { mutate: deleteUser } = useMutation({
+    mutationFn: (id: string) => authApi.deleteUser(id),
+    onSuccess: () => {
+      message.success('User deactivated.')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: () => message.error('Failed to deactivate user.'),
   })
 
   function updateRow(key: string, field: keyof EditableRule, value: number | null) {
@@ -60,24 +91,22 @@ export default function SettingsPage() {
   }
 
   function addRow() {
-    const nextSort = editableRows.length + 1
     const newRow: EditableRule = {
       key: `new-${Date.now()}`,
       id: null,
       durationFromHours: 0,
       durationToHours: null,
       penaltyMultiplier: 1.0,
-      sortOrder: nextSort,
+      sortOrder: editableRows.length + 1,
       isActive: true,
     }
     setRows([...editableRows, newRow])
   }
 
   function removeRow(key: string) {
-    const updated = editableRows
+    setRows(editableRows
       .filter((r) => r.key !== key)
-      .map((r, i) => ({ ...r, sortOrder: i + 1 }))
-    setRows(updated)
+      .map((r, i) => ({ ...r, sortOrder: i + 1 })))
   }
 
   function handleSave() {
@@ -85,22 +114,31 @@ export default function SettingsPage() {
     save({ rules: editableRows.map(({ key: _key, ...r }) => r) })
   }
 
-  function handleCreateUser(values: CreateUserRequest) {
-    createUser(values)
+  function openEditModal(user: UserRecord) {
+    setEditingUser(user)
+    editForm.setFieldsValue({ role: user.role, password: '' })
   }
 
-  const columns = [
+  function handleEditSubmit(values: UpdateUserRequest) {
+    if (!editingUser) return
+    updateUser({
+      id: editingUser.id,
+      data: {
+        role: values.role,
+        password: values.password || undefined,
+      },
+    })
+  }
+
+  const lateFeeColumns = [
     {
       title: 'From (hrs)',
       dataIndex: 'durationFromHours',
       width: 120,
       render: (val: number, row: EditableRule) => (
-        <InputNumber
-          min={0}
-          value={val}
+        <InputNumber min={0} value={val}
           onChange={(v) => updateRow(row.key, 'durationFromHours', v ?? 0)}
-          style={{ width: '100%' }}
-        />
+          style={{ width: '100%' }} />
       ),
     },
     {
@@ -108,13 +146,9 @@ export default function SettingsPage() {
       dataIndex: 'durationToHours',
       width: 120,
       render: (val: number | null, row: EditableRule) => (
-        <InputNumber
-          min={1}
-          value={val ?? undefined}
-          placeholder="∞"
+        <InputNumber min={1} value={val ?? undefined} placeholder="∞"
           onChange={(v) => updateRow(row.key, 'durationToHours', v ?? null)}
-          style={{ width: '100%' }}
-        />
+          style={{ width: '100%' }} />
       ),
     },
     {
@@ -122,16 +156,11 @@ export default function SettingsPage() {
       dataIndex: 'penaltyMultiplier',
       width: 130,
       render: (val: number, row: EditableRule) => (
-        <InputNumber
-          min={0.1}
-          step={0.25}
-          precision={2}
-          value={val}
+        <InputNumber min={0.1} step={0.25} precision={2} value={val}
           formatter={(v) => `${v}x`}
           parser={(v) => parseFloat((v ?? '').replace('x', ''))}
           onChange={(v) => updateRow(row.key, 'penaltyMultiplier', v ?? 0.1)}
-          style={{ width: '100%' }}
-        />
+          style={{ width: '100%' }} />
       ),
     },
     {
@@ -152,6 +181,54 @@ export default function SettingsPage() {
     },
   ]
 
+  const userColumns = [
+    {
+      title: 'Username',
+      dataIndex: 'username',
+      key: 'username',
+      render: (name: string) => <Text strong>{name}</Text>,
+    },
+    {
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      render: (role: string) => (
+        <Tag color={role === 'OWNER' ? 'volcano' : 'blue'}>
+          {role === 'OWNER' ? 'Owner' : 'Executive'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date: string) => new Date(date).toLocaleDateString('en-IN'),
+    },
+    {
+      title: '',
+      key: 'actions',
+      width: 100,
+      render: (_: unknown, user: UserRecord) => (
+        <Space>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => openEditModal(user)}
+          />
+          <Popconfirm
+            title={`Deactivate ${user.username}?`}
+            description="They will no longer be able to log in."
+            onConfirm={() => deleteUser(user.id)}
+            okText="Deactivate"
+            okButtonProps={{ danger: true }}
+          >
+            <Button size="small" icon={<DeleteOutlined />} danger />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <div style={{ maxWidth: 700 }}>
       <PageHeader label="Settings" title="Late Fee" accent="Rules" />
@@ -163,11 +240,12 @@ export default function SettingsPage() {
       />
 
       {validationError && (
-        <Alert type="error" message={validationError} style={{ marginBottom: 12 }} closable onClose={() => setValidationError(null)} />
+        <Alert type="error" message={validationError} style={{ marginBottom: 12 }}
+          closable onClose={() => setValidationError(null)} />
       )}
 
       <Table
-        columns={columns}
+        columns={lateFeeColumns}
         dataSource={editableRows}
         pagination={false}
         loading={isLoading}
@@ -185,36 +263,38 @@ export default function SettingsPage() {
       <Divider />
 
       <Card
-        title={
-          <span>
-            <UserAddOutlined style={{ marginRight: 8 }} />
-            Manage Users
-          </span>
-        }
+        title={<span><UserAddOutlined style={{ marginRight: 8 }} />Manage Users</span>}
         style={{ marginTop: 8 }}
       >
+        {/* Existing users table */}
+        <Table
+          columns={userColumns}
+          dataSource={users ?? []}
+          loading={usersLoading}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          style={{ marginBottom: 24 }}
+        />
+
+        <Divider orientation="left" plain>Add New User</Divider>
+
         <Form
           form={userForm}
           layout="vertical"
-          onFinish={handleCreateUser}
+          onFinish={(values: CreateUserRequest) => createUser(values)}
           initialValues={{ role: 'EXECUTIVE' }}
           style={{ maxWidth: 400 }}
         >
-          <Form.Item
-            name="username"
-            label="Username"
-            rules={[{ required: true, message: 'Username is required' }]}
-          >
+          <Form.Item name="username" label="Username"
+            rules={[{ required: true, message: 'Username is required' }]}>
             <Input placeholder="e.g. staff01" autoComplete="off" />
           </Form.Item>
-          <Form.Item
-            name="password"
-            label="Password"
+          <Form.Item name="password" label="Password"
             rules={[
               { required: true, message: 'Password is required' },
               { min: 6, message: 'Password must be at least 6 characters' },
-            ]}
-          >
+            ]}>
             <Input.Password placeholder="Min 6 characters" autoComplete="new-password" />
           </Form.Item>
           <Form.Item name="role" label="Role">
@@ -224,17 +304,36 @@ export default function SettingsPage() {
             </Select>
           </Form.Item>
           <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isCreatingUser}
-              icon={<UserAddOutlined />}
-            >
+            <Button type="primary" htmlType="submit" loading={isCreatingUser} icon={<UserAddOutlined />}>
               Create User
             </Button>
           </Form.Item>
         </Form>
       </Card>
+
+      {/* Edit user modal */}
+      <Modal
+        title={`Edit — ${editingUser?.username}`}
+        open={!!editingUser}
+        onCancel={() => setEditingUser(null)}
+        onOk={() => editForm.submit()}
+        okText="Save Changes"
+        confirmLoading={isUpdatingUser}
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 16 }}>
+          <Form.Item name="role" label="Role">
+            <Select>
+              <Select.Option value="EXECUTIVE">Executive (Staff)</Select.Option>
+              <Select.Option value="OWNER">Owner</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="password" label="New Password"
+            rules={[{ min: 6, message: 'Password must be at least 6 characters' }]}
+            extra="Leave blank to keep current password">
+            <Input.Password placeholder="Min 6 characters" autoComplete="new-password" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }
