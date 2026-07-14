@@ -7,6 +7,7 @@ import java.util.UUID;
 public record InvoiceResponse(
         UUID id,
         String invoiceNumber,
+        String shareToken,
         UUID receiptId,
         String receiptNumber,
         UUID customerId,

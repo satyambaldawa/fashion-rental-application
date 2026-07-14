@@ -57,6 +57,7 @@ export interface ReceiptLineItem {
 export interface Receipt {
   id: string
   receiptNumber: string
+  shareToken: string
   customerId: string
   customerName: string
   customerPhone: string

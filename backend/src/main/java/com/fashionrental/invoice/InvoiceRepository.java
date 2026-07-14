@@ -11,4 +11,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     long countByInvoiceNumberStartingWith(String prefix);
 
     List<Invoice> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
+
+    java.util.Optional<Invoice> findByShareToken(String shareToken);
 }

@@ -62,7 +62,7 @@ class ReceiptControllerTest {
 
     private ReceiptResponse receiptResponse() {
         return new ReceiptResponse(
-                UUID.randomUUID(), "R-20260421-001",
+                UUID.randomUUID(), "R-20260421-001", "tok3nABCD12",
                 UUID.randomUUID(), "Ravi Sharma", "9876543210",
                 START, END, 3, 600, 1000, 1600,
                 "GIVEN", null,

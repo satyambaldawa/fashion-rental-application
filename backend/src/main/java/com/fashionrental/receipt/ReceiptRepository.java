@@ -17,4 +17,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);
 
     List<Receipt> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
+
+    java.util.Optional<Receipt> findByShareToken(String shareToken);
 }

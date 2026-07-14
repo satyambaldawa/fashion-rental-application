@@ -26,6 +26,9 @@ public class Receipt {
     @Column(name = "receipt_number", nullable = false)
     private String receiptNumber;
 
+    @Column(name = "share_token", nullable = false, unique = true, length = 12)
+    private String shareToken;
+
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
@@ -78,6 +81,8 @@ public class Receipt {
     public UUID getId() { return id; }
     public String getReceiptNumber() { return receiptNumber; }
     public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
+    public String getShareToken() { return shareToken; }
+    public void setShareToken(String shareToken) { this.shareToken = shareToken; }
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
     public OffsetDateTime getStartDatetime() { return startDatetime; }
