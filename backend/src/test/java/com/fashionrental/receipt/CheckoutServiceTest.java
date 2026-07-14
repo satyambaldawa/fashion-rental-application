@@ -4,6 +4,7 @@ import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
+import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
@@ -44,6 +45,7 @@ class CheckoutServiceTest {
     @Mock PackageComponentRepository packageComponentRepository;
     @Mock ReceiptRepository receiptRepository;
     @Mock ReceiptNumberService receiptNumberService;
+    @Mock ShareTokenService shareTokenService;
     @Mock DateTimeUtil dateTimeUtil;
     @Mock ReceiptMapper receiptMapper;
 
