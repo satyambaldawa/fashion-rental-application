@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Fashion Rental Application — Development Guidelines
 
 This is a fashion rental management application for a physical rental shop. A single owner/staff member uses it on an Android tablet via a PWA. Read `technical-architecture.md` and `fashion-rental-discovery.md` for full context before starting any feature work.
@@ -52,6 +56,81 @@ fashion-rental-application/
 ```
 
 Feature stories are indexed in `features/README.md`. Follow the suggested build order. Each story file contains the complete spec: entities, SQL, service code, API shape, frontend components, and test cases. Implement exactly what the story says — do not add unrequested features or refactor surrounding code.
+
+---
+
+## Architecture
+
+### Backend Module Layout
+
+```
+com.fashionrental/
+  common/
+    exception/   ← ResourceNotFoundException, ConflictException, ValidationException
+    response/    ← ApiResponse<T> record (success, data, error)
+    util/
+  config/        ← Auth infrastructure: AppUser entity, SecurityConfig, JwtAuthFilter,
+                    JwtConfig, UserDetailsConfig, AuthController, OwnerSeeder
+  configuration/ ← Late fee rules domain (LateFeeRule entity + CRUD)
+  inventory/     ← Item, ItemPhoto, PackageComponent, AvailabilityService, storage/
+  customer/      ← Customer entity + CRUD
+  receipt/       ← Receipt, ReceiptLineItem, CheckoutService, ReceiptNumberService, ReceiptMapper
+  invoice/       ← Invoice, InvoiceLineItem (created during return flow)
+  reporting/     ← Read-only report queries
+```
+
+**Cross-cutting patterns:**
+- `GlobalExceptionHandler` in `common/exception/` catches all custom exceptions and returns `ApiResponse.error(message)` — never let Spring's default error page escape.
+- `ApiResponse<T>` is the only allowed return envelope: `{ success, data, error }`.
+- Mapper classes (e.g., `ReceiptMapper`) translate between JPA entities and response DTOs — keep mapping logic out of services and controllers.
+- Number generation (e.g., `ReceiptNumberService`) is a dedicated bean — never inline sequence logic in a service.
+
+**Security:**
+- JWT filter chain: `JwtAuthFilter` extracts Bearer token → `UserDetailsConfig` loads `AppUser` → Spring Security sets `SecurityContextHolder`.
+- Public endpoints configured in `SecurityConfig`: `POST /api/auth/login`, `/actuator/health`, Swagger UI.
+- Role rules: `OWNER` can do everything; `EXECUTIVE` cannot access inventory writes, reports, or config. Both must be authenticated for all other `/api/**` routes.
+- To add a new public endpoint, add a `.requestMatchers(...).permitAll()` line in `SecurityConfig` **before** the `.requestMatchers("/api/**").authenticated()` catch-all.
+
+**Flyway migrations:**
+- Naming: `V<YYYYMMDD><NNN>__<description>.sql` (e.g., `V20260420001__add_sort_order_to_late_fee_rules.sql`).
+- Hibernate `ddl-auto: validate` — app refuses to start if schema doesn't match entities.
+
+---
+
+### Frontend Architecture
+
+```
+src/
+  api/
+    client.ts      ← Axios instance; attaches JWT from authStore; redirects to /login on 401
+    auth.ts        ← login/logout calls
+    items.ts       ← inventory API functions
+    customers.ts   ← customer API functions
+    receipts.ts    ← receipt + checkout API functions
+    invoices.ts    ← invoice API functions
+    config.ts      ← late fee rules API functions
+    reports.ts     ← reporting API functions
+  store/
+    authStore.ts   ← Zustand + persist: { token, role, setAuth, clearToken }
+  hooks/
+    useAuth.ts     ← reads authStore, provides isOwner/isExecutive helpers
+    useCart.ts     ← checkout cart state
+    useDebounce.ts ← input debounce
+  components/
+    layout/        ← AppLayout (sidebar + content shell), Sidebar
+    common/        ← AmountDisplay, CustomerSearch, ErrorMessage, LoadingSpinner, PageHeader, ItemPhotoPlaceholder
+  pages/           ← one folder per domain (checkout/, customers/, inventory/, receipts/, invoices/, reports/)
+  types/           ← one file per domain (see Model & DTO Conventions below)
+  utils/
+    currency.ts    ← formatCurrency(amount) — always use this for ₹ display
+```
+
+**Routing:**
+- `App.tsx`: `<BrowserRouter>` with `/login` public + `/*` wrapped in `<ProtectedRoute>` (checks `authStore.token`).
+- `AppLayout.tsx`: nested `<Routes>` for all authenticated pages. `<OwnerRoute>` guards inventory write pages, reports, and settings — redirects to `/unauthorized` if role is not OWNER.
+- Default route `/` redirects to `/checkout`.
+
+**API call pattern:** every `src/api/*.ts` function calls `client` (the shared Axios instance), destructures `res.data.data` from the `ApiResponse<T>` envelope, and throws on `success: false`.
 
 ---
 
