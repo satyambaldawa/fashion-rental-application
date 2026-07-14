@@ -46,7 +46,8 @@ function buildReceiptWhatsAppUrl(receipt: import('../../types/receipt').Receipt)
     '',
     'Thank you for choosing Fashion Rental!',
   ].join('\n')
-  const phone = receipt.customerPhone.replace(/\D/g, '')
+  const digits = receipt.customerPhone.replace(/\D/g, '')
+  const phone = digits.startsWith('91') ? digits : `91${digits}`
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
 
