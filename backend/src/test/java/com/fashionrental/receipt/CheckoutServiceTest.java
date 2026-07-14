@@ -223,7 +223,7 @@ class CheckoutServiceTest {
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
         when(receiptMapper.toReceiptResponse(any(Receipt.class))).thenAnswer(inv -> {
             Receipt r = inv.getArgument(0);
-            return new ReceiptResponse(null, null, null, null, null, null, null,
+            return new ReceiptResponse(null, null, null, null, null, null, null, null,
                     r.getRentalDays(), 0, 0, 0, null, null, List.of(), null);
         });
 
