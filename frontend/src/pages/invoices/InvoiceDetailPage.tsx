@@ -46,7 +46,8 @@ function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice)
     '',
     'Thank you for choosing Fashion Rental!',
   ].join('\n')
-  const phone = invoice.customerPhone.replace(/\D/g, '')
+  const digits = invoice.customerPhone.replace(/\D/g, '')
+  const phone = digits.startsWith('91') ? digits : `91${digits}`
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
 
