@@ -35,7 +35,7 @@ function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice)
   const message = [
     `Hello ${invoice.customerName}!`,
     '',
-    `Here's your return invoice from Fashion Rental:`,
+    `Here's your return invoice from Manisha's Drapery:`,
     '',
     `Invoice #${invoice.invoiceNumber}`,
     `Receipt #${invoice.receiptNumber}`,
@@ -44,7 +44,7 @@ function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice)
     '',
     `View full details: ${publicUrl}`,
     '',
-    'Thank you for choosing Fashion Rental!',
+    'Thank you for choosing Manisha's Drapery!',
   ].join('\n')
   const digits = invoice.customerPhone.replace(/\D/g, '')
   const phone = digits.startsWith('91') ? digits : `91${digits}`
