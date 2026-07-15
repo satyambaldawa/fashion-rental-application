@@ -44,7 +44,7 @@ function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice)
     '',
     `View full details: ${publicUrl}`,
     '',
-    'Thank you for choosing Manisha's Drapery!',
+    "Thank you for choosing Manisha's Drapery!",
   ].join('\n')
   const digits = invoice.customerPhone.replace(/\D/g, '')
   const phone = digits.startsWith('91') ? digits : `91${digits}`
