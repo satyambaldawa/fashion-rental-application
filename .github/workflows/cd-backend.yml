@@ -59,6 +59,9 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      - name: Wait for SSH key propagation
+        run: sleep 30
+
       - name: Deploy to GCP VM
         run: |
           gcloud compute ssh fashion-rental-backend \
