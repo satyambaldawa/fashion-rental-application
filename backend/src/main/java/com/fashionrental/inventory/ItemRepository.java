@@ -9,9 +9,17 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificationExecutor<Item> {
+
+    @Query("SELECT DISTINCT i FROM Item i " +
+           "LEFT JOIN FETCH i.photos " +
+           "LEFT JOIN FETCH i.packageComponents pc " +
+           "LEFT JOIN FETCH pc.componentItem " +
+           "WHERE i.id = :id")
+    Optional<Item> findByIdWithDetails(@Param("id") UUID id);
 
     Page<Item> findByIsActiveTrueOrderByNameAsc(Pageable pageable);
 

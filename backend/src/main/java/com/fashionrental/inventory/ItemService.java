@@ -79,7 +79,7 @@ public class ItemService {
 
     @Transactional(readOnly = true)
     public ItemDetailResponse getItem(UUID id) {
-        Item item = itemRepository.findById(id)
+        Item item = itemRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + id));
 
         if (!item.getIsActive()) {

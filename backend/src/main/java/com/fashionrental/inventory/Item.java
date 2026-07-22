@@ -9,6 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "items")
+@BatchSize(size = 25)
 public class Item {
 
     public enum Category {
@@ -71,7 +72,7 @@ public class Item {
 
     @OneToMany(mappedBy = "item", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
-    @BatchSize(size = 8)
+    @BatchSize(size = 20)
     private List<ItemPhoto> photos = new ArrayList<>();
 
     @OneToMany(mappedBy = "packageItem", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)

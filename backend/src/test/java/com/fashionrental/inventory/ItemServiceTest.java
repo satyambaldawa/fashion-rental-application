@@ -287,7 +287,7 @@ class ItemServiceTest {
     @Test
     void should_throw_not_found_when_item_does_not_exist() {
         UUID itemId = UUID.randomUUID();
-        when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
+        when(itemRepository.findByIdWithDetails(itemId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> itemService.getItem(itemId))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -373,7 +373,7 @@ class ItemServiceTest {
     void should_throw_not_found_when_item_is_inactive() {
         UUID itemId = UUID.randomUUID();
         Item inactiveItem = buildItemWithTimestamps("Old Costume", Item.Category.COSTUME, 100, 500, 1, false);
-        when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
+        when(itemRepository.findByIdWithDetails(itemId)).thenReturn(Optional.of(inactiveItem));
 
         assertThatThrownBy(() -> itemService.getItem(itemId))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -387,7 +387,7 @@ class ItemServiceTest {
         item.setSize("XL");
         item.setDescription("Grand golden sherwani");
         item.setNotes("Dry clean only");
-        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.findByIdWithDetails(itemId)).thenReturn(Optional.of(item));
 
         ItemDetailResponse result = itemService.getItem(itemId);
 
@@ -415,7 +415,7 @@ class ItemServiceTest {
         photo.setItem(item);
         item.getPhotos().add(photo);
 
-        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.findByIdWithDetails(itemId)).thenReturn(Optional.of(item));
 
         ItemDetailResponse result = itemService.getItem(itemId);
 
