@@ -1,0 +1,33 @@
+name: Cleanup GCP SSH Keys
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # 1st of every month at midnight UTC
+  workflow_dispatch:       # manual trigger
+
+jobs:
+  cleanup:
+    name: Remove stale SSH keys from GCP project metadata
+    runs-on: ubuntu-latest
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Clear project-level SSH keys
+        run: |
+          echo "Current project SSH key count:"
+          gcloud compute project-info describe \
+            --format='value(commonInstanceMetadata.items.filter(key:ssh-keys).firstof(value))' \
+            | grep -c '' || echo "0"
+
+          # Remove all project-level SSH keys (CI runners add one per deploy)
+          gcloud compute project-info remove-metadata \
+            --keys=ssh-keys --quiet || echo "No project-level SSH keys to remove."
+
+          echo "✅ Project-level SSH keys cleared."

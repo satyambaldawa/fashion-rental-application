@@ -50,20 +50,23 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Set up SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Wait for SSH key propagation
+        run: sleep 30
 
       - name: Deploy to GCP VM
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-            -o ServerAliveInterval=15 -o ServerAliveCountMax=10 \
-            deploy@${{ secrets.GCP_VM_IP }} << 'DEPLOY_SCRIPT'
+          gcloud compute ssh fashion-rental-backend \
+            --zone=us-central1-a \
+            --command="
               docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
               # Stop existing container (if running)
@@ -104,4 +107,4 @@ jobs:
 
               # Prune images older than 7 days (keep recent for rollback)
               docker image prune -af --filter 'until=168h'
-          DEPLOY_SCRIPT
+            "
