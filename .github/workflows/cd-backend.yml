@@ -62,6 +62,7 @@ jobs:
       - name: Deploy to GCP VM
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=10 \
             deploy@${{ secrets.GCP_VM_IP }} << 'DEPLOY_SCRIPT'
               docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
