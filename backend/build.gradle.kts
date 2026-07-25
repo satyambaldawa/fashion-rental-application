@@ -69,7 +69,8 @@ tasks.named("check") {
 }
 
 tasks.jacocoTestReport {
-    dependsOn(tasks.test)
+    // Aggregate coverage from both unit tests and Testcontainers integration tests.
+    executionData(tasks.test.get(), integrationTest.get())
     reports {
         xml.required.set(true)
         csv.required.set(true)

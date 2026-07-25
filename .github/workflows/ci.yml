@@ -41,7 +41,7 @@ jobs:
           def pct(missed, covered):
               m = sum(int(r[missed]) for r in rows); c = sum(int(r[covered]) for r in rows)
               return c, c + m, (100 * c / (c + m) if c + m else 0)
-          print("### Backend coverage (JaCoCo · unit tests · report-only)\n")
+          print("### Backend coverage (JaCoCo · unit + integration · report-only)\n")
           print("| Metric | Coverage |")
           print("|---|---|")
           for label, mi, co in [("Lines", "LINE_MISSED", "LINE_COVERED"),
