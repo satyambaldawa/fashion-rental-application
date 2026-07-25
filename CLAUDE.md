@@ -182,6 +182,21 @@ pnpm dev
 pnpm build
 ```
 
+### Git Hooks (pre-commit tests)
+
+A committed pre-commit hook (`.githooks/pre-commit`) runs local unit tests before each
+commit — **only** for the side of the repo that changed (backend → `./gradlew test`,
+frontend → `type-check` + `vitest`). Testcontainers integration tests are left to CI.
+
+It auto-installs when you run `pnpm install` in `frontend/` (via the `prepare` script).
+To enable it manually on a fresh clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Bypass in a genuine emergency with `git commit --no-verify`.
+
 ---
 
 ## Build & Test Commands

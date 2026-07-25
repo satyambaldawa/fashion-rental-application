@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook — runs local unit tests before a commit is created.
+#
+# It only runs the side(s) of the repo that actually changed, so a backend-only
+# or docs-only commit does not pay for the frontend suite (and vice versa).
+#
+# Testcontainers integration tests are intentionally NOT run here: they need Docker
+# and are slower — CI runs them on every push. This hook keeps commits fast.
+#
+# Bypass in a genuine emergency with:  git commit --no-verify
+#
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
+
+# Nothing staged (e.g. an empty amend) — nothing to check.
+[ -z "$STAGED" ] && exit 0
+
+fail() {
+  echo ""
+  echo "✖ pre-commit: $1 checks failed — commit aborted."
+  echo "  Fix the failures above, or bypass with: git commit --no-verify"
+  exit 1
+}
+
+if echo "$STAGED" | grep -q '^backend/'; then
+  echo "── backend changed → ./gradlew test (unit) ──"
+  ( cd "$REPO_ROOT/backend" && ./gradlew test --quiet ) || fail "backend"
+fi
+
+if echo "$STAGED" | grep -q '^frontend/'; then
+  echo "── frontend changed → type-check + vitest ──"
+  # `vitest run` (not `test -- --run`) guarantees run-once mode locally, where CI=true
+  # is not set and vitest would otherwise stay in watch mode.
+  ( cd "$REPO_ROOT/frontend" && pnpm type-check && pnpm exec vitest run ) || fail "frontend"
+fi
+
+echo "✔ pre-commit checks passed"
