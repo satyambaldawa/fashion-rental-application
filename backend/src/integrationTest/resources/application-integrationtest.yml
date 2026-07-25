@@ -1,0 +1,11 @@
+# Integration-test profile. The datasource is injected from the Testcontainers
+# PostgreSQL via @DynamicPropertySource in AbstractIntegrationTest; the values below
+# satisfy the remaining required placeholders from application.yml so the context boots.
+app:
+  cors:
+    allowed-origins: http://localhost
+  jwt:
+    secret: integration-test-jwt-secret-at-least-32-characters-long
+  auth:
+    username: testadmin
+    password: testpass

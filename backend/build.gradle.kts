@@ -2,6 +2,7 @@ plugins {
     id("org.springframework.boot") version "3.4.4"
     id("io.spring.dependency-management") version "1.1.7"
     java
+    jacoco
 }
 
 group = "com.fashionrental"
@@ -14,6 +15,16 @@ java {
 repositories {
     mavenCentral()
 }
+
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+        runtimeClasspath += sourceSets["main"].output + sourceSets["test"].output
+    }
+}
+
+configurations["integrationTestImplementation"].extendsFrom(configurations["testImplementation"])
+configurations["integrationTestRuntimeOnly"].extendsFrom(configurations["testRuntimeOnly"])
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -35,8 +46,33 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+
+    "integrationTestImplementation"("org.springframework.boot:spring-boot-testcontainers")
+    "integrationTestImplementation"("org.testcontainers:junit-jupiter")
+    "integrationTestImplementation"("org.testcontainers:postgresql")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "Runs integration tests against real PostgreSQL via Testcontainers."
+    group = "verification"
+    testClassesDirs = sourceSets["integrationTest"].output.classesDirs
+    classpath = sourceSets["integrationTest"].runtimeClasspath
+    shouldRunAfter(tasks.named("test"))
+}
+
+tasks.named("check") {
+    dependsOn(integrationTest)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        csv.required.set(true)
+        html.required.set(true)
+    }
 }

@@ -208,7 +208,17 @@ pnpm build
 ./gradlew bootJar
 
 # Run integration tests (uses Testcontainers for real PostgreSQL)
+# Lives in src/integrationTest; naming convention *IT.java; extend AbstractIntegrationTest.
 ./gradlew integrationTest
+```
+
+**Testcontainers runtime:** integration tests need a Docker-API socket. CI (GitHub-hosted
+runners) has Docker running, so it works with no setup. On a local machine using **podman**
+instead of Docker, export these first:
+
+```bash
+export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+export TESTCONTAINERS_RYUK_DISABLED=true   # Ryuk reaper is unreliable on rootless podman
 ```
 
 ### Frontend
