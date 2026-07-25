@@ -59,9 +59,6 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Wait for SSH key propagation
-        run: sleep 30
-
       - name: Deploy to GCP VM
         run: |
           gcloud compute ssh fashion-rental-backend \
@@ -78,6 +75,8 @@ jobs:
                 --name fashion-rental-backend \
                 --restart unless-stopped \
                 -p 80:8080 \
+                --memory=650m \
+                --memory-swap=1.5g \
                 --health-cmd='wget -qO- http://localhost:8080/actuator/health || exit 1' \
                 --health-interval=30s \
                 --health-timeout=5s \
