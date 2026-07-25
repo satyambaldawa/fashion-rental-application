@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@bytebase/dbhub@0.24.0", "--transport", "stdio"],
+      "env": {
+        "DSN": "${FASHION_RENTAL_DB_URL}"
+      }
+    }
+  }
+}
