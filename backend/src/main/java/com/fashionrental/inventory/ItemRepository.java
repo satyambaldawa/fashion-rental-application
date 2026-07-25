@@ -16,8 +16,6 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
 
     @Query("SELECT DISTINCT i FROM Item i " +
            "LEFT JOIN FETCH i.photos " +
-           "LEFT JOIN FETCH i.packageComponents pc " +
-           "LEFT JOIN FETCH pc.componentItem " +
            "WHERE i.id = :id")
     Optional<Item> findByIdWithDetails(@Param("id") UUID id);
 
