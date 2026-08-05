@@ -84,9 +84,9 @@ jobs:
                 --health-retries=3 \
                 --log-opt max-size=50m \
                 --log-opt max-file=3 \
-                -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-                -e DATABASE_USERNAME='${{ secrets.DATABASE_USERNAME }}' \
-                -e DATABASE_PASSWORD='${{ secrets.DATABASE_PASSWORD }}' \
+                -e DATABASE_URL='${{ secrets.SUPABASE_DATABASE_URL }}' \
+                -e DATABASE_USERNAME='${{ secrets.SUPABASE_DATABASE_USERNAME }}' \
+                -e DATABASE_PASSWORD='${{ secrets.SUPABASE_DATABASE_PASSWORD }}' \
                 -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
                 -e APP_USERNAME='${{ secrets.APP_USERNAME }}' \
                 -e APP_PASSWORD='${{ secrets.APP_PASSWORD }}' \

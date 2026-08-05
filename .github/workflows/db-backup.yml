@@ -21,9 +21,9 @@ jobs:
     steps:
       - name: Dump and gzip database
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
-          PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.SUPABASE_DATABASE_USERNAME }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
         run: |
           set -euo pipefail
           # Spring's DATABASE_URL is a JDBC URL; pg_dump needs a libpq URI.
