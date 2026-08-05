@@ -1,0 +1,59 @@
+name: DB Backup & Keep-alive
+
+# Daily logical backup of the production database to Cloudflare R2.
+# The dump is a real read against the DB, so it doubles as the keep-alive that
+# prevents Supabase's free tier from pausing after 7 days of inactivity.
+#
+# Restore a dump into ANY Postgres (disaster recovery / provider switch):
+#   aws s3 cp s3://$BUCKET/backups/db-<ts>.sql.gz . --endpoint-url https://<acct>.r2.cloudflarestorage.com
+#   gunzip -c db-<ts>.sql.gz | psql "postgresql://user@host/db?sslmode=require"
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # daily 06:17 UTC (11:47 IST)
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Dump DB → Cloudflare R2
+    runs-on: ubuntu-latest
+    environment: Prod   # DATABASE_* and R2_* secrets live under the Prod environment
+    steps:
+      - name: Dump and gzip database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Spring's DATABASE_URL is a JDBC URL; pg_dump needs a libpq URI.
+          # Strip the jdbc: prefix and any JDBC-only query params, inject the user,
+          # and force sslmode=require (both Neon and Supabase require TLS).
+          base="${DATABASE_URL#jdbc:}"
+          host_db="${base%%\?*}"
+          conn="${host_db/postgresql:\/\//postgresql://${DATABASE_USERNAME}@}?sslmode=require"
+
+          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          echo "file=db-${stamp}.sql.gz" >> "$GITHUB_ENV"
+
+          # Pin pg_dump 16 via the official image so the client is >= the server.
+          docker run --rm --network host -e PGPASSWORD postgres:16-alpine \
+            pg_dump "$conn" --no-owner --no-privileges \
+            | gzip > "db-${stamp}.sql.gz"
+
+          echo "Backup size: $(du -h "db-${stamp}.sql.gz" | cut -f1)"
+
+      - name: Upload to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 rejects the default integrity checksums newer aws-cli sends.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          set -euo pipefail
+          aws s3 cp "${{ env.file }}" \
+            "s3://${{ secrets.R2_BUCKET_NAME }}/backups/${{ env.file }}" \
+            --endpoint-url "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          echo "✔ Uploaded backups/${{ env.file }} to R2"
