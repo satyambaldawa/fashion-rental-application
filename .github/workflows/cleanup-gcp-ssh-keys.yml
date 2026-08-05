@@ -9,6 +9,7 @@ jobs:
   cleanup:
     name: Remove stale SSH keys from GCP project metadata
     runs-on: ubuntu-latest
+    environment: Prod  # scope GCP_SA_KEY / GCP_PROJECT_ID (Prod env secrets) into this job
     steps:
       - id: auth
         uses: google-github-actions/auth@v2
