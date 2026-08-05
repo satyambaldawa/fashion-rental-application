@@ -11,9 +11,14 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
+      # Fixed-size warm pool (minimum-idle defaults to maximum-pool-size) so connections
+      # stay open — avoids paying the DB region's TCP+TLS handshake on every idle→active
+      # request. The Neon-era minimum-idle:0 / idle-timeout drained the pool to let Neon's
+      # compute scale to zero; Supabase has no compute-hour meter, so warm is better.
+      # maximum-pool-size stays small for the e2-micro's memory budget.
       maximum-pool-size: 5
-      minimum-idle: 0
-      idle-timeout: 60000
+      keepalive-time: 120000     # ping idle connections so the Supabase pooler keeps them
+      connection-timeout: 10000  # fail fast when the DB is unreachable (health + requests)
   jpa:
     hibernate:
       ddl-auto: validate
@@ -59,9 +64,15 @@ management:
   endpoint:
     health:
       show-details: never
-  health:
-    db:
-      enabled: false
+      probes:
+        enabled: true
+      # Liveness = process only (Docker health check targets this; a DB outage must
+      # NOT mark the container unhealthy — restarting never fixes a DB problem).
+      # Readiness + the aggregate /actuator/health include the DB, so an outage is
+      # visible instead of hiding behind a blind 200.
+      group:
+        readiness:
+          include: readinessState, db
 
 springdoc:
   api-docs:
