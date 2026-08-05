@@ -1,7 +1,16 @@
 # Production Deployment Plan — GCP + Neon + Cloudflare
 
+> ⚠️ **Superseded (2026-08-05): the database is now Supabase, not Neon.**
+> Production was migrated off Neon (its free-tier 100 CU-hr/month cap kept
+> suspending the DB) to **Supabase** (PostgreSQL 17, `ap-northeast-1`), which has
+> no compute-hour meter. Neon has been deleted. Current DB secrets are
+> `SUPABASE_DATABASE_URL` / `SUPABASE_DATABASE_USERNAME` / `SUPABASE_DATABASE_PASSWORD`
+> (Prod environment); the backend and daily backup workflows point at these.
+> The Neon-specific sections below (TASK-2, secrets table, cost/architecture) are
+> retained as historical record only.
+
 **Status**: Draft
-**Target stack**: GCP Compute Engine (Docker) + Neon (PostgreSQL) + Cloudflare Pages (frontend) + Cloudflare R2 (photos) + Cloudflare DNS
+**Target stack**: GCP Compute Engine (Docker) + Supabase (PostgreSQL) + Cloudflare Pages (frontend) + Cloudflare R2 (photos) + Cloudflare DNS
 **Estimated monthly cost**: ~₹75/month (domain only)
 **Region**: GCP us-central1 (free tier) — ~180-220ms latency from India, acceptable for a single-user business tool
 
