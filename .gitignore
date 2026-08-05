@@ -3,6 +3,12 @@ backend/build/
 backend/.gradle/
 backend/out/
 backend/*.jar
+
+# Local Claude Code settings & stray agent scratch
+# (shared config under .claude/ — agents/, commands/ — stays tracked)
+.claude/settings.json
+.claude/settings.local.json
+backend/.claude/
 backend/*.war
 backend/target/
 backend/uploads/items/
