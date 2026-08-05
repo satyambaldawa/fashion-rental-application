@@ -36,8 +36,9 @@ jobs:
           stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
           echo "file=db-${stamp}.sql.gz" >> "$GITHUB_ENV"
 
-          # Pin pg_dump 16 via the official image so the client is >= the server.
-          docker run --rm --network host -e PGPASSWORD postgres:16-alpine \
+          # Pin pg_dump 17 via the official image so the client is >= the server
+          # (Supabase runs PostgreSQL 17; pg_dump refuses to dump a newer server).
+          docker run --rm --network host -e PGPASSWORD postgres:17-alpine \
             pg_dump "$conn" --no-owner --no-privileges \
             | gzip > "db-${stamp}.sql.gz"
 
