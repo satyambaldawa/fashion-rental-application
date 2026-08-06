@@ -4,6 +4,7 @@ import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
+import com.fashionrental.customer.model.request.UpdateCustomerRequest;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import jakarta.persistence.criteria.Predicate;
@@ -12,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,10 +40,35 @@ public class CustomerService {
         customer.setPhone(request.phone());
         customer.setAddress(request.address());
         customer.setCustomerType(request.customerType());
-        customer.setOrganizationName(request.organizationName());
+        customer.setOrganizationName(resolveOrganizationName(request.customerType(), request.organizationName()));
 
         Customer saved = customerRepository.save(customer);
         return toResponse(saved);
+    }
+
+    @Transactional
+    public CustomerResponse updateCustomer(UUID id, UpdateCustomerRequest request) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
+
+        customerRepository.findByPhone(request.phone()).ifPresent(existing -> {
+            if (!existing.getId().equals(id)) {
+                throw new ConflictException("A customer with phone " + request.phone() + " already exists");
+            }
+        });
+
+        validateOrganizationName(request.customerType(), request.organizationName());
+
+        customer.setName(request.name());
+        customer.setPhone(request.phone());
+        customer.setAddress(request.address());
+        customer.setCustomerType(request.customerType());
+        customer.setOrganizationName(resolveOrganizationName(request.customerType(), request.organizationName()));
+        // Forces the entity dirty even when no other field changed, so @PreUpdate
+        // (which sets the authoritative timestamp) always fires on save.
+        customer.setUpdatedAt(OffsetDateTime.now());
+
+        return toResponse(customerRepository.save(customer));
     }
 
     @Transactional(readOnly = true)
@@ -90,6 +117,10 @@ public class CustomerService {
         if (customerType == Customer.CustomerType.PROFESSIONAL && (organizationName == null || organizationName.isBlank())) {
             throw new ValidationException("Organization name is required for professional customers");
         }
+    }
+
+    private String resolveOrganizationName(Customer.CustomerType customerType, String organizationName) {
+        return customerType == Customer.CustomerType.MISC ? null : organizationName;
     }
 
     private CustomerResponse toResponse(Customer customer) {

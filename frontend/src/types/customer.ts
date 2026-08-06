@@ -29,3 +29,11 @@ export interface CreateCustomerRequest {
   customerType: CustomerType
   organizationName?: string
 }
+
+export interface UpdateCustomerRequest {
+  name: string
+  phone: string
+  address?: string
+  customerType: CustomerType
+  organizationName?: string
+}

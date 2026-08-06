@@ -45,7 +45,7 @@ Each file contains everything a developer needs to implement the feature end-to-
 | `US-201-register-customer.md` | Register new customer | P0 | ✅ |
 | `US-202-search-customer.md` | Search customer by phone or name | P0 | ✅ |
 | `US-203-customer-rental-history.md` | View rental history | P1 | ⏳ |
-| `US-204-edit-customer.md` | Edit customer contact details | P1 | ⏳ |
+| `US-204-edit-customer.md` | Edit customer contact details | P1 | ✅ |
 
 ### 03 — Checkout & Receipt
 

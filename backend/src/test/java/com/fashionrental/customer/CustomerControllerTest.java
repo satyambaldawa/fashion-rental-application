@@ -5,6 +5,7 @@ import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
+import com.fashionrental.customer.model.request.UpdateCustomerRequest;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import org.junit.jupiter.api.Test;
@@ -165,5 +166,89 @@ class CustomerControllerTest {
     void should_return_401_when_not_authenticated() throws Exception {
         mockMvc.perform(get("/api/customers"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_200_when_customer_updated_successfully() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null
+        );
+        when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
+                .thenReturn(sampleCustomerResponse(id));
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Ravi Kumar"));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_updating_missing_customer() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+        );
+        when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
+                .thenThrow(new ResourceNotFoundException("Customer not found: " + id));
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_409_when_updated_phone_belongs_to_another_customer() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null
+        );
+        when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
+                .thenThrow(new ConflictException("A customer with phone 8765432109 already exists"));
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_400_when_updated_phone_format_invalid() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "12345", null, Customer.CustomerType.MISC, null
+        );
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_400_when_updated_professional_missing_org_name() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null
+        );
+        when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
+                .thenThrow(new ValidationException("Organization name is required for professional customers"));
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 }

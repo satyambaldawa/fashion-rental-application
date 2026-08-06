@@ -15,9 +15,9 @@
 
 ## Acceptance Criteria
 
-- [ ] All fields editable: name, phone, address, customer type, organization name
-- [ ] Phone number update checks uniqueness against other customers (not self)
-- [ ] `updated_at` timestamp updated on save
+- [x] All fields editable: name, phone, address, customer type, organization name
+- [x] Phone number update checks uniqueness against other customers (not self)
+- [x] `updated_at` timestamp updated on save
 
 ---
 

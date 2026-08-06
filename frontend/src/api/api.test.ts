@@ -39,10 +39,11 @@ describe('itemsApi', () => {
 })
 
 describe('customersApi', () => {
-  it('search / get / create', async () => {
+  it('search / get / create / update', async () => {
     expect((await customersApi.search({ phone: '98' }))[0].name).toBe('Meera')
     expect((await customersApi.get('cust-1')).id).toBe('cust-1')
     expect((await customersApi.create({} as never)).id).toBe('cust-1')
+    expect((await customersApi.update('cust-1', {} as never)).id).toBe('cust-1')
   })
 })
 
