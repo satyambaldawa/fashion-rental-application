@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Input, Typography, Badge, Card, Space, Tag, Alert, Spin } from 'antd'
-import { PlusOutlined, UserOutlined } from '@ant-design/icons'
+import { PlusOutlined, UserOutlined, EditOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
 import { customersApi } from '../../api/customers'
 import { useDebounce } from '../../hooks/useDebounce'
@@ -106,6 +106,14 @@ export default function CustomersPage() {
                   {customer.activeRentalsCount > 0 && (
                     <Badge count={customer.activeRentalsCount} color="blue" title="Active rentals" />
                   )}
+                  <Button
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/customers/${customer.id}/edit`)
+                    }}
+                  />
                 </Space>
               </div>
             </Card>

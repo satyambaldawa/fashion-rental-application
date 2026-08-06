@@ -2,6 +2,7 @@ package com.fashionrental.customer;
 
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
+import com.fashionrental.customer.model.request.UpdateCustomerRequest;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,5 +49,14 @@ public class CustomerController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomer(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(customerService.getCustomer(id)));
+    }
+
+    @Operation(summary = "Update an existing customer's details")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomer(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateCustomerRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(customerService.updateCustomer(id, request)));
     }
 }

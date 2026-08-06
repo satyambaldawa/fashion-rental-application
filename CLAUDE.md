@@ -242,8 +242,11 @@ export TESTCONTAINERS_RYUK_DISABLED=true   # Ryuk reaper is unreliable on rootle
 # Development server
 pnpm dev
 
-# Run unit tests (Vitest)
+# Run unit tests once (Vitest, exits on completion — use this for automation/CI-style runs)
 pnpm test
+
+# Run unit tests in watch mode (interactive; stays open until you press q)
+pnpm test:watch
 
 # Run a single test file
 pnpm test -- src/components/ItemBrowser.test.tsx

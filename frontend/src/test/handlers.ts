@@ -33,6 +33,7 @@ export const handlers = [
   http.get('*/api/customers/:id', () => ok(f.aCustomer())),
   http.get('*/api/customers', () => ok([f.aCustomerSummary()])),
   http.post('*/api/customers', () => ok(f.aCustomer())),
+  http.put('*/api/customers/:id', () => ok(f.aCustomer())),
 
   // receipts / checkout
   http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview())),

@@ -4,6 +4,7 @@ import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
+import com.fashionrental.customer.model.request.UpdateCustomerRequest;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,14 @@ class CustomerServiceTest {
             updatedAt.setAccessible(true);
             createdAt.set(customer, OffsetDateTime.now());
             updatedAt.set(customer, OffsetDateTime.now());
+        } catch (Exception ignored) {}
+    }
+
+    private void setId(Customer customer, UUID id) {
+        try {
+            java.lang.reflect.Field idField = Customer.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(customer, id);
         } catch (Exception ignored) {}
     }
 
@@ -129,6 +138,23 @@ class CustomerServiceTest {
     }
 
     @Test
+    void should_null_organization_name_when_creating_misc_customer_with_org_name() {
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Suresh Patel", "6543210987", null, Customer.CustomerType.MISC, "Some Org"
+        );
+        when(customerRepository.existsByPhone("6543210987")).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> {
+            Customer c = inv.getArgument(0);
+            setTimestamps(c);
+            return c;
+        });
+
+        CustomerResponse result = customerService.createCustomer(request);
+
+        assertThat(result.organizationName()).isNull();
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void should_return_empty_list_when_no_search_params() {
         List<CustomerSummaryResponse> result = customerService.searchCustomers(null, null);
@@ -176,5 +202,137 @@ class CustomerServiceTest {
 
         assertThatThrownBy(() -> customerService.getCustomer(id))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_update_customer_address() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse result = customerService.updateCustomer(id, request);
+
+        assertThat(result.address()).isEqualTo("456 New St");
+    }
+
+    @Test
+    void should_allow_update_when_phone_unchanged_belongs_to_self() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse result = customerService.updateCustomer(id, request);
+
+        assertThat(result.phone()).isEqualTo("9876543210");
+    }
+
+    @Test
+    void should_throw_conflict_when_phone_belongs_to_another_customer() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        Customer other = buildActiveCustomer("Someone Else", "8765432109", Customer.CustomerType.MISC);
+        setId(other, UUID.randomUUID());
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("8765432109")).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> customerService.updateCustomer(id, request))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void should_allow_type_change_from_student_to_misc_without_org_name() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Priya Sharma", "8765432109", Customer.CustomerType.STUDENT);
+        setId(existing, id);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Priya Sharma", "8765432109", null, Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("8765432109")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse result = customerService.updateCustomer(id, request);
+
+        assertThat(result.customerType()).isEqualTo(Customer.CustomerType.MISC);
+        assertThat(result.organizationName()).isNull();
+    }
+
+    @Test
+    void should_throw_validation_when_type_changes_to_professional_without_org_name() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> customerService.updateCustomer(id, request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Organization name is required");
+    }
+
+    @Test
+    void should_throw_not_found_when_updating_missing_customer() {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> customerService.updateCustomer(id, request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_null_organization_name_when_updating_misc_customer_with_org_name() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, "Some Org"
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse result = customerService.updateCustomer(id, request);
+
+        assertThat(result.organizationName()).isNull();
+    }
+
+    @Test
+    void should_bump_updated_at_on_noop_update() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        OffsetDateTime priorUpdatedAt = existing.getUpdatedAt();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", existing.getAddress(), Customer.CustomerType.MISC, null
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse result = customerService.updateCustomer(id, request);
+
+        assertThat(result.updatedAt()).isAfter(priorUpdatedAt);
     }
 }

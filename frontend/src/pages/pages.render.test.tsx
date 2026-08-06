@@ -6,6 +6,7 @@ import SettingsPage from './SettingsPage'
 import UnauthorizedPage from './UnauthorizedPage'
 import CustomersPage from './customers/CustomersPage'
 import RegisterCustomerPage from './customers/RegisterCustomerPage'
+import EditCustomerPage from './customers/EditCustomerPage'
 import ReceiptsPage from './receipts/ReceiptsPage'
 import ReceiptDetailPage from './receipts/ReceiptDetailPage'
 import ProcessReturnPage from './receipts/ProcessReturnPage'
@@ -47,6 +48,14 @@ describe('page smoke renders', () => {
 
   it('RegisterCustomerPage renders in create mode', async () => {
     const { container } = renderWithProviders(<RegisterCustomerPage />, { route: '/customers/new' })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+
+  it('EditCustomerPage renders for an id', async () => {
+    const { container } = renderWithProviders(<EditCustomerPage />, {
+      route: '/customers/cust-1/edit', path: '/customers/:id/edit',
+    })
     await flush()
     expect(container.firstChild).toBeTruthy()
   })
