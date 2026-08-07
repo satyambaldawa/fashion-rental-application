@@ -3,6 +3,16 @@
 **Status**: Approved (design phase)
 **Date**: 2026-08-07
 
+> **Amended during implementation planning**: the `postgres` MCP server (`dbhub`) referenced
+> throughout this doc has been dropped. The pinned `dbhub` version's `--readonly` flag turned out
+> to be deprecated (it hard-errors, requiring a `dbhub.toml` config instead), which prompted
+> reconsidering the MCP server altogether — the DB agent now talks to Postgres directly via
+> `psql`/`pg_dump`/Flyway through `Bash`, with no MCP server and one fewer third-party,
+> `npx`-pulled dependency in the loop. Every guarantee below (local-write-only, read-anywhere,
+> no `DROP`/`TRUNCATE`/etc. ever) is unchanged — it's enforced by `db.py`'s text-based checks
+> either way. See `docs/superpowers/plans/2026-08-07-agent-safety-net-plan.md` for the current
+> implementation.
+
 ## Problem
 
 The user wants three new subagents to handle day-to-day operational questions without
