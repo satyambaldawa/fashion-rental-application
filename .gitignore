@@ -4,6 +4,10 @@ backend/.gradle/
 backend/out/
 backend/*.jar
 
+# Python (used by .claude/hooks/ policy scripts)
+__pycache__/
+*.pyc
+
 # Local Claude Code settings & stray agent scratch
 # (shared config under .claude/ — agents/, commands/ — stays tracked)
 .claude/settings.json
