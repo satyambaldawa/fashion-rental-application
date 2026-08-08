@@ -6,6 +6,9 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
+import com.fashionrental.customer.model.response.CustomerDetailResponse;
+import com.fashionrental.customer.model.response.CustomerReceiptItemResponse;
+import com.fashionrental.customer.model.response.CustomerReceiptResponse;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import org.junit.jupiter.api.Test;
@@ -57,6 +60,22 @@ class CustomerControllerTest {
         return new CustomerSummaryResponse(
                 id, "Ravi Kumar", "9876543210", "123 Main St",
                 Customer.CustomerType.MISC, null, 0
+        );
+    }
+
+    private CustomerDetailResponse sampleDetailResponse(UUID id) {
+        CustomerReceiptResponse receipt = new CustomerReceiptResponse(
+                UUID.randomUUID(), "R-20260418-003", "GIVEN",
+                OffsetDateTime.parse("2026-04-18T10:00:00+05:30"),
+                OffsetDateTime.parse("2026-04-20T10:00:00+05:30"),
+                400, 1500, 1900,
+                List.of(new CustomerReceiptItemResponse("Blue Sherwani", 2)),
+                null
+        );
+        return new CustomerDetailResponse(
+                id, "Ravi Kumar", "9876543210", "123 Main St",
+                Customer.CustomerType.MISC, null,
+                1500, List.of(receipt)
         );
     }
 
@@ -249,6 +268,62 @@ class CustomerControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_200_with_customer_details_on_get_by_id() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerService.getCustomer(id)).thenReturn(sampleCustomerResponse(id));
+
+        mockMvc.perform(get("/api/customers/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Ravi Kumar"))
+                .andExpect(jsonPath("$.data.phone").value("9876543210"));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_getting_missing_customer_by_id() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerService.getCustomer(id))
+                .thenThrow(new ResourceNotFoundException("Customer not found: " + id));
+
+        mockMvc.perform(get("/api/customers/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_200_with_customer_detail_and_outstanding_deposit() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerService.getCustomerHistory(id)).thenReturn(sampleDetailResponse(id));
+
+        mockMvc.perform(get("/api/customers/{id}/history", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Ravi Kumar"))
+                .andExpect(jsonPath("$.data.outstandingDeposit").value(1500))
+                .andExpect(jsonPath("$.data.receipts", hasSize(1)))
+                .andExpect(jsonPath("$.data.receipts[0].receiptNumber").value("R-20260418-003"))
+                .andExpect(jsonPath("$.data.receipts[0].status").value("GIVEN"))
+                .andExpect(jsonPath("$.data.receipts[0].items", hasSize(1)))
+                .andExpect(jsonPath("$.data.receipts[0].items[0].itemName").value("Blue Sherwani"))
+                .andExpect(jsonPath("$.data.receipts[0].invoice").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_404_when_getting_history_for_missing_customer() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerService.getCustomerHistory(id))
+                .thenThrow(new ResourceNotFoundException("Customer not found: " + id));
+
+        mockMvc.perform(get("/api/customers/{id}/history", id))
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
     }
 }

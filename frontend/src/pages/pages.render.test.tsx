@@ -7,6 +7,7 @@ import UnauthorizedPage from './UnauthorizedPage'
 import CustomersPage from './customers/CustomersPage'
 import RegisterCustomerPage from './customers/RegisterCustomerPage'
 import EditCustomerPage from './customers/EditCustomerPage'
+import CustomerDetailPage from './customers/CustomerDetailPage'
 import ReceiptsPage from './receipts/ReceiptsPage'
 import ReceiptDetailPage from './receipts/ReceiptDetailPage'
 import ProcessReturnPage from './receipts/ProcessReturnPage'
@@ -55,6 +56,14 @@ describe('page smoke renders', () => {
   it('EditCustomerPage renders for an id', async () => {
     const { container } = renderWithProviders(<EditCustomerPage />, {
       route: '/customers/cust-1/edit', path: '/customers/:id/edit',
+    })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+
+  it('CustomerDetailPage renders for an id', async () => {
+    const { container } = renderWithProviders(<CustomerDetailPage />, {
+      route: '/customers/cust-1', path: '/customers/:id',
     })
     await flush()
     expect(container.firstChild).toBeTruthy()

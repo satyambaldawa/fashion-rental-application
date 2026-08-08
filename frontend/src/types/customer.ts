@@ -37,3 +37,33 @@ export interface UpdateCustomerRequest {
   customerType: CustomerType
   organizationName?: string
 }
+
+export interface CustomerReceiptItem {
+  itemName: string
+  quantity: number
+}
+
+export interface CustomerReceiptInvoice {
+  id: string
+  invoiceNumber: string
+  finalAmount: number
+  transactionType: 'COLLECT' | 'REFUND'
+}
+
+export interface CustomerReceipt {
+  id: string
+  receiptNumber: string
+  status: 'GIVEN' | 'RETURNED'
+  startDatetime: string
+  endDatetime: string
+  totalRent: number
+  totalDeposit: number
+  grandTotal: number
+  items: CustomerReceiptItem[]
+  invoice: CustomerReceiptInvoice | null
+}
+
+export interface CustomerDetail extends Customer {
+  outstandingDeposit: number
+  receipts: CustomerReceipt[]
+}

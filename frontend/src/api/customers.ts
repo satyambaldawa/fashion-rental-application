@@ -1,6 +1,6 @@
 import client from './client'
 import type { ApiResponse } from '../types/api'
-import type { Customer, CustomerSummary, CreateCustomerRequest, UpdateCustomerRequest } from '../types/customer'
+import type { Customer, CustomerSummary, CreateCustomerRequest, UpdateCustomerRequest, CustomerDetail } from '../types/customer'
 
 export const customersApi = {
   search: (params: { phone?: string; name?: string }): Promise<CustomerSummary[]> =>
@@ -14,4 +14,7 @@ export const customersApi = {
 
   update: (id: string, data: UpdateCustomerRequest): Promise<Customer> =>
     client.put<ApiResponse<Customer>>(`/customers/${id}`, data).then(r => r.data.data!),
+
+  getHistory: (id: string): Promise<CustomerDetail> =>
+    client.get<ApiResponse<CustomerDetail>>(`/customers/${id}/history`).then(r => r.data.data!),
 }

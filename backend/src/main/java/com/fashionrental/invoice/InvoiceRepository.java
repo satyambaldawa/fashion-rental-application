@@ -12,5 +12,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     List<Invoice> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
 
+    List<Invoice> findByReceipt_IdIn(List<UUID> receiptIds);
+
     java.util.Optional<Invoice> findByShareToken(String shareToken);
 }

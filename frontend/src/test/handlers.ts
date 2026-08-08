@@ -30,6 +30,7 @@ export const handlers = [
   http.delete('*/api/items/:id', () => ok(null)),
 
   // customers
+  http.get('*/api/customers/:id/history', () => ok(f.aCustomerDetail())),
   http.get('*/api/customers/:id', () => ok(f.aCustomer())),
   http.get('*/api/customers', () => ok([f.aCustomerSummary()])),
   http.post('*/api/customers', () => ok(f.aCustomer())),
