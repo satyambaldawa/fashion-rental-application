@@ -54,7 +54,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
         customer.setIsActive(true);
         customer = customerRepository.save(customer);
 
-        Item turban = newIndividualItem("Turban", 0, 0);
+        Item turban = newIndividualItem("Turban", 200, 500);
         turban = itemRepository.save(turban);
 
         Item weddingPackage = newIndividualItem("Wedding Package", 1000, 3000);
