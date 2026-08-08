@@ -3,6 +3,7 @@ package com.fashionrental.customer;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
+import com.fashionrental.customer.model.response.CustomerDetailResponse;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,6 +50,12 @@ public class CustomerController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomer(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(customerService.getCustomer(id)));
+    }
+
+    @Operation(summary = "Get customer's full rental history, receipts, and outstanding deposit")
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<CustomerDetailResponse>> getCustomerHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(customerService.getCustomerHistory(id)));
     }
 
     @Operation(summary = "Update an existing customer's details")

@@ -10,6 +10,7 @@ import AddItemPage from '../../pages/inventory/AddItemPage'
 import CustomersPage from '../../pages/customers/CustomersPage'
 import RegisterCustomerPage from '../../pages/customers/RegisterCustomerPage'
 import EditCustomerPage from '../../pages/customers/EditCustomerPage'
+import CustomerDetailPage from '../../pages/customers/CustomerDetailPage'
 import CheckoutPage from '../../pages/checkout/CheckoutPage'
 import ReceiptsPage from '../../pages/receipts/ReceiptsPage'
 import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
@@ -109,6 +110,7 @@ export default function AppLayout() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/register" element={<RegisterCustomerPage />} />
             <Route path="/customers/:id/edit" element={<EditCustomerPage />} />
+            <Route path="/customers/:id" element={<CustomerDetailPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/receipts" element={<ReceiptsPage />} />
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />

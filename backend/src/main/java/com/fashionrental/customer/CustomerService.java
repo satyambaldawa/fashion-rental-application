@@ -5,8 +5,11 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
+import com.fashionrental.customer.model.response.CustomerDetailResponse;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
+import com.fashionrental.reporting.CustomerHistoryData;
+import com.fashionrental.reporting.CustomerHistoryService;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -22,9 +25,11 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final CustomerHistoryService customerHistoryService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, CustomerHistoryService customerHistoryService) {
         this.customerRepository = customerRepository;
+        this.customerHistoryService = customerHistoryService;
     }
 
     @Transactional
@@ -108,6 +113,29 @@ public class CustomerService {
         }
 
         return toResponse(customer);
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerDetailResponse getCustomerHistory(UUID id) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
+
+        if (!customer.getIsActive()) {
+            throw new ResourceNotFoundException("Customer not found: " + id);
+        }
+
+        CustomerHistoryData history = customerHistoryService.getHistory(id);
+
+        return new CustomerDetailResponse(
+                customer.getId(),
+                customer.getName(),
+                customer.getPhone(),
+                customer.getAddress(),
+                customer.getCustomerType(),
+                customer.getOrganizationName(),
+                history.outstandingDeposit(),
+                history.receipts()
+        );
     }
 
     private void validateOrganizationName(Customer.CustomerType customerType, String organizationName) {

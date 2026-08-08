@@ -5,8 +5,12 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
+import com.fashionrental.customer.model.response.CustomerDetailResponse;
+import com.fashionrental.customer.model.response.CustomerReceiptResponse;
 import com.fashionrental.customer.model.response.CustomerResponse;
 import com.fashionrental.customer.model.response.CustomerSummaryResponse;
+import com.fashionrental.reporting.CustomerHistoryData;
+import com.fashionrental.reporting.CustomerHistoryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +35,9 @@ class CustomerServiceTest {
 
     @Mock
     private CustomerRepository customerRepository;
+
+    @Mock
+    private CustomerHistoryService customerHistoryService;
 
     @InjectMocks
     private CustomerService customerService;
@@ -334,5 +341,56 @@ class CustomerServiceTest {
         CustomerResponse result = customerService.updateCustomer(id, request);
 
         assertThat(result.updatedAt()).isAfter(priorUpdatedAt);
+    }
+
+    @Test
+    void should_throw_not_found_when_getting_history_for_missing_customer() {
+        UUID id = UUID.randomUUID();
+        when(customerRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> customerService.getCustomerHistory(id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_throw_not_found_when_getting_history_for_inactive_customer() {
+        UUID id = UUID.randomUUID();
+        Customer inactive = buildActiveCustomer("Old Customer", "9999999999", Customer.CustomerType.MISC);
+        inactive.setIsActive(false);
+        when(customerRepository.findById(id)).thenReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> customerService.getCustomerHistory(id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void should_compose_customer_history_with_base_customer_fields() {
+        UUID id = UUID.randomUUID();
+        Customer customer = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.PROFESSIONAL);
+        customer.setOrganizationName("Kumar & Sons");
+        customer.setAddress("123 Main St");
+        setId(customer, id);
+        when(customerRepository.findById(id)).thenReturn(Optional.of(customer));
+
+        CustomerHistoryData historyData = new CustomerHistoryData(1500, List.of(
+                new CustomerReceiptResponse(
+                        UUID.randomUUID(), "R-20260418-003", "GIVEN",
+                        OffsetDateTime.now(), OffsetDateTime.now(),
+                        400, 1500, 1900, List.of(), null
+                )
+        ));
+        when(customerHistoryService.getHistory(id)).thenReturn(historyData);
+
+        CustomerDetailResponse result = customerService.getCustomerHistory(id);
+
+        assertThat(result.id()).isEqualTo(id);
+        assertThat(result.name()).isEqualTo("Ravi Kumar");
+        assertThat(result.phone()).isEqualTo("9876543210");
+        assertThat(result.address()).isEqualTo("123 Main St");
+        assertThat(result.customerType()).isEqualTo(Customer.CustomerType.PROFESSIONAL);
+        assertThat(result.organizationName()).isEqualTo("Kumar & Sons");
+        assertThat(result.outstandingDeposit()).isEqualTo(1500);
+        assertThat(result.receipts()).hasSize(1);
+        assertThat(result.receipts().get(0).receiptNumber()).isEqualTo("R-20260418-003");
     }
 }

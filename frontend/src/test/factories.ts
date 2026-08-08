@@ -1,6 +1,6 @@
 // Object-creation factories for frontend tests. Each returns a valid default that a
 // test can partially override — so tests state only the fields they care about.
-import type { CustomerSummary, Customer } from '../types/customer'
+import type { CustomerSummary, Customer, CustomerDetail, CustomerReceipt } from '../types/customer'
 import type { ItemSummary, ItemDetail } from '../types/inventory'
 import type { Receipt, ReceiptSummary, CheckoutPreview } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
@@ -32,6 +32,18 @@ export const aCustomer: Partialize<Customer> = (o = {}) => ({
 export const aCustomerSummary: Partialize<CustomerSummary> = (o = {}) => ({
   id: 'cust-1', name: 'Meera', phone: '9811122233', address: 'Pune',
   customerType: 'MISC', organizationName: null, activeRentalsCount: 0, ...o,
+})
+
+export const aCustomerReceipt: Partialize<CustomerReceipt> = (o = {}) => ({
+  id: 'rcpt-1', receiptNumber: 'R-20260418-003', status: 'GIVEN',
+  startDatetime: '2026-04-18T10:00:00+05:30', endDatetime: '2026-04-20T10:00:00+05:30',
+  totalRent: 400, totalDeposit: 1500, grandTotal: 1900,
+  items: [{ itemName: 'Blue Sherwani', quantity: 2 }],
+  invoice: null, ...o,
+})
+
+export const aCustomerDetail: Partialize<CustomerDetail> = (o = {}) => ({
+  ...aCustomer(), outstandingDeposit: 0, receipts: [], ...o,
 })
 
 export const aReceipt: Partialize<Receipt> = (o = {}) => ({
