@@ -675,10 +675,36 @@ class DbPolicyTest(unittest.TestCase):
         result = db.check("Bash", "pnpm test", {})
         self.assertIsNone(result)
 
+    def test_defers_psql_with_no_recognizable_sql(self):
+        result = db.check("Bash", "psql --version", {})
+        self.assertIsNone(result)
+
+    def test_defers_bare_interactive_psql_against_remote_host(self):
+        result = db.check("Bash", 'psql "$SUPABASE_DATABASE_URL"', {})
+        self.assertIsNone(result)
+
+    def test_denies_insert_select_against_non_local_host(self):
+        result = db.check(
+            "Bash",
+            'psql "$SUPABASE_DATABASE_URL" -c "INSERT INTO items SELECT * FROM staging_items"',
+            {},
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_delete_with_subselect_against_non_local_host(self):
+        result = db.check(
+            "Bash",
+            'psql "$SUPABASE_DATABASE_URL" -c "DELETE FROM items WHERE id IN (SELECT id FROM stale)"',
+            {},
+        )
+        self.assertEqual(result[0], "deny")
+
 
 if __name__ == "__main__":
     unittest.main()
 ```
+
+> **Corrected during review** (see the plan's execution ledger): the first draft of this test file had 7 cases and the module below had a dead `_READ_KEYWORD_RE` with `not _WRITE_KEYWORD_RE.search(text)` used as a flawed "is this read-only" proxy. That let bare/version-only `psql` invocations — including an interactive session against a remote database with no `-c` argument at all — through unchecked. The fix below (checking write intent unconditionally before ever considering read intent) closes that gap; the 4 tests above were added to lock it in.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -693,7 +719,7 @@ Expected: `ModuleNotFoundError` or `AttributeError`.
 ```python
 import re
 
-_READ_KEYWORD_RE = re.compile(r"^\s*(WITH|SELECT|EXPLAIN|SHOW)\b", re.IGNORECASE)
+_READ_KEYWORD_RE = re.compile(r"\b(WITH|SELECT|EXPLAIN|SHOW)\b", re.IGNORECASE)
 _WRITE_KEYWORD_RE = re.compile(
     r"\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b", re.IGNORECASE
 )
@@ -730,18 +756,22 @@ def check(tool_name, text, tool_input):
     if _FLYWAY_ALLOW_RE.search(text) or _BOOTRUN_DEV_ALLOW_RE.search(text):
         return ("allow", "Local dev Flyway migration is an approved write action.")
 
-    if not _WRITE_KEYWORD_RE.search(text):
-        return ("allow", "Read-only SQL query (no write/DDL keywords detected).")
+    if _WRITE_KEYWORD_RE.search(text):
+        if not _LOCAL_HOST_RE.search(text):
+            return (
+                "deny",
+                "Write/DDL statements are only permitted against localhost:5433 (local dev); "
+                "no literal local host was found in this command.",
+            )
+        return None
 
-    if not _LOCAL_HOST_RE.search(text):
-        return (
-            "deny",
-            "Write/DDL statements are only permitted against localhost:5433 (local dev); "
-            "no literal local host was found in this command.",
-        )
+    if _READ_KEYWORD_RE.search(text):
+        return ("allow", "Read-only SQL query.")
 
     return None
 ```
+
+Note the ordering: write intent is checked and resolved (deny off-localhost, defer on-localhost) **before** read intent is ever considered. A statement containing both a write keyword and the word `SELECT` (e.g. `INSERT INTO items SELECT * FROM staging_items`, `DELETE FROM items WHERE id IN (SELECT id FROM stale)`) must be treated as a write, not short-circuited to "read-only" — reversing this ordering reintroduces a real bypass (verified in the plan's execution ledger, Task 5, fix round 1).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -749,7 +779,7 @@ def check(tool_name, text, tool_input):
 python3 -m unittest discover -s .claude/hooks/tests -p "test_db.py" -v
 ```
 
-Expected: `OK` — all 7 tests pass.
+Expected: `OK` — all 11 tests pass.
 
 - [ ] **Step 5: Commit**
 
@@ -819,7 +849,7 @@ class GithubPolicyTest(unittest.TestCase):
         result = github.check("Bash", "git push origin main", {})
         self.assertEqual(result[0], "deny")
 
-    def test_denies_branch_protection_change(self):
+    def test_defers_branch_protection_put_change(self):
         result = github.check(
             "Bash", "gh api -X PUT repos/o/r/branches/main/protection", {}
         )
@@ -856,7 +886,7 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-Note the `test_denies_branch_protection_change` case above is deliberately named to document a known gap: only `-X DELETE`/`--method DELETE` on a branch-protection path is denied; a `PUT`/`PATCH` that weakens protection is not caught by this module (it isn't a `gh` subcommand covered by our deny-list, and it isn't obviously destructive from text alone). It falls through to the normal permission prompt, same as any unmatched command — acceptable per the design's default-ask policy, not a regression.
+Note the `test_defers_branch_protection_put_change` case above is deliberately named to document a known gap: only `-X DELETE`/`--method DELETE` on a branch-protection path is denied; a `PUT`/`PATCH` that weakens protection is not caught by this module (it isn't a `gh` subcommand covered by our deny-list, and it isn't obviously destructive from text alone). It falls through to the normal permission prompt, same as any unmatched command — acceptable per the design's default-ask policy, not a regression.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -919,7 +949,7 @@ def check(tool_name, text, tool_input):
     return None
 ```
 
-Note: the `_DENY_PATTERNS` list has both a generic "any `-X DELETE`" rule and a more specific branch-protection-DELETE rule; the generic one already covers the branch-protection case, so the specific one is redundant today but is kept because it documents intent clearly and won't regress if the generic DELETE rule is ever narrowed. The `test_denies_branch_protection_change` test's `-X PUT` case correctly returns `None` (falls through to the deny-pattern loop and doesn't match either DELETE pattern), then falls through the allow-list too (no match), landing on `None` overall — verify this is what Step 4 shows before moving on.
+Note: the `_DENY_PATTERNS` list has both a generic "any `-X DELETE`" rule and a more specific branch-protection-DELETE rule; the generic one already covers the branch-protection case, so the specific one is redundant today but is kept because it documents intent clearly and won't regress if the generic DELETE rule is ever narrowed. The `test_defers_branch_protection_put_change` test's `-X PUT` case correctly returns `None` (falls through to the deny-pattern loop and doesn't match either DELETE pattern), then falls through the allow-list too (no match), landing on `None` overall — verify this is what Step 4 shows before moving on.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1143,7 +1173,7 @@ Expected: `OK` — all 11 tests pass.
 python3 -m unittest discover -s .claude/hooks/tests -v
 ```
 
-Expected: `OK` — all tests across every policy module and the integration suite pass (11 + 11 + 10 + 7 + 13 = 52 from Tasks 2–6, plus 11 from this task = 63; exact count isn't the point — zero failures is).
+Expected: `OK` — all tests across every policy module and the integration suite pass (11 + 11 + 10 + 11 + 13 = 56 from Tasks 2–6, plus 11 from this task = 67; exact count isn't the point — zero failures is).
 
 - [ ] **Step 7: Commit**
 
