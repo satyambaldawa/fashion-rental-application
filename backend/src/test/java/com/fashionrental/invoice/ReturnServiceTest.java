@@ -6,6 +6,7 @@ import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.configuration.LateFeeRuleRepository;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.inventory.Item;
+import com.fashionrental.inventory.ItemPhoto;
 import com.fashionrental.invoice.model.request.ProcessReturnRequest;
 import com.fashionrental.invoice.model.request.ReturnLineItem;
 import com.fashionrental.invoice.model.response.InvoiceResponse;
@@ -212,5 +213,39 @@ class ReturnServiceTest {
         assertThatThrownBy(() -> returnService.getInvoice(missingId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Invoice not found");
+    }
+
+    @Test
+    void processReturn_populates_thumbnail_from_the_line_items_own_item() {
+        ItemPhoto photo = new ItemPhoto();
+        photo.setItem(item);
+        photo.setUrl("https://r2.example/photo-0.jpg");
+        photo.setThumbnailUrl("https://r2.example/thumb-0.jpg");
+        photo.setSortOrder(0);
+        item.getPhotos().add(photo);
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0005");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(false));
+
+        assertThat(response.lineItems()).hasSize(1);
+        assertThat(response.lineItems().get(0).thumbnailUrl()).isEqualTo("https://r2.example/thumb-0.jpg");
+    }
+
+    @Test
+    void processReturn_returns_null_thumbnail_when_item_has_no_photos() {
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0006");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(false));
+
+        assertThat(response.lineItems()).hasSize(1);
+        assertThat(response.lineItems().get(0).thumbnailUrl()).isNull();
     }
 }

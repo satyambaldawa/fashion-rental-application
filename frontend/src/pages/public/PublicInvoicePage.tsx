@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { publicApi } from '../../api/public'
 import type { InvoiceLineItem } from '../../types/invoice'
 import { formatCurrency } from '../../utils/currency'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 
 function formatCategory(cat: string | null): string {
   if (!cat) return ''
@@ -43,17 +44,30 @@ export default function PublicInvoicePage() {
       title: 'Item',
       key: 'item',
       render: (_: unknown, row: InvoiceLineItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{row.itemName}</div>
-          {(row.itemSize || row.itemCategory) && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
-                .filter(Boolean).join(' · ')}
-            </Typography.Text>
-          )}
-          {row.isDamaged && (
-            <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>Damaged</Tag>
-          )}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+            {row.thumbnailUrl ? (
+              <img
+                src={row.thumbnailUrl}
+                alt={row.itemName}
+                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+              />
+            ) : (
+              <ItemPhotoPlaceholder />
+            )}
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{row.itemName}</div>
+            {(row.itemSize || row.itemCategory) && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
+                  .filter(Boolean).join(' · ')}
+              </Typography.Text>
+            )}
+            {row.isDamaged && (
+              <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>Damaged</Tag>
+            )}
+          </div>
         </div>
       ),
     },

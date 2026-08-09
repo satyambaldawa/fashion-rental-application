@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { publicApi } from '../../api/public'
 import type { ReceiptLineItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 
 function formatCategory(cat: string | null): string {
   if (!cat) return '—'
@@ -41,18 +42,31 @@ export default function PublicReceiptPage() {
       title: 'Item',
       key: 'item',
       render: (_: unknown, row: ReceiptLineItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{row.itemName}</div>
-          {row.itemSize && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Size: {row.itemSize}
-            </Typography.Text>
-          )}
-          {row.itemCategory && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: row.itemSize ? 8 : 0 }}>
-              {row.itemSize ? '· ' : ''}{formatCategory(row.itemCategory)}
-            </Typography.Text>
-          )}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+            {row.thumbnailUrl ? (
+              <img
+                src={row.thumbnailUrl}
+                alt={row.itemName}
+                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+              />
+            ) : (
+              <ItemPhotoPlaceholder />
+            )}
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{row.itemName}</div>
+            {row.itemSize && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Size: {row.itemSize}
+              </Typography.Text>
+            )}
+            {row.itemCategory && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: row.itemSize ? 8 : 0 }}>
+                {row.itemSize ? '· ' : ''}{formatCategory(row.itemCategory)}
+              </Typography.Text>
+            )}
+          </div>
         </div>
       ),
     },

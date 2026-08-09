@@ -68,6 +68,7 @@ class ReceiptControllerTest {
                 "GIVEN", null,
                 List.of(new ReceiptLineItemResponse(
                         UUID.randomUUID(), UUID.randomUUID(), "Blue Sherwani",
+                        "https://r2.example/thumb.jpg",
                         "M", "COSTUME", null,
                         1, 200, 1000, 600, 1000, null
                 )),

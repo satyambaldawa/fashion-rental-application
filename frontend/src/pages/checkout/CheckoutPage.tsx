@@ -505,26 +505,40 @@ export default function CheckoutPage() {
           const category = fresh?.category ?? r.category
           const size = fresh?.size ?? r.size ?? null
           const componentNames = fresh?.componentNames ?? r.componentNames ?? null
+          const thumbnailUrl = r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null
           return (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-                <span style={{ fontWeight: 500 }}>{r.itemName}</span>
-                {r.itemType === 'PACKAGE'
-                  ? <Tag color="purple" style={{ margin: 0 }}>Combo</Tag>
-                  : <Tag style={{ margin: 0 }}>Individual</Tag>}
-                {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
-                {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+                {thumbnailUrl ? (
+                  <img
+                    src={thumbnailUrl}
+                    alt={r.itemName}
+                    style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                  />
+                ) : (
+                  <ItemPhotoPlaceholder />
+                )}
               </div>
-              {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
-                <div style={{ fontSize: 12, paddingLeft: 2 }}>
-                  <div style={{ color: '#722ed1', fontWeight: 500, marginBottom: 3 }}>Includes:</div>
-                  {componentNames.map((name, i) => (
-                    <div key={i} style={{ color: '#444', paddingLeft: 8, lineHeight: '20px' }}>
-                      · {name}
-                    </div>
-                  ))}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                  <span style={{ fontWeight: 500 }}>{r.itemName}</span>
+                  {r.itemType === 'PACKAGE'
+                    ? <Tag color="purple" style={{ margin: 0 }}>Combo</Tag>
+                    : <Tag style={{ margin: 0 }}>Individual</Tag>}
+                  {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
+                  {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
                 </div>
-              )}
+                {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
+                  <div style={{ fontSize: 12, paddingLeft: 2 }}>
+                    <div style={{ color: '#722ed1', fontWeight: 500, marginBottom: 3 }}>Includes:</div>
+                    {componentNames.map((name, i) => (
+                      <div key={i} style={{ color: '#444', paddingLeft: 8, lineHeight: '20px' }}>
+                        · {name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )
         },

@@ -6,6 +6,7 @@ public record ReceiptLineItemResponse(
         UUID id,
         UUID itemId,
         String itemName,
+        String thumbnailUrl,
         String itemSize,
         String itemCategory,
         String itemDescription,

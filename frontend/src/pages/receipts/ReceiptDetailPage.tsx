@@ -14,6 +14,7 @@ import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptLineItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 
 const PRINT_STYLES = `
 @media print {
@@ -79,28 +80,41 @@ export default function ReceiptDetailPage() {
       title: 'Item',
       key: 'item',
       render: (_: unknown, row: ReceiptLineItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{row.itemName}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
-            #{row.itemId.slice(0, 8)}
-          </Typography.Text>
-          {row.itemSize && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-              Size: {row.itemSize}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+            {row.thumbnailUrl ? (
+              <img
+                src={row.thumbnailUrl}
+                alt={row.itemName}
+                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+              />
+            ) : (
+              <ItemPhotoPlaceholder />
+            )}
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{row.itemName}</div>
+            <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+              #{row.itemId.slice(0, 8)}
             </Typography.Text>
-          )}
-          {row.itemCategory && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: row.itemSize ? 8 : 0 }}>
-              {row.itemSize ? '·' : ''} {formatCategory(row.itemCategory)}
-            </Typography.Text>
-          )}
-          {row.itemDescription && (
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {row.itemDescription}
+            {row.itemSize && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+                Size: {row.itemSize}
               </Typography.Text>
-            </div>
-          )}
+            )}
+            {row.itemCategory && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: row.itemSize ? 8 : 0 }}>
+                {row.itemSize ? '·' : ''} {formatCategory(row.itemCategory)}
+              </Typography.Text>
+            )}
+            {row.itemDescription && (
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {row.itemDescription}
+                </Typography.Text>
+              </div>
+            )}
+          </div>
         </div>
       ),
     },

@@ -14,6 +14,7 @@ import dayjs from 'dayjs'
 import { invoicesApi } from '../../api/invoices'
 import type { InvoiceLineItem } from '../../types/invoice'
 import { formatCurrency } from '../../utils/currency'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 
 const PRINT_STYLES = `
 @media print {
@@ -76,20 +77,33 @@ export default function InvoiceDetailPage() {
       title: 'Item',
       key: 'item',
       render: (_: unknown, row: InvoiceLineItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{row.itemName}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
-            #{row.itemId.slice(0, 8)}
-          </Typography.Text>
-          {(row.itemSize || row.itemCategory) && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-              {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
-                .filter(Boolean).join(' · ')}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+            {row.thumbnailUrl ? (
+              <img
+                src={row.thumbnailUrl}
+                alt={row.itemName}
+                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+              />
+            ) : (
+              <ItemPhotoPlaceholder />
+            )}
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{row.itemName}</div>
+            <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+              #{row.itemId.slice(0, 8)}
             </Typography.Text>
-          )}
-          {row.isDamaged && (
-            <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>Damaged</Tag>
-          )}
+            {(row.itemSize || row.itemCategory) && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+                {[row.itemSize, row.itemCategory ? formatCategory(row.itemCategory) : null]
+                  .filter(Boolean).join(' · ')}
+              </Typography.Text>
+            )}
+            {row.isDamaged && (
+              <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>Damaged</Tag>
+            )}
+          </div>
         </div>
       ),
     },
