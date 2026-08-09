@@ -16,6 +16,8 @@
 - `.claude/settings.json` **and** `.claude/settings.local.json` are both in this repo's `.gitignore` (only `.claude/agents/` and `.claude/commands/` are tracked under `.claude/`) — confirmed via `git check-ignore -v`. This means the hook *registration* (Task 8) is local machine config and is never committed; only the hook's actual code (`.claude/hooks/**`) and the agent definitions (`.claude/agents/**`) are trackable and get committed. This matches the project's existing convention, not a gap introduced by this plan.
 - Known residual limitation (document, don't try to solve here): the hook inspects the literal Bash command text. A raw `psql` invocation whose connection string comes from an env var rather than a literal `localhost`/`127.0.0.1:5433` substring cannot be host-verified from text alone, so such write attempts are treated as non-local (denied) — this is intentionally conservative, not a gap to close.
 - Known residual limitation (document, don't try to solve here — confirmed during Task 6's review, applies equally to every policy module built in Tasks 2–6): every deny/allow pattern is a plain `.search()` over the *entire* raw command string, with no shell-token or quoting awareness. A deny-list keyword appearing inside an unrelated quoted argument (e.g. `gh issue comment 5 --body "please gh pr merge this later"`) or as a delimited substring of a branch/identifier name (e.g. `git push origin feature/main-cleanup` tripping the "push to main" rule) can be wrongly denied even though the actual command is benign. This fails toward *over*-blocking, never under-blocking — it can produce a false "denied" that costs a retry, never a false "allowed" that bypasses the guard — so it is accepted as a known limitation rather than a security gap. A proper fix (tokenizing with `shlex.split` and matching only the actual command/subcommand structure, not embedded argument text) would need to touch all five modules and is out of scope for this plan.
+- Known residual limitation (document, don't try to solve here — confirmed during Task 9's review): `db.py`'s Flyway-migration allow branch cannot verify what its actual target database is. It denies an *explicit* `spring.profiles.active=prod` declaration (`-D`/`--`/`--args` forms), but the equivalent `SPRING_PROFILES_ACTIVE=prod` env-var-prefix form isn't textually distinguishable from a harmless env-var assignment and isn't caught; more fundamentally, a bare `./gradlew flywayMigrate` with no profile flag at all is auto-allowed on the assumption it targets local dev, but the true determinant is whatever `DATABASE_URL` resolves to in the ambient shell environment at execution time (`backend/src/main/resources/application.yml`'s `spring.datasource.url: ${DATABASE_URL}` has no default, and no `application-prod.yml` exists) — invisible from command text alone. This is the same category as the `psql`-env-var-host limitation above, just for Flyway's implicit-profile case specifically.
+- Known residual limitation (document, don't try to solve here — confirmed during Task 9's review): `db.py`'s `pg_dump`/`pg_restore` host check (`_LOCAL_HOST_RE.search(text)`) scans the whole command string for a `localhost`/`127.0.0.1:5433` substring rather than verifying it's the actual `-h`/`--host` value of that specific invocation. A remote `pg_dump`/`pg_restore` chained after a local one (`pg_dump -h localhost ... && pg_restore -h prod-db.supabase.co ...`), or accompanied by an unrelated `localhost` token elsewhere in the same command (e.g. a trailing shell comment), is wrongly allowed. Closing this properly needs the same per-invocation anchoring `secrets.py`'s `DB_CLIENT_DSN_ARG_RE` eventually converged on for `psql` after six rounds (see Task 7's ledger entries and `task-7-report.md`) — deferred as a known gap rather than a sixth application of that fix pattern in this plan.
 
 ---
 
@@ -260,7 +262,7 @@ KEY_FILE_RE = re.compile(
 )
 SECRET_VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 SECRET_NAME_RE = re.compile(
-    r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL)", re.IGNORECASE
+    r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL|_URL)", re.IGNORECASE
 )
 GCLOUD_SECRET_RE = re.compile(r"\bgcloud\s+secrets\s+(versions\s+access|describe)\b")
 GH_SECRET_RE = re.compile(r"\bgh\s+secret\s+(list|get|set|delete)\b")
@@ -341,7 +343,9 @@ Empty file.
 python3 -m unittest discover -s .claude/hooks/tests -p "test_secrets.py" -v
 ```
 
-Expected: `OK` — all 23 tests pass.
+Expected: `OK` — all 24 tests pass.
+
+> **Further corrected during Task 9's review**: `SECRET_NAME_RE` above was broadened once more, from `r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL)"` to `r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL|_URL)"`, after `NEON_PG_URL` (named explicitly in `db-agent.md`'s prompt as a protected credential) turned out not to match any of the original alternatives. A `test_denies_neon_pg_url_var_echo` case was added. See `task-9-fix-report.md` for the full context, including two related, still-open gaps documented in Global Constraints (Flyway's implicit-profile and the `pg_dump`/`pg_restore` host check's whole-string scan).
 
 - [ ] **Step 7: Commit**
 
@@ -643,6 +647,11 @@ _DENY_PATTERNS = [
         "prunes docker volumes, destroying data",
     ),
     (re.compile(r"\bdocker\s+volume\s+rm\b"), "removes a docker volume"),
+    (re.compile(r"\bgcloud\s+compute\s+instances\s+create\b"), "creates/recreates a GCP VM — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+addresses\s+create\b"), "creates a static IP — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+firewall-rules\s+create\b"), "creates a firewall rule — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+disks\s+create\b"), "creates a disk — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+iam\s+service-accounts\s+create\b"), "creates an IAM identity — provisioning is a separate, manual workflow"),
 ]
 
 _ALLOW_PATTERNS = [
@@ -673,7 +682,9 @@ def check(tool_name, text, tool_input):
 python3 -m unittest discover -s .claude/hooks/tests -p "test_gcp.py" -v
 ```
 
-Expected: `OK` — all 10 tests pass.
+Expected: `OK` — all 12 tests pass.
+
+> **Further corrected during Task 9's review**: the five `create`-verb deny entries above (instances/addresses/firewall-rules/disks/service-accounts) were added after the gcp-agent's prompt claim ("you must never attempt to... recreate the VM, its static IP, firewall rules, disks, or IAM identities") turned out to only be half-enforced — the original list only covered `delete`/`stop`. Two tests (`test_denies_instance_create`, `test_denies_firewall_rule_create`) were added; see `task-9-fix-report.md`.
 
 - [ ] **Step 5: Commit**
 
@@ -811,9 +822,10 @@ _WRITE_KEYWORD_RE = re.compile(
 )
 _ALWAYS_DENY_RE = re.compile(r"\b(DROP|TRUNCATE|ALTER|GRANT|REVOKE)\b", re.IGNORECASE)
 _LOCAL_HOST_RE = re.compile(r"(localhost|127\.0\.0\.1)(:5433)?")
-_PG_DUMP_RE = re.compile(r"\bpg_dump\b")
-_SQL_TOOL_RE = re.compile(r"\b(psql|pg_restore)\b")
+_PG_BACKUP_TOOL_RE = re.compile(r"\b(pg_dump|pg_restore)\b")
+_SQL_TOOL_RE = re.compile(r"\bpsql\b")
 _FLYWAY_ALLOW_RE = re.compile(r"\./gradlew\s+flywayMigrate\b")
+_FLYWAY_PROD_DENY_RE = re.compile(r"\./gradlew\s+flywayMigrate\b[^\n]*spring\.profiles\.active=prod")
 _BOOTRUN_DEV_ALLOW_RE = re.compile(r"\./gradlew\s+bootRun\b[^\n]*spring\.profiles\.active=dev")
 
 
@@ -821,13 +833,13 @@ def check(tool_name, text, tool_input):
     if not text:
         return None
 
-    if _PG_DUMP_RE.search(text):
+    if _PG_BACKUP_TOOL_RE.search(text):
         if _LOCAL_HOST_RE.search(text):
-            return ("allow", "Local dev pg_dump is permitted.")
+            return ("allow", "Local dev pg_dump/pg_restore is permitted.")
         return (
             "deny",
-            "pg_dump against a non-local database is reserved for the existing "
-            "db-backup.yml workflow, not an agent.",
+            "pg_dump/pg_restore against a non-local database is reserved for the "
+            "existing db-backup.yml workflow, not an agent.",
         )
 
     if not _SQL_TOOL_RE.search(text) and "gradlew" not in text:
@@ -837,6 +849,12 @@ def check(tool_name, text, tool_input):
         return (
             "deny",
             "DROP/TRUNCATE/ALTER/GRANT/REVOKE are never permitted via an agent, on any host.",
+        )
+
+    if _FLYWAY_PROD_DENY_RE.search(text):
+        return (
+            "deny",
+            "Flyway migrations against the prod profile are not permitted via an agent.",
         )
 
     if _FLYWAY_ALLOW_RE.search(text) or _BOOTRUN_DEV_ALLOW_RE.search(text):
@@ -865,7 +883,9 @@ Note the ordering: write intent is checked and resolved (deny off-localhost, def
 python3 -m unittest discover -s .claude/hooks/tests -p "test_db.py" -v
 ```
 
-Expected: `OK` — all 11 tests pass.
+Expected: `OK` — all 14 tests pass.
+
+> **Further corrected during Task 9's review**: two more gaps surfaced by cross-checking `db-agent.md`'s prompt claims against this module's actual behavior. (1) `pg_restore` used to match `_SQL_TOOL_RE` and fall through to the generic write-keyword logic, where — since the literal word "pg_restore" isn't itself an INSERT/UPDATE/etc. keyword — it was wrongly treated as read-only and allowed against any host; it's now unified with `pg_dump` under `_PG_BACKUP_TOOL_RE` with the same host gate. (2) The Flyway-allow branch had no check at all beyond the trailing `-Dspring.profiles.active=prod` guard added just above — `_FLYWAY_PROD_DENY_RE` closes the explicit-prod-flag case. Both fixes close the *simple* case; two related gaps remain open and are recorded in Global Constraints and `task-9-fix-report.md` rather than chased further: the `SPRING_PROFILES_ACTIVE=prod` env-var form isn't caught by `_FLYWAY_PROD_DENY_RE` (and a bare `flywayMigrate` with no profile flag is fundamentally unverifiable from text — it depends on whatever `DATABASE_URL` resolves to in the shell), and `_PG_BACKUP_TOOL_RE`'s host check is a whole-string scan that a chained or comment-decoy `localhost` token can defeat.
 
 - [ ] **Step 5: Commit**
 
@@ -1259,7 +1279,7 @@ Expected: `OK` — all 11 tests pass.
 python3 -m unittest discover -s .claude/hooks/tests -v
 ```
 
-Expected: `OK` — all tests across every policy module and the integration suite pass (23 + 11 + 10 + 11 + 13 = 68 from Tasks 2–6 with `secrets.py`'s final DB-client exemption, plus 11 from this task = 79; exact count isn't the point — zero failures is).
+Expected: `OK` — all tests across every policy module and the integration suite pass (as of Task 9's follow-up fixes: 24 + 11 + 12 + 14 + 13 = 74 from Tasks 2–6, plus 11 from this task = 85; exact count isn't the point — zero failures is).
 
 - [ ] **Step 7: Commit**
 
