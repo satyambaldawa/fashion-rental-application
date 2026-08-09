@@ -29,6 +29,7 @@ import type {
 } from '../../types/invoice'
 import { formatCurrency } from '../../utils/currency'
 import { toApiDatetime } from '../../utils/datetime'
+import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 
 interface LineItemFormState {
   isDamaged: boolean
@@ -179,16 +180,29 @@ export default function ProcessReturnPage() {
             bodyStyle={{ padding: '12px 16px' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <Typography.Text strong>{li.itemName}</Typography.Text>
-                {li.itemSize && <Tag style={{ marginLeft: 8 }}>{li.itemSize}</Tag>}
-                <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 13 }}>
-                  ×{li.quantity} · {formatCurrency(li.rateSnapshot)}/day
-                </Typography.Text>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+                  {li.thumbnailUrl ? (
+                    <img
+                      src={li.thumbnailUrl}
+                      alt={li.itemName}
+                      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4 }}
+                    />
+                  ) : (
+                    <ItemPhotoPlaceholder />
+                  )}
+                </div>
                 <div>
-                  <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                    #{li.itemId.slice(0, 8)}
+                  <Typography.Text strong>{li.itemName}</Typography.Text>
+                  {li.itemSize && <Tag style={{ marginLeft: 8 }}>{li.itemSize}</Tag>}
+                  <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 13 }}>
+                    ×{li.quantity} · {formatCurrency(li.rateSnapshot)}/day
                   </Typography.Text>
+                  <div>
+                    <Typography.Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                      #{li.itemId.slice(0, 8)}
+                    </Typography.Text>
+                  </div>
                 </div>
               </div>
               <Checkbox

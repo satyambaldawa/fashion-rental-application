@@ -119,4 +119,8 @@ public class Item {
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public List<ItemPhoto> getPhotos() { return photos; }
     public List<PackageComponent> getPackageComponents() { return packageComponents; }
+
+    public String getPrimaryThumbnailUrl() {
+        return photos.isEmpty() ? null : photos.get(0).getThumbnailUrl();
+    }
 }

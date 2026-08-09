@@ -10,6 +10,7 @@ import com.fashionrental.receipt.ReceiptRepository;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +40,7 @@ public class PublicController {
 
     @GetMapping("/receipts/{shareToken}")
     @Operation(summary = "Get receipt by share token (no auth required)")
+    @Transactional(readOnly = true)
     public ApiResponse<ReceiptResponse> getReceiptByShareToken(@PathVariable String shareToken) {
         return receiptRepository.findByShareToken(shareToken)
                 .map(receiptMapper::toReceiptResponse)
@@ -48,6 +50,7 @@ public class PublicController {
 
     @GetMapping("/invoices/{shareToken}")
     @Operation(summary = "Get invoice by share token (no auth required)")
+    @Transactional(readOnly = true)
     public ApiResponse<InvoiceResponse> getInvoiceByShareToken(@PathVariable String shareToken) {
         return invoiceRepository.findByShareToken(shareToken)
                 .map(returnService::toInvoiceResponse)

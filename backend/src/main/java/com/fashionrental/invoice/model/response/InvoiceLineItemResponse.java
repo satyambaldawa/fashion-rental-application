@@ -6,6 +6,7 @@ public record InvoiceLineItemResponse(
         UUID id,
         UUID itemId,
         String itemName,
+        String thumbnailUrl,
         String itemSize,
         String itemCategory,
         int quantityReturned,

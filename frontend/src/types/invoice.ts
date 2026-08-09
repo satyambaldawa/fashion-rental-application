@@ -38,6 +38,7 @@ export interface InvoiceLineItem {
   id: string
   itemId: string
   itemName: string
+  thumbnailUrl: string | null
   itemSize: string | null
   itemCategory: string | null
   quantityReturned: number

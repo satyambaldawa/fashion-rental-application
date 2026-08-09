@@ -43,6 +43,7 @@ export interface ReceiptLineItem {
   id: string
   itemId: string
   itemName: string
+  thumbnailUrl: string | null
   itemSize: string | null
   itemCategory: string | null
   itemDescription: string | null

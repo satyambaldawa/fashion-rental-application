@@ -41,6 +41,7 @@ public class ReceiptMapper {
                 li.getId(),
                 item.getId(),
                 item.getName(),
+                item.getPrimaryThumbnailUrl(),
                 item.getSize(),
                 item.getCategory() != null ? item.getCategory().name() : null,
                 item.getDescription(),

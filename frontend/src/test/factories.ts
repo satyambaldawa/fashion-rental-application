@@ -53,7 +53,7 @@ export const aReceipt: Partialize<Receipt> = (o = {}) => ({
   rentalDays: 1, totalRent: 300, totalDeposit: 1000, grandTotal: 1300, status: 'GIVEN',
   notes: null, createdAt: '2026-04-18T10:00:00+05:30',
   lineItems: [{
-    id: 'rli-1', itemId: 'item-1', itemName: 'Royal Sherwani', itemSize: 'M',
+    id: 'rli-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M',
     itemCategory: 'COSTUME', itemDescription: null, quantity: 1, rateSnapshot: 300,
     depositSnapshot: 1000, lineRent: 300, lineDeposit: 1000, itemPurchaseRate: 1500,
   }], ...o,
@@ -81,7 +81,7 @@ export const anInvoice: Partialize<Invoice> = (o = {}) => ({
   totalLateFee: 0, totalDamageCost: 0, depositToReturn: 1000, finalAmount: 1000,
   transactionType: 'REFUND', paymentMethod: 'CASH', damageNotes: null, notes: null,
   createdAt: '2026-04-19T10:00:00+05:30', lineItems: [{
-    id: 'ili-1', itemId: 'item-1', itemName: 'Royal Sherwani', itemSize: 'M', itemCategory: 'COSTUME',
+    id: 'ili-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M', itemCategory: 'COSTUME',
     quantityReturned: 1, rateSnapshot: 300, depositSnapshot: 1000, isDamaged: false,
     damagePercentage: null, damageCost: 0, lateFee: 0,
   }], ...o,

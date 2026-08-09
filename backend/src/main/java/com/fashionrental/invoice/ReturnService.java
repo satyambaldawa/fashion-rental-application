@@ -235,6 +235,7 @@ public class ReturnService {
                 ili.getId(),
                 ili.getItem().getId(),
                 ili.getItem().getName(),
+                ili.getItem().getPrimaryThumbnailUrl(),
                 ili.getItem().getSize(),
                 ili.getItem().getCategory() != null ? ili.getItem().getCategory().name() : null,
                 ili.getQuantityReturned(),
