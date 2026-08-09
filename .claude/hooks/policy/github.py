@@ -25,6 +25,14 @@ _DENY_PATTERNS = [
         re.compile(r"\bgit\s+push\b[^\n]*\borigin\b[^\n]*\bmain\b"),
         "direct push to main bypasses PR review",
     ),
+    (
+        re.compile(r"\bgit\s+push\b[^\n]*\borigin\b\s+HEAD\b", re.IGNORECASE),
+        "pushing HEAD to origin could target main depending on the current checked-out branch",
+    ),
+    (
+        re.compile(r"^\s*git\s+push\s*(origin|-u\s+origin|--set-upstream\s+origin)?\s*(;|&|\||$)"),
+        "a bare git push with no explicit branch relies on tracking config, which could point at main",
+    ),
 ]
 
 _ALLOW_PATTERNS = [

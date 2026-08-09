@@ -34,6 +34,18 @@ class GithubPolicyTest(unittest.TestCase):
         result = github.check("Bash", "git push origin main", {})
         self.assertEqual(result[0], "deny")
 
+    def test_denies_bare_git_push(self):
+        result = github.check("Bash", "git push", {})
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_git_push_origin_head(self):
+        result = github.check("Bash", "git push origin HEAD", {})
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_git_push_origin_with_no_branch(self):
+        result = github.check("Bash", "git push origin", {})
+        self.assertEqual(result[0], "deny")
+
     def test_defers_branch_protection_put_change(self):
         result = github.check(
             "Bash", "gh api -X PUT repos/o/r/branches/main/protection", {}
@@ -61,6 +73,18 @@ class GithubPolicyTest(unittest.TestCase):
     def test_allows_push_to_feature_branch(self):
         result = github.check("Bash", "git push origin feature/agent-safety-net", {})
         self.assertIsNone(result)
+
+    def test_denies_bare_push_chained_with_and(self):
+        result = github.check("Bash", "git push && echo done", {})
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_bare_push_chained_with_semicolon(self):
+        result = github.check("Bash", "git push; echo done", {})
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_git_push_origin_head_lowercase(self):
+        result = github.check("Bash", "git push origin head", {})
+        self.assertEqual(result[0], "deny")
 
     def test_defers_unrelated_command(self):
         result = github.check("Bash", "pnpm lint", {})
