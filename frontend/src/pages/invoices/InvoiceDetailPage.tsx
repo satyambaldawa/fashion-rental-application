@@ -78,12 +78,12 @@ export default function InvoiceDetailPage() {
       key: 'item',
       render: (_: unknown, row: InvoiceLineItem) => (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+          <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
             {row.thumbnailUrl ? (
               <img
                 src={row.thumbnailUrl}
                 alt={row.itemName}
-                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4 }}
               />
             ) : (
               <ItemPhotoPlaceholder />

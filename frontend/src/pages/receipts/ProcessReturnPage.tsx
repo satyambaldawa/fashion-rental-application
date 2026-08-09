@@ -181,12 +181,12 @@ export default function ProcessReturnPage() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+                <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
                   {li.thumbnailUrl ? (
                     <img
                       src={li.thumbnailUrl}
                       alt={li.itemName}
-                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4 }}
                     />
                   ) : (
                     <ItemPhotoPlaceholder />

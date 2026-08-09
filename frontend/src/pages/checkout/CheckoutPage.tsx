@@ -508,12 +508,12 @@ export default function CheckoutPage() {
           const thumbnailUrl = r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null
           return (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
+              <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
                 {thumbnailUrl ? (
                   <img
                     src={thumbnailUrl}
                     alt={r.itemName}
-                    style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                    style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4 }}
                   />
                 ) : (
                   <ItemPhotoPlaceholder />
