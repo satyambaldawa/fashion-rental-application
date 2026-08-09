@@ -155,10 +155,84 @@ class SecretsPolicyTest(unittest.TestCase):
         result = secrets.check("Bash", "pnpm test", {})
         self.assertIsNone(result)
 
+    def test_allows_database_url_var_as_psql_argument(self):
+        result = secrets.check(
+            "Bash", 'psql "$SUPABASE_DATABASE_URL" -c "SELECT 1"', {}
+        )
+        self.assertIsNone(result)
+
+    def test_still_denies_database_url_var_echo_even_near_psql_word(self):
+        result = secrets.check(
+            "Bash", 'echo "using psql with $SUPABASE_DATABASE_URL"', {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_leak_chained_after_legitimate_psql_invocation(self):
+        result = secrets.check(
+            "Bash", "psql -h localhost && echo $JWT_SECRET", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_used_as_sql_text_via_flag_style_psql(self):
+        result = secrets.check(
+            "Bash", 'psql -h localhost -c "SELECT $JWT_SECRET"', {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_via_command_substitution_inside_psql_arg(self):
+        result = secrets.check(
+            "Bash",
+            'psql -h localhost -c "SELECT 1" ; psql -h localhost -c "SELECT $(echo $JWT_SECRET)"',
+            {},
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_as_sql_text_in_second_chained_psql(self):
+        result = secrets.check(
+            "Bash", 'psql -h localhost && psql -h remote -c "SELECT $SECRET_TOKEN"', {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_used_as_pg_dump_output_filename(self):
+        result = secrets.check(
+            "Bash", "pg_dump -h localhost -f $JWT_SECRET.sql", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_allows_database_url_var_with_pg_dump(self):
+        result = secrets.check(
+            "Bash", 'pg_dump "$SUPABASE_DATABASE_URL" > backup.sql', {}
+        )
+        self.assertIsNone(result)
+
+    def test_denies_secret_via_prose_adjacent_to_psql_word(self):
+        result = secrets.check(
+            "Bash", 'echo "run psql $JWT_SECRET later"', {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_via_psql_word_after_separator_but_not_invoked(self):
+        result = secrets.check(
+            "Bash", "cat file.txt; echo psql $JWT_SECRET", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_via_psql_word_as_argument_to_other_command(self):
+        result = secrets.check(
+            "Bash", "foo psql $JWT_SECRET", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_secret_on_own_line_after_bare_psql(self):
+        result = secrets.check("Bash", "psql\n$JWT_SECRET", {})
+        self.assertEqual(result[0], "deny")
+
 
 if __name__ == "__main__":
     unittest.main()
 ```
+
+> **Corrected during Task 7's review** (see the plan's execution ledger): the original 11-case test file above matched a `secrets.py` with no DB-client exemption at all, which turned out to conflict with `db.py`'s "reads allowed anywhere, including prod" guarantee — a production DSN can only be referenced via an env var (never hardcoded), and that env var's name inevitably matches this module's `DATABASE_URL`/`DSN` pattern. Closing that conflict without opening a new leak took six rounds (documented in full in the ledger and `task-7-report.md`): each attempt at a coarse "is this whole string/segment safe" classification let something adjacent slip through unscanned — a compound `&&`-chained command, a secret embedded in a `-c` SQL argument, the word "psql" appearing in unrelated prose, a secret on its own line after a bare invocation. The 12 tests added above lock in every one of those cases.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -192,6 +266,9 @@ GCLOUD_SECRET_RE = re.compile(r"\bgcloud\s+secrets\s+(versions\s+access|describe
 GH_SECRET_RE = re.compile(r"\bgh\s+secret\s+(list|get|set|delete)\b")
 DOCKER_INSPECT_RE = re.compile(r"\bdocker\s+inspect\b|\bdocker\s+exec\b[^\n]*\benv\b")
 PROC_ENVIRON_RE = re.compile(r"/proc/\S+/environ")
+DB_CLIENT_DSN_ARG_RE = re.compile(
+    r"(?:^|[;&|]\s*)(?:psql|pg_dump|pg_restore)[ \t]+[\"']?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[\"']?"
+)
 
 SAFE_VAR_NAMES = {
     "VITE_API_URL",
@@ -232,19 +309,27 @@ def check(tool_name, text, tool_input):
     if PROC_ENVIRON_RE.search(text):
         return ("deny", "Reading /proc/*/environ is blocked by secrets policy.")
 
+    exempt_spans = [m.span() for m in DB_CLIENT_DSN_ARG_RE.finditer(text)]
+
     for match in SECRET_VAR_RE.finditer(text):
         name = match.group(1)
         if name in SAFE_VAR_NAMES:
             continue
-        if SECRET_NAME_RE.search(name):
-            return (
-                "deny",
-                f"Reference to ${{{name}}} matches a secret-like variable name "
-                "pattern; blocked by secrets policy.",
-            )
+        if not SECRET_NAME_RE.search(name):
+            continue
+        start, end = match.span()
+        if any(exempt_start <= start and end <= exempt_end for exempt_start, exempt_end in exempt_spans):
+            continue
+        return (
+            "deny",
+            f"Reference to ${{{name}}} matches a secret-like variable name "
+            "pattern; blocked by secrets policy.",
+        )
 
     return None
 ```
+
+Note: `DB_CLIENT_DSN_ARG_RE` finds every span that looks like `psql "$VAR"` (binary name at command position — start of string or immediately after a `;`/`&`/`|` separator — followed only by non-newline whitespace and then a quoted/bare `$VAR`/`${VAR}`). A `SECRET_VAR_RE` match is only skipped if its exact character span falls entirely within one of those narrow spans. Nothing else — a `-c`/`-f` argument, a `$(...)` substitution, a second chained command, "psql" appearing as prose or as another command's argument, a secret on its own line after a bare invocation — can ever match that narrow pattern, so nothing else is ever exempted. This precision took six rounds to reach; see the note after the test file above and `task-7-report.md` for the failed intermediate attempts and why each one leaked.
 
 - [ ] **Step 5: Write `.claude/hooks/tests/__init__.py`**
 
@@ -256,7 +341,7 @@ Empty file.
 python3 -m unittest discover -s .claude/hooks/tests -p "test_secrets.py" -v
 ```
 
-Expected: `OK` — all 11 tests pass.
+Expected: `OK` — all 23 tests pass.
 
 - [ ] **Step 7: Commit**
 
@@ -1174,7 +1259,7 @@ Expected: `OK` — all 11 tests pass.
 python3 -m unittest discover -s .claude/hooks/tests -v
 ```
 
-Expected: `OK` — all tests across every policy module and the integration suite pass (11 + 11 + 10 + 11 + 13 = 56 from Tasks 2–6, plus 11 from this task = 67; exact count isn't the point — zero failures is).
+Expected: `OK` — all tests across every policy module and the integration suite pass (23 + 11 + 10 + 11 + 13 = 68 from Tasks 2–6 with `secrets.py`'s final DB-client exemption, plus 11 from this task = 79; exact count isn't the point — zero failures is).
 
 - [ ] **Step 7: Commit**
 
