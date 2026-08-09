@@ -65,6 +65,18 @@ class GcpPolicyTest(unittest.TestCase):
         result = gcp.check("Bash", "pnpm build", {})
         self.assertIsNone(result)
 
+    def test_denies_instance_create(self):
+        result = gcp.check(
+            "Bash", "gcloud compute instances create fashion-rental-backend --zone=us-central1-a", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_firewall_rule_create(self):
+        result = gcp.check(
+            "Bash", "gcloud compute firewall-rules create allow-http --allow=tcp:80", {}
+        )
+        self.assertEqual(result[0], "deny")
+
 
 if __name__ == "__main__":
     unittest.main()

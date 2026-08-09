@@ -22,6 +22,11 @@ _DENY_PATTERNS = [
         "prunes docker volumes, destroying data",
     ),
     (re.compile(r"\bdocker\s+volume\s+rm\b"), "removes a docker volume"),
+    (re.compile(r"\bgcloud\s+compute\s+instances\s+create\b"), "creates/recreates a GCP VM — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+addresses\s+create\b"), "creates a static IP — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+firewall-rules\s+create\b"), "creates a firewall rule — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+compute\s+disks\s+create\b"), "creates a disk — provisioning is a separate, manual workflow"),
+    (re.compile(r"\bgcloud\s+iam\s+service-accounts\s+create\b"), "creates an IAM identity — provisioning is a separate, manual workflow"),
 ]
 
 _ALLOW_PATTERNS = [

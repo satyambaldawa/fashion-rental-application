@@ -6,9 +6,10 @@ _WRITE_KEYWORD_RE = re.compile(
 )
 _ALWAYS_DENY_RE = re.compile(r"\b(DROP|TRUNCATE|ALTER|GRANT|REVOKE)\b", re.IGNORECASE)
 _LOCAL_HOST_RE = re.compile(r"(localhost|127\.0\.0\.1)(:5433)?")
-_PG_DUMP_RE = re.compile(r"\bpg_dump\b")
-_SQL_TOOL_RE = re.compile(r"\b(psql|pg_restore)\b")
+_PG_BACKUP_TOOL_RE = re.compile(r"\b(pg_dump|pg_restore)\b")
+_SQL_TOOL_RE = re.compile(r"\bpsql\b")
 _FLYWAY_ALLOW_RE = re.compile(r"\./gradlew\s+flywayMigrate\b")
+_FLYWAY_PROD_DENY_RE = re.compile(r"\./gradlew\s+flywayMigrate\b[^\n]*spring\.profiles\.active=prod")
 _BOOTRUN_DEV_ALLOW_RE = re.compile(r"\./gradlew\s+bootRun\b[^\n]*spring\.profiles\.active=dev")
 
 
@@ -16,13 +17,13 @@ def check(tool_name, text, tool_input):
     if not text:
         return None
 
-    if _PG_DUMP_RE.search(text):
+    if _PG_BACKUP_TOOL_RE.search(text):
         if _LOCAL_HOST_RE.search(text):
-            return ("allow", "Local dev pg_dump is permitted.")
+            return ("allow", "Local dev pg_dump/pg_restore is permitted.")
         return (
             "deny",
-            "pg_dump against a non-local database is reserved for the existing "
-            "db-backup.yml workflow, not an agent.",
+            "pg_dump/pg_restore against a non-local database is reserved for the "
+            "existing db-backup.yml workflow, not an agent.",
         )
 
     if not _SQL_TOOL_RE.search(text) and "gradlew" not in text:
@@ -32,6 +33,12 @@ def check(tool_name, text, tool_input):
         return (
             "deny",
             "DROP/TRUNCATE/ALTER/GRANT/REVOKE are never permitted via an agent, on any host.",
+        )
+
+    if _FLYWAY_PROD_DENY_RE.search(text):
+        return (
+            "deny",
+            "Flyway migrations against the prod profile are not permitted via an agent.",
         )
 
     if _FLYWAY_ALLOW_RE.search(text) or _BOOTRUN_DEV_ALLOW_RE.search(text):

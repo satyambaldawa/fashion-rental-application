@@ -9,7 +9,7 @@ KEY_FILE_RE = re.compile(
 )
 SECRET_VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 SECRET_NAME_RE = re.compile(
-    r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL)", re.IGNORECASE
+    r"(PASSWORD|SECRET|TOKEN|_KEY|KEY_ID|DSN|DATABASE_URL|_URL)", re.IGNORECASE
 )
 GCLOUD_SECRET_RE = re.compile(r"\bgcloud\s+secrets\s+(versions\s+access|describe)\b")
 GH_SECRET_RE = re.compile(r"\bgh\s+secret\s+(list|get|set|delete)\b")

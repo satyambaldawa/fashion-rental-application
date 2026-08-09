@@ -128,6 +128,10 @@ class SecretsPolicyTest(unittest.TestCase):
         result = secrets.check("Bash", "psql\n$JWT_SECRET", {})
         self.assertEqual(result[0], "deny")
 
+    def test_denies_neon_pg_url_var_echo(self):
+        result = secrets.check("Bash", "echo $NEON_PG_URL", {})
+        self.assertEqual(result[0], "deny")
+
 
 if __name__ == "__main__":
     unittest.main()

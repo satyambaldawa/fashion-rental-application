@@ -78,6 +78,24 @@ class DbPolicyTest(unittest.TestCase):
         )
         self.assertEqual(result[0], "deny")
 
+    def test_denies_flyway_migrate_against_prod_profile(self):
+        result = db.check(
+            "Bash", "./gradlew flywayMigrate -Dspring.profiles.active=prod", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_pg_restore_against_non_local_host(self):
+        result = db.check(
+            "Bash", "pg_restore -h prod-db.supabase.co -d fashion_rental backup.dump", {}
+        )
+        self.assertEqual(result[0], "deny")
+
+    def test_allows_local_pg_restore(self):
+        result = db.check(
+            "Bash", "pg_restore -h localhost -p 5433 -d fashion_rental backup.dump", {}
+        )
+        self.assertEqual(result[0], "allow")
+
 
 if __name__ == "__main__":
     unittest.main()
