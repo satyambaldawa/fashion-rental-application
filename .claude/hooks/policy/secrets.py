@@ -15,6 +15,9 @@ GCLOUD_SECRET_RE = re.compile(r"\bgcloud\s+secrets\s+(versions\s+access|describe
 GH_SECRET_RE = re.compile(r"\bgh\s+secret\s+(list|get|set|delete)\b")
 DOCKER_INSPECT_RE = re.compile(r"\bdocker\s+inspect\b|\bdocker\s+exec\b[^\n]*\benv\b")
 PROC_ENVIRON_RE = re.compile(r"/proc/\S+/environ")
+DB_CLIENT_DSN_ARG_RE = re.compile(
+    r"(?:^|[;&|]\s*)(?:psql|pg_dump|pg_restore)[ \t]+[\"']?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[\"']?"
+)
 
 SAFE_VAR_NAMES = {
     "VITE_API_URL",
@@ -55,15 +58,21 @@ def check(tool_name, text, tool_input):
     if PROC_ENVIRON_RE.search(text):
         return ("deny", "Reading /proc/*/environ is blocked by secrets policy.")
 
+    exempt_spans = [m.span() for m in DB_CLIENT_DSN_ARG_RE.finditer(text)]
+
     for match in SECRET_VAR_RE.finditer(text):
         name = match.group(1)
         if name in SAFE_VAR_NAMES:
             continue
-        if SECRET_NAME_RE.search(name):
-            return (
-                "deny",
-                f"Reference to ${{{name}}} matches a secret-like variable name "
-                "pattern; blocked by secrets policy.",
-            )
+        if not SECRET_NAME_RE.search(name):
+            continue
+        start, end = match.span()
+        if any(exempt_start <= start and end <= exempt_end for exempt_start, exempt_end in exempt_spans):
+            continue
+        return (
+            "deny",
+            f"Reference to ${{{name}}} matches a secret-like variable name "
+            "pattern; blocked by secrets policy.",
+        )
 
     return None
