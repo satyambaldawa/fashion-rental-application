@@ -11,5 +11,21 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Grep(**/.env)",
+      "Grep(**/.env.*)",
+      "Read(**/*key.json)",
+      "Read(**/*service-account*)",
+      "Edit(**/*key.json)",
+      "Edit(**/*service-account*)",
+      "Grep(**/*key.json)",
+      "Grep(**/*service-account*)"
+    ]
   }
 }
