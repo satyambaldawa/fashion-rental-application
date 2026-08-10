@@ -10,6 +10,5 @@ public record GalleryImageResponse(
         String imageUrl,
         String thumbnailUrl,
         String caption,
-        int sortOrder,
         boolean isActive
 ) {}

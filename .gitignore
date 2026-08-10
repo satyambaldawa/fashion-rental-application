@@ -12,6 +12,7 @@ backend/.claude/
 backend/*.war
 backend/target/
 backend/uploads/items/
+backend/uploads/gallery/
 
 # Backend - IDE
 backend/.idea/

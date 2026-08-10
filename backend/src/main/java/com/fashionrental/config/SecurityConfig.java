@@ -43,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/items/**").hasRole("OWNER")
                         .requestMatchers("/api/reports/**").hasRole("OWNER")
                         .requestMatchers("/api/config/**").hasRole("OWNER")
+                        .requestMatchers("/api/gallery", "/api/gallery/**").hasRole("OWNER")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )

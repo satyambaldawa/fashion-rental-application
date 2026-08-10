@@ -26,9 +26,6 @@ public class GalleryImage {
     @Column(columnDefinition = "TEXT")
     private String caption;
 
-    @Column(name = "sort_order", nullable = false)
-    private Integer sortOrder = 0;
-
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -58,8 +55,6 @@ public class GalleryImage {
     public void setThumbnailUrl(String thumbnailUrl) { this.thumbnailUrl = thumbnailUrl; }
     public String getCaption() { return caption; }
     public void setCaption(String caption) { this.caption = caption; }
-    public Integer getSortOrder() { return sortOrder; }
-    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

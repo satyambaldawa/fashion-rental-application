@@ -10,14 +10,16 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Exercises {@link GalleryImage} persistence against real PostgreSQL: guards the
- * @PrePersist timestamp population and that every {@link Item.Category} value round-trips
- * through the gallery_images.category column, which only a real database can catch.
+ * @PrePersist timestamp population, that every {@link Item.Category} value round-trips
+ * through the gallery_images.category column, and that the newest-first ordering queries
+ * behave — all things only a real database can catch.
  */
 @Transactional
 class GalleryImageMappingIT extends AbstractIntegrationTest {
@@ -58,13 +60,66 @@ class GalleryImageMappingIT extends AbstractIntegrationTest {
         assertThat(loaded.getCaption()).isNull();
     }
 
+    @Test
+    void should_order_active_images_newest_first_and_exclude_inactive() {
+        persistInOrder(
+                newGalleryImage(Item.Category.COSTUME, "Oldest"),
+                newGalleryImage(Item.Category.DRESS, "Middle"),
+                newGalleryImage(Item.Category.DRESS, "Newest")
+        );
+        GalleryImage inactive = newGalleryImage(Item.Category.DRESS, "Inactive newest");
+        inactive.setIsActive(false);
+        persistInOrder(inactive);
+        entityManager.clear();
+
+        List<GalleryImage> result = galleryImageRepository.findByIsActiveTrueOrderByCreatedAtDescIdDesc();
+
+        assertThat(result)
+                .extracting(GalleryImage::getCaption)
+                .containsExactly("Newest", "Middle", "Oldest");
+    }
+
+    @Test
+    void should_return_only_active_images_for_requested_category_newest_first() {
+        persistInOrder(
+                newGalleryImage(Item.Category.PAGDI, "Older pagdi"),
+                newGalleryImage(Item.Category.PAGDI, "Newer pagdi")
+        );
+        GalleryImage inactive = newGalleryImage(Item.Category.PAGDI, "Inactive pagdi");
+        inactive.setIsActive(false);
+        GalleryImage otherCategory = newGalleryImage(Item.Category.COSTUME, "Other category");
+        persistInOrder(inactive, otherCategory);
+        entityManager.clear();
+
+        List<GalleryImage> result =
+                galleryImageRepository.findByCategoryAndIsActiveTrueOrderByCreatedAtDescIdDesc(Item.Category.PAGDI);
+
+        assertThat(result)
+                .extracting(GalleryImage::getCaption)
+                .containsExactly("Newer pagdi", "Older pagdi");
+    }
+
+    private void persistInOrder(GalleryImage... images) {
+        for (GalleryImage image : images) {
+            galleryImageRepository.saveAndFlush(image);
+            sleepBriefly();
+        }
+    }
+
+    private void sleepBriefly() {
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private GalleryImage newGalleryImage(Item.Category category, String caption) {
         GalleryImage image = new GalleryImage();
         image.setCategory(category);
         image.setImageUrl("https://example.com/image.jpg");
         image.setThumbnailUrl("https://example.com/thumb.jpg");
         image.setCaption(caption);
-        image.setSortOrder(0);
         image.setIsActive(true);
         return image;
     }

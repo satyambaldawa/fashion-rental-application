@@ -6,7 +6,13 @@ import java.util.UUID;
 
 public interface ImageStorageService {
 
-    UploadResult uploadImage(UUID itemId, InputStream inputStream, String originalFilename, long fileSize) throws IOException;
+    String ITEMS_NAMESPACE = "items";
+
+    default UploadResult uploadImage(UUID itemId, InputStream inputStream, String originalFilename, long fileSize) throws IOException {
+        return uploadImage(ITEMS_NAMESPACE, itemId, inputStream, originalFilename, fileSize);
+    }
+
+    UploadResult uploadImage(String namespace, UUID id, InputStream inputStream, String originalFilename, long fileSize) throws IOException;
 
     void deleteImage(String fullUrl, String thumbnailUrl);
 

@@ -77,6 +77,7 @@ com.fashionrental/
   receipt/       ← Receipt, ReceiptLineItem, CheckoutService, ReceiptNumberService, ReceiptMapper
   invoice/       ← Invoice, InvoiceLineItem (created during return flow)
   reporting/     ← Read-only report queries
+  gallery/       ← Gallery, GalleryImage, public + admin endpoints, ImageStorageService
 ```
 
 **Cross-cutting patterns:**

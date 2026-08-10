@@ -21,8 +21,8 @@ public class LocalImageStorageService implements ImageStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(LocalImageStorageService.class);
 
-    private static final String BASE_DIR = "./uploads/items";
-    private static final String BASE_URL = "http://localhost:8080/uploads/items";
+    private static final String BASE_DIR = "./uploads";
+    private static final String BASE_URL = "http://localhost:8080/uploads";
 
     @Value("${app.storage.image.full-max-px}")
     private int fullMaxPx;
@@ -31,13 +31,13 @@ public class LocalImageStorageService implements ImageStorageService {
     private int thumbMaxPx;
 
     @Override
-    public UploadResult uploadImage(UUID itemId, InputStream inputStream, String originalFilename, long fileSize) throws IOException {
-        Path itemDir = Paths.get(BASE_DIR, itemId.toString());
-        Files.createDirectories(itemDir);
+    public UploadResult uploadImage(String namespace, UUID id, InputStream inputStream, String originalFilename, long fileSize) throws IOException {
+        Path dir = Paths.get(BASE_DIR, namespace, id.toString());
+        Files.createDirectories(dir);
 
         String fileId = UUID.randomUUID().toString();
-        Path fullPath = itemDir.resolve(fileId + "-full.jpg");
-        Path thumbPath = itemDir.resolve(fileId + "-thumb.jpg");
+        Path fullPath = dir.resolve(fileId + "-full.jpg");
+        Path thumbPath = dir.resolve(fileId + "-thumb.jpg");
 
         Thumbnails.of(inputStream)
                 .size(fullMaxPx, fullMaxPx)
@@ -51,16 +51,16 @@ public class LocalImageStorageService implements ImageStorageService {
                 .outputFormat("jpg")
                 .toFile(thumbPath.toFile());
 
-        String fullUrl = BASE_URL + "/" + itemId + "/" + fileId + "-full.jpg";
-        String thumbnailUrl = BASE_URL + "/" + itemId + "/" + fileId + "-thumb.jpg";
+        String fullUrl = BASE_URL + "/" + namespace + "/" + id + "/" + fileId + "-full.jpg";
+        String thumbnailUrl = BASE_URL + "/" + namespace + "/" + id + "/" + fileId + "-thumb.jpg";
 
-        log.debug("Saved image for item {}: full={}, thumb={}", itemId, fullPath, thumbPath);
+        log.debug("Saved image for {}/{}: full={}, thumb={}", namespace, id, fullPath, thumbPath);
         return new UploadResult(fullUrl, thumbnailUrl);
     }
 
     @Override
     public UploadResult copyImage(UUID newItemId, String sourceFullUrl, String sourceThumbnailUrl) throws IOException {
-        Path newItemDir = Paths.get(BASE_DIR, newItemId.toString());
+        Path newItemDir = Paths.get(BASE_DIR, ITEMS_NAMESPACE, newItemId.toString());
         Files.createDirectories(newItemDir);
 
         String fileId = UUID.randomUUID().toString();
@@ -73,8 +73,8 @@ public class LocalImageStorageService implements ImageStorageService {
         Files.copy(sourceFullPath, newFullPath);
         Files.copy(sourceThumbPath, newThumbPath);
 
-        String fullUrl = BASE_URL + "/" + newItemId + "/" + fileId + "-full.jpg";
-        String thumbnailUrl = BASE_URL + "/" + newItemId + "/" + fileId + "-thumb.jpg";
+        String fullUrl = BASE_URL + "/" + ITEMS_NAMESPACE + "/" + newItemId + "/" + fileId + "-full.jpg";
+        String thumbnailUrl = BASE_URL + "/" + ITEMS_NAMESPACE + "/" + newItemId + "/" + fileId + "-thumb.jpg";
 
         log.debug("Copied image for new item {}: full={}, thumb={}", newItemId, newFullPath, newThumbPath);
         return new UploadResult(fullUrl, thumbnailUrl);
