@@ -44,6 +44,17 @@ This is a public repository. Never commit real credentials, secrets, or tokens.
 
 ---
 
+## ⚠️ Ops Skills & Enforcement
+
+Operational work against the database, GCP, or GitHub uses the `db-ops`, `gcp-ops`,
+and `github-ops` skills under `.claude/skills/` — these carry the how-to. Enforcement
+is separate and agent-agnostic: the `.claude/hooks/guard.py` PreToolUse hook, the
+`permissions.deny` rules in `.claude/settings.json`, and the scoped credentials the
+session runs under. Skills are guidance, never a security boundary. See
+`.claude/hooks/README.md`.
+
+---
+
 ## Project Structure
 
 ```

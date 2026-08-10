@@ -86,6 +86,28 @@ class GuardIntegrationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "defer")
 
+    def test_main_session_is_enforced_without_a_funnel(self):
+        # Skills carry know-how but no identity; the hook enforces on command text
+        # for the plain main session (no agent_type) exactly as before.
+        deny_cases = [
+            "echo $JWT_SECRET",
+            "rm -rf frontend/node_modules",
+            'psql -h prod-db -c "DROP TABLE items"',
+            "gh pr merge 82 --squash",
+            "gcloud compute instances delete fashion-rental-backend --zone=us-central1-a --quiet",
+        ]
+        for cmd in deny_cases:
+            _, output = run_guard("Bash", {"command": cmd})
+            self.assertEqual(
+                output["hookSpecificOutput"]["permissionDecision"], "deny", cmd
+            )
+        allow_cases = ["gh pr view 82", 'psql -h localhost -p 5433 -c "SELECT 1"']
+        for cmd in allow_cases:
+            _, output = run_guard("Bash", {"command": cmd})
+            self.assertEqual(
+                output["hookSpecificOutput"]["permissionDecision"], "allow", cmd
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
