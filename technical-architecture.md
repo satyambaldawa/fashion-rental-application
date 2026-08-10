@@ -398,6 +398,13 @@ GET    /api/invoices/:id             # Get invoice details
 GET    /api/config/late-fee-rules    # Get late fee tiers
 PUT    /api/config/late-fee-rules    # Update late fee tiers
 
+# Gallery
+GET    /api/public/gallery           # List active gallery images (public, no auth, query: category, newest-first)
+GET    /api/gallery                  # List all gallery images (OWNER only)
+POST   /api/gallery                  # Bulk upload images (OWNER only, multipart/form-data, max 15MB combined)
+PATCH  /api/gallery/:id              # Update image metadata (OWNER only)
+DELETE /api/gallery/:id              # Delete image (OWNER only)
+
 # Reports
 GET    /api/reports/daily-revenue    # Daily revenue summary (query: date)
 GET    /api/reports/outstanding-deposits  # All held deposits
@@ -602,6 +609,17 @@ erDiagram
         int duration_to_hours "exclusive, null = infinity"
         decimal penalty_multiplier "multiplied against daily rate"
         int sort_order
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    GALLERY_IMAGE {
+        uuid id PK
+        string image_url "full-size JPEG URL on Cloudflare R2 (1200px)"
+        string thumbnail_url "thumbnail JPEG URL on Cloudflare R2 (300px)"
+        enum category "reuses Item.Category enum; stored as VARCHAR with no CHECK constraint"
+        string caption "nullable"
         boolean is_active
         timestamp created_at
         timestamp updated_at

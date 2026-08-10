@@ -113,6 +113,7 @@ fashion-rental-application/
         customer/             ← Customer module
         rental/               ← Receipt & checkout
         billing/              ← Late fees & invoices
+        gallery/              ← Public photo gallery
         reporting/            ← Reports
         configmgmt/           ← Late fee rules config
         common/               ← Shared utilities

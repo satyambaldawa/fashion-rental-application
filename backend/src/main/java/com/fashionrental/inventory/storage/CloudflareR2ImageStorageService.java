@@ -43,10 +43,10 @@ public class CloudflareR2ImageStorageService implements ImageStorageService {
     }
 
     @Override
-    public UploadResult uploadImage(UUID itemId, InputStream inputStream, String originalFilename, long fileSize) throws IOException {
+    public UploadResult uploadImage(String namespace, UUID id, InputStream inputStream, String originalFilename, long fileSize) throws IOException {
         String fileId = UUID.randomUUID().toString();
-        String fullKey = "items/" + itemId + "/" + fileId + "-full.jpg";
-        String thumbKey = "items/" + itemId + "/" + fileId + "-thumb.jpg";
+        String fullKey = namespace + "/" + id + "/" + fileId + "-full.jpg";
+        String thumbKey = namespace + "/" + id + "/" + fileId + "-thumb.jpg";
 
         byte[] fullBytes = resizeToBytes(inputStream, fullMaxPx);
         byte[] thumbBytes = resizeToBytes(new ByteArrayInputStream(fullBytes), thumbMaxPx);
@@ -57,7 +57,7 @@ public class CloudflareR2ImageStorageService implements ImageStorageService {
         String fullUrl = publicUrlBase + "/" + fullKey;
         String thumbnailUrl = publicUrlBase + "/" + thumbKey;
 
-        log.debug("Uploaded image for item {} to R2: full={}", itemId, fullKey);
+        log.debug("Uploaded image for {}/{} to R2: full={}", namespace, id, fullKey);
         return new UploadResult(fullUrl, thumbnailUrl);
     }
 
