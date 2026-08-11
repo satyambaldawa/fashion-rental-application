@@ -77,3 +77,48 @@ tasks.jacocoTestReport {
         html.required.set(true)
     }
 }
+
+tasks.register("checkCoverageThreshold") {
+    description = "Verifies that code coverage meets minimum thresholds."
+    group = "verification"
+    dependsOn("jacocoTestReport")
+
+    doLast {
+        val buildDir = layout.buildDirectory.asFile.get()
+        val coverageFile = File("$buildDir/reports/jacoco/test/jacocoTestReport.csv")
+        require(coverageFile.exists()) { "Coverage report not found at $coverageFile" }
+
+        val lines = coverageFile.readLines()
+        if (lines.size < 2) throw GradleException("Coverage CSV is empty")
+
+        val headerLine = lines[0]
+        val dataLine = lines[1]
+
+        val headers = headerLine.split(",")
+        val values = dataLine.split(",")
+
+        val lineMissedIdx = headers.indexOf("LINE_MISSED")
+        val lineCoveredIdx = headers.indexOf("LINE_COVERED")
+
+        require(lineMissedIdx >= 0 && lineCoveredIdx >= 0) { "LINE_MISSED or LINE_COVERED not found in CSV" }
+
+        val lineMissed = values[lineMissedIdx].toInt()
+        val lineCovered = values[lineCoveredIdx].toInt()
+        val totalLines = lineMissed + lineCovered
+
+        val lineCoveragePercent = if (totalLines > 0) (lineCovered * 100) / totalLines else 0
+
+        println("Backend Test Coverage Report:")
+        println("  Lines covered: $lineCovered")
+        println("  Lines missed: $lineMissed")
+        println("  Total lines: $totalLines")
+        println("  Coverage: $lineCoveragePercent%")
+        println("  Threshold: 80%")
+
+        if (lineCoveragePercent < 80) {
+            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 80%")
+        }
+
+        println("✓ Backend coverage check passed!")
+    }
+}
