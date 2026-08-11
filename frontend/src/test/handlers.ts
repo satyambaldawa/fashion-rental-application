@@ -73,4 +73,25 @@ export const handlers = [
     ]
     return ok(category ? images.filter(image => image.category === category) : images)
   }),
+
+  // admin gallery (authenticated) — listing includes inactive images
+  http.get('*/api/gallery', ({ request }) => {
+    const category = new URL(request.url).searchParams.get('category')
+    const images = [
+      f.aGalleryImage({ id: 'admin-1', category: 'COSTUME', caption: 'Royal Sherwani' }),
+      f.aGalleryImage({ id: 'admin-2', category: 'COSTUME', caption: null, isActive: false }),
+    ]
+    return ok(category ? images.filter(image => image.category === category) : images)
+  }),
+  http.post('*/api/gallery', () =>
+    HttpResponse.json(
+      { success: true, data: [f.aGalleryImage({ id: 'uploaded-1' })], error: null },
+      { status: 201 },
+    ),
+  ),
+  http.patch('*/api/gallery/:id', async ({ request, params }) => {
+    const body = (await request.json()) as { caption?: string; isActive?: boolean }
+    return ok(f.aGalleryImage({ id: params.id as string, ...body }))
+  }),
+  http.delete('*/api/gallery/:id', () => ok(null)),
 ]

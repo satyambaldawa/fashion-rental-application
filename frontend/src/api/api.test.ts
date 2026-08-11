@@ -1,6 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import client from './client'
 import { http, HttpResponse } from 'msw'
 import { server } from '../test/server'
+import * as f from '../test/factories'
 import { itemsApi } from './items'
 import { customersApi } from './customers'
 import { receiptsApi } from './receipts'
@@ -8,7 +10,7 @@ import { invoicesApi } from './invoices'
 import { reportsApi } from './reports'
 import { authApi, login } from './auth'
 import { publicApi } from './public'
-import { galleryApi } from './gallery'
+import { galleryApi, galleryAdminApi } from './gallery'
 import { getLateFeeRules, updateLateFeeRules } from './config'
 import { useAuthStore } from '../store/authStore'
 
@@ -104,6 +106,47 @@ describe('galleryApi', () => {
     const images = await galleryApi.list('COSTUME')
     expect(images).toHaveLength(1)
     expect(images[0].category).toBe('COSTUME')
+  })
+})
+
+describe('galleryAdminApi', () => {
+  it('list hits the authenticated endpoint and includes inactive images', async () => {
+    const images = await galleryAdminApi.list('COSTUME')
+    expect(images).toHaveLength(2)
+    expect(images.some(i => !i.isActive)).toBe(true)
+  })
+
+  it('upload builds a multipart body with the files and category, and unwraps the result', async () => {
+    // A real FormData request through msw+jsdom hangs, so spy on the transport: this
+    // also lets us assert the exact wire shape (files, category, multipart header).
+    const spy = vi.spyOn(client, 'post').mockResolvedValue({
+      data: { success: true, data: [f.aGalleryImage({ id: 'uploaded-1' })], error: null },
+    })
+    const files = [
+      new File(['a'], 'a.jpg', { type: 'image/jpeg' }),
+      new File(['b'], 'b.jpg', { type: 'image/jpeg' }),
+    ]
+
+    const created = await galleryAdminApi.upload('PAGDI', files)
+
+    expect(created[0].id).toBe('uploaded-1')
+    const [url, body, config] = spy.mock.calls[0] as [string, FormData, { headers: Record<string, string> }]
+    expect(url).toBe('/gallery')
+    expect(config.headers['Content-Type']).toBe('multipart/form-data')
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.getAll('files')).toHaveLength(2)
+    expect(body.get('category')).toBe('PAGDI')
+    spy.mockRestore()
+  })
+
+  it('update patches the given fields and unwraps the updated image', async () => {
+    const updated = await galleryAdminApi.update('admin-1', { caption: 'New caption', isActive: false })
+    expect(updated.caption).toBe('New caption')
+    expect(updated.isActive).toBe(false)
+  })
+
+  it('remove resolves without throwing on a 2xx', async () => {
+    await expect(galleryAdminApi.remove('admin-1')).resolves.toBeUndefined()
   })
 })
 

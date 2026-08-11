@@ -8,3 +8,10 @@ export interface GalleryImage {
   caption: string | null
   isActive: boolean
 }
+
+// Partial update — only the provided fields are applied server-side.
+// To clear a caption send an empty string; `null`/omitted leaves it unchanged.
+export interface UpdateGalleryImageRequest {
+  caption?: string
+  isActive?: boolean
+}
