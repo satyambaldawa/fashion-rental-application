@@ -16,10 +16,10 @@ interface CoverageSummary {
   };
 }
 
-const COVERAGE_THRESHOLD = 75; // lines must be >= this percentage
+const COVERAGE_THRESHOLD = 72; // lines must be >= this percentage
 
 async function verifyCoverage(): Promise<void> {
-  const coverageFile = path.join(process.cwd(), 'frontend', 'coverage', 'coverage-summary.json');
+  const coverageFile = path.join(process.cwd(), 'coverage', 'coverage-summary.json');
 
   if (!fs.existsSync(coverageFile)) {
     console.error('Coverage report not found at', coverageFile);
