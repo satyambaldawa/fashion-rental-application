@@ -138,7 +138,8 @@ src/
 ```
 
 **Routing:**
-- `App.tsx`: `<BrowserRouter>` with `/login` public + `/*` wrapped in `<ProtectedRoute>` (checks `authStore.token`).
+- `App.tsx`: `<BrowserRouter>` with public routes (`/login`, `/gallery`) + `/*` wrapped in `<ProtectedRoute>` (checks `authStore.token`).
+- `PublicLayout`: wrapper for public pages with auth-aware nav — logged-out visitors see Gallery/Login/New Rental nav; logged-in staff see the normal staff nav with Gallery tab.
 - `AppLayout.tsx`: nested `<Routes>` for all authenticated pages. `<OwnerRoute>` guards inventory write pages, reports, and settings — redirects to `/unauthorized` if role is not OWNER.
 - Default route `/` redirects to `/checkout`.
 

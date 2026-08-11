@@ -3,8 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import LoginPage from './pages/LoginPage'
 import AppLayout from './components/layout/AppLayout'
+import PublicLayout from './components/layout/PublicLayout'
 import PublicReceiptPage from './pages/public/PublicReceiptPage'
 import PublicInvoicePage from './pages/public/PublicInvoicePage'
+import GalleryPage from './pages/public/GalleryPage'
 import { useAuthStore } from './store/authStore'
 
 const queryClient = new QueryClient({
@@ -46,6 +48,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/public/receipts/:shareToken" element={<PublicReceiptPage />} />
             <Route path="/public/invoices/:shareToken" element={<PublicInvoicePage />} />
+            <Route path="/gallery" element={<PublicLayout><GalleryPage /></PublicLayout>} />
             <Route path="/*" element={
               <ProtectedRoute>
                 <AppLayout />

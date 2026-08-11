@@ -1,8 +1,8 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { Layout, Button } from 'antd'
-import { LogoutOutlined } from '@ant-design/icons'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Layout } from 'antd'
+import AppHeader from './AppHeader'
+import LogoutButton from './LogoutButton'
 import { TopNav } from './Sidebar'
-import { useAuthStore } from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
 import SettingsPage from '../../pages/SettingsPage'
 import InventoryPage from '../../pages/inventory/InventoryPage'
@@ -19,7 +19,7 @@ import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
 import ReportsPage from '../../pages/reports/ReportsPage'
 import UnauthorizedPage from '../../pages/UnauthorizedPage'
 
-const { Header, Content } = Layout
+const { Content } = Layout
 
 function OwnerRoute({ children }: { children: React.ReactNode }) {
   const { role } = useAuth()
@@ -27,71 +27,9 @@ function OwnerRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppLayout() {
-  const clearToken = useAuthStore((s) => s.clearToken)
-  const navigate = useNavigate()
-
-  function handleLogout() {
-    clearToken()
-    navigate('/login', { replace: true })
-  }
-
   return (
     <Layout style={{ minHeight: '100vh', background: '#FBF1F5' }}>
-      {/* Single sticky header: logo · nav · logout */}
-      <Header
-        style={{
-          background: '#6E0B37',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          height: 64,
-          boxShadow: '0 2px 8px rgba(110,11,55,0.25)',
-          gap: 16,
-        }}
-      >
-        {/* Logo + brand label */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <img src="/logo.png" alt="Manisha's Drapery" style={{ height: 40 }} />
-          <span
-            style={{
-              fontFamily: '"Jost", system-ui, sans-serif',
-              fontWeight: 600,
-              fontSize: 10,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.6)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Manisha's Drapery
-          </span>
-        </div>
-
-        {/* Nav — fills remaining space */}
-        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-          <TopNav />
-        </div>
-
-        {/* Logout */}
-        <Button
-          onClick={handleLogout}
-          style={{
-            background: 'transparent',
-            borderColor: 'rgba(234,185,207,0.5)',
-            color: 'rgba(255,255,255,0.85)',
-            fontFamily: '"Jost", system-ui, sans-serif',
-            fontWeight: 500,
-            borderRadius: 8,
-            flexShrink: 0,
-          }}
-          icon={<LogoutOutlined />}
-        >
-          Logout
-        </Button>
-      </Header>
+      <AppHeader nav={<TopNav />} right={<LogoutButton />} />
 
       {/* Page content */}
       <Content style={{ background: '#FBF1F5' }}>

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { http, HttpResponse } from 'msw'
 import { renderWithProviders, flush } from '../test/render'
+import { server } from '../test/server'
 import { useAuthStore } from '../store/authStore'
 import LoginPage from './LoginPage'
 import SettingsPage from './SettingsPage'
@@ -18,6 +20,7 @@ import ReportsPage from './reports/ReportsPage'
 import CheckoutPage from './checkout/CheckoutPage'
 import PublicReceiptPage from './public/PublicReceiptPage'
 import PublicInvoicePage from './public/PublicInvoicePage'
+import GalleryPage from './public/GalleryPage'
 
 // Owner token so isOwner-gated pages render their full content.
 beforeEach(() => useAuthStore.setState({ token: 'test-token', role: 'OWNER' }))
@@ -145,5 +148,38 @@ describe('page smoke renders', () => {
     })
     await flush()
     expect(container.firstChild).toBeTruthy()
+  })
+
+  it('GalleryPage renders', async () => {
+    const { container } = renderWithProviders(<GalleryPage />, { route: '/gallery' })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+})
+
+describe('GalleryPage unauthenticated access', () => {
+  it('renders gallery content with no auth token and never redirects to login', async () => {
+    useAuthStore.setState({ token: null, role: null })
+
+    const { getByText } = renderWithProviders(<GalleryPage />, { route: '/gallery' })
+    await flush()
+
+    // Proves the page actually loaded data over the unauthenticated client, not just
+    // an empty shell — a redirect-to-login would never let this content render.
+    expect(getByText('Royal Sherwani')).toBeInTheDocument()
+    expect(window.location.pathname).not.toBe('/login')
+  })
+
+  it('does not clear an existing token or redirect when the gallery endpoint 401s', async () => {
+    useAuthStore.setState({ token: 'existing-owner-token', role: 'OWNER' })
+    server.use(http.get('*/api/public/gallery', () => new HttpResponse(null, { status: 401 })))
+
+    renderWithProviders(<GalleryPage />, { route: '/gallery' })
+    await flush()
+
+    // The authenticated client (client.ts) clears the token and redirects on 401.
+    // publicClient has no such interceptor — a 401 here must be a no-op for auth state.
+    expect(useAuthStore.getState().token).toBe('existing-owner-token')
+    expect(window.location.pathname).not.toBe('/login')
   })
 })

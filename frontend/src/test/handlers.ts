@@ -60,4 +60,17 @@ export const handlers = [
   // public share pages
   http.get('*/api/public/receipts/:token', () => ok(f.aReceipt())),
   http.get('*/api/public/invoices/:token', () => ok(f.anInvoice())),
+
+  // public gallery
+  http.get('*/api/public/gallery', ({ request }) => {
+    const category = new URL(request.url).searchParams.get('category')
+    const images = [
+      f.aGalleryImage({ id: 'gallery-1', category: 'COSTUME', caption: 'Royal Sherwani' }),
+      f.aGalleryImage({
+        id: 'gallery-2', category: 'PAGDI', caption: null,
+        thumbnailUrl: 'https://cdn.example.com/gallery-2-thumb.jpg',
+      }),
+    ]
+    return ok(category ? images.filter(image => image.category === category) : images)
+  }),
 ]

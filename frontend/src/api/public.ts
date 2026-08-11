@@ -4,7 +4,7 @@ import type { Receipt } from '../types/receipt'
 import type { Invoice } from '../types/invoice'
 
 // Unauthenticated client — no JWT, no 401 redirect
-const publicClient = axios.create({
+export const publicClient = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL ?? ''}/api/public`,
   headers: { 'Content-Type': 'application/json' },
 })
