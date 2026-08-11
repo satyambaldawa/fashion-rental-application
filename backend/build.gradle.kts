@@ -92,25 +92,35 @@ tasks.register("checkCoverageThreshold") {
         if (lines.size < 2) throw GradleException("Coverage CSV is empty")
 
         val headerLine = lines[0]
-        val dataLine = lines[1]
-
         val headers = headerLine.split(",")
-        val values = dataLine.split(",")
 
         val lineMissedIdx = headers.indexOf("LINE_MISSED")
         val lineCoveredIdx = headers.indexOf("LINE_COVERED")
 
         require(lineMissedIdx >= 0 && lineCoveredIdx >= 0) { "LINE_MISSED or LINE_COVERED not found in CSV" }
 
-        val lineMissed = values[lineMissedIdx].toInt()
-        val lineCovered = values[lineCoveredIdx].toInt()
-        val totalLines = lineMissed + lineCovered
+        // Sum coverage across all data rows (skip header at index 0)
+        var totalLineMissed = 0
+        var totalLineCovered = 0
 
-        val lineCoveragePercent = if (totalLines > 0) (lineCovered * 100) / totalLines else 0
+        for (i in 1 until lines.size) {
+            val values = lines[i].split(",")
+            if (values.size > lineCoveredIdx) {
+                try {
+                    totalLineMissed += values[lineMissedIdx].toInt()
+                    totalLineCovered += values[lineCoveredIdx].toInt()
+                } catch (e: NumberFormatException) {
+                    // Skip rows with non-numeric values
+                }
+            }
+        }
+
+        val totalLines = totalLineMissed + totalLineCovered
+        val lineCoveragePercent = if (totalLines > 0) (totalLineCovered * 100) / totalLines else 0
 
         println("Backend Test Coverage Report:")
-        println("  Lines covered: $lineCovered")
-        println("  Lines missed: $lineMissed")
+        println("  Lines covered: $totalLineCovered")
+        println("  Lines missed: $totalLineMissed")
         println("  Total lines: $totalLines")
         println("  Coverage: $lineCoveragePercent%")
         println("  Threshold: 80%")
