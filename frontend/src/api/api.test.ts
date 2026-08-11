@@ -8,6 +8,7 @@ import { invoicesApi } from './invoices'
 import { reportsApi } from './reports'
 import { authApi, login } from './auth'
 import { publicApi } from './public'
+import { galleryApi } from './gallery'
 import { getLateFeeRules, updateLateFeeRules } from './config'
 import { useAuthStore } from '../store/authStore'
 
@@ -89,6 +90,20 @@ describe('publicApi', () => {
   it('getReceipt / getInvoice use the unauthenticated client', async () => {
     expect((await publicApi.getReceipt('share-r')).id).toBe('rcpt-1')
     expect((await publicApi.getInvoice('share-i')).id).toBe('inv-1')
+  })
+})
+
+describe('galleryApi', () => {
+  it('list returns the unwrapped array', async () => {
+    const images = await galleryApi.list()
+    expect(images).toHaveLength(2)
+    expect(images[0].id).toBe('gallery-1')
+  })
+
+  it('list sends the category as a query param and unwraps the filtered result', async () => {
+    const images = await galleryApi.list('COSTUME')
+    expect(images).toHaveLength(1)
+    expect(images[0].category).toBe('COSTUME')
   })
 })
 

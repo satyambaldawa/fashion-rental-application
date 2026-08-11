@@ -2,6 +2,7 @@
 // test can partially override — so tests state only the fields they care about.
 import type { CustomerSummary, Customer, CustomerDetail, CustomerReceipt } from '../types/customer'
 import type { ItemSummary, ItemDetail } from '../types/inventory'
+import type { GalleryImage } from '../types/gallery'
 import type { Receipt, ReceiptSummary, CheckoutPreview } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
 import type { DailyRevenue, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
@@ -122,6 +123,11 @@ export const aMonthlyRevenue: Partialize<MonthlyRevenue> = (o = {}) => ({
 export const aLateFeeRule: Partialize<LateFeeRule> = (o = {}) => ({
   id: 'rule-1', durationFromHours: 0, durationToHours: 24, penaltyMultiplier: 1.5,
   sortOrder: 0, isActive: true, label: '0–24h', ...o,
+})
+
+export const aGalleryImage: Partialize<GalleryImage> = (o = {}) => ({
+  id: 'gallery-1', category: 'COSTUME', imageUrl: 'https://cdn.example.com/gallery-1.jpg',
+  thumbnailUrl: 'https://cdn.example.com/gallery-1-thumb.jpg', caption: 'Royal Sherwani', isActive: true, ...o,
 })
 
 export const aUserRecord: Partialize<UserRecord> = (o = {}) => ({
