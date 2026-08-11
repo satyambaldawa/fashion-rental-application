@@ -2,26 +2,14 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Row, Col, Image, Typography, Empty, Spin } from 'antd'
 import { galleryApi } from '../../api/gallery'
+import { CATEGORY_OPTIONS, CATEGORY_LABELS } from '../../constants/categories'
 import type { GalleryImage } from '../../types/gallery'
 import type { ItemCategory } from '../../types/inventory'
 
-const CATEGORY_OPTIONS: { label: string; value: ItemCategory | 'ALL' }[] = [
+const FILTER_OPTIONS: { label: string; value: ItemCategory | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
-  { label: 'Costume', value: 'COSTUME' },
-  { label: 'Accessories', value: 'ACCESSORIES' },
-  { label: 'Pagdi', value: 'PAGDI' },
-  { label: 'Dress', value: 'DRESS' },
-  { label: 'Ornaments', value: 'ORNAMENTS' },
-  { label: 'Traditional', value: 'TRADITIONAL' },
-  { label: 'Mythological', value: 'MYTHOLOGICAL' },
-  { label: 'Freedom Fighter', value: 'FREEDOM_FIGHTER' },
-  { label: 'Professions', value: 'PROFESSIONS' },
-  { label: 'Fancy Dress', value: 'FANCY_DRESS' },
-  { label: 'Seasonal', value: 'SEASONAL' },
-  { label: 'Other', value: 'OTHER' },
+  ...CATEGORY_OPTIONS,
 ]
-
-const CATEGORY_LABELS = new Map(CATEGORY_OPTIONS.map(opt => [opt.value, opt.label]))
 
 function groupByCategory(images: GalleryImage[]): [ItemCategory, GalleryImage[]][] {
   const groups = new Map<ItemCategory, GalleryImage[]>()
@@ -98,7 +86,7 @@ export default function GalleryPage() {
     <div>
       {/* Category chips */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
-        {CATEGORY_OPTIONS.map(opt => {
+        {FILTER_OPTIONS.map(opt => {
           const isActive = opt.value === activeCategory
           return (
             <button
