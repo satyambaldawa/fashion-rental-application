@@ -27,8 +27,11 @@ jobs:
       - name: Run integration tests (Testcontainers → PostgreSQL)
         run: cd backend && ./gradlew integrationTest
 
-      # Report-only: generates coverage and posts a summary, never fails the build.
-      - name: Coverage report (JaCoCo)
+      # Verify coverage meets threshold (fails if line coverage < 80%)
+      - name: Verify backend coverage (80% threshold)
+        run: cd backend && ./gradlew checkCoverageThreshold
+
+      - name: Generate and publish backend coverage report
         if: always()
         run: cd backend && ./gradlew jacocoTestReport
 
@@ -70,9 +73,12 @@ jobs:
       - name: Type check
         run: cd frontend && pnpm type-check
 
-      # Report-only: runs tests with coverage and posts a summary, never fails the build.
       - name: Unit tests + coverage
         run: cd frontend && pnpm test:coverage
+
+      # Verify coverage meets threshold (fails if line coverage < 75%)
+      - name: Verify frontend coverage (75% threshold)
+        run: cd frontend && pnpm verify-coverage
 
       - name: Publish frontend coverage summary
         if: always()
