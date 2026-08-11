@@ -37,6 +37,10 @@ export default defineConfig({
         'src/types/**',
       ],
       reporter: ['text-summary', 'text', 'html', 'json-summary'],
+      lines: 72,
+      statements: 72,
+      branches: 60,
+      functions: 72,
     },
   }
 })

@@ -77,3 +77,58 @@ tasks.jacocoTestReport {
         html.required.set(true)
     }
 }
+
+tasks.register("checkCoverageThreshold") {
+    description = "Verifies that code coverage meets minimum thresholds."
+    group = "verification"
+    dependsOn("jacocoTestReport")
+
+    doLast {
+        val buildDir = layout.buildDirectory.asFile.get()
+        val coverageFile = File("$buildDir/reports/jacoco/test/jacocoTestReport.csv")
+        require(coverageFile.exists()) { "Coverage report not found at $coverageFile" }
+
+        val lines = coverageFile.readLines()
+        if (lines.size < 2) throw GradleException("Coverage CSV is empty")
+
+        val headerLine = lines[0]
+        val headers = headerLine.split(",")
+
+        val lineMissedIdx = headers.indexOf("LINE_MISSED")
+        val lineCoveredIdx = headers.indexOf("LINE_COVERED")
+
+        require(lineMissedIdx >= 0 && lineCoveredIdx >= 0) { "LINE_MISSED or LINE_COVERED not found in CSV" }
+
+        // Sum coverage across all data rows (skip header at index 0)
+        var totalLineMissed = 0
+        var totalLineCovered = 0
+
+        for (i in 1 until lines.size) {
+            val values = lines[i].split(",")
+            if (values.size > lineCoveredIdx) {
+                try {
+                    totalLineMissed += values[lineMissedIdx].toInt()
+                    totalLineCovered += values[lineCoveredIdx].toInt()
+                } catch (e: NumberFormatException) {
+                    // Skip rows with non-numeric values
+                }
+            }
+        }
+
+        val totalLines = totalLineMissed + totalLineCovered
+        val lineCoveragePercent = if (totalLines > 0) (totalLineCovered * 100) / totalLines else 0
+
+        println("Backend Test Coverage Report:")
+        println("  Lines covered: $totalLineCovered")
+        println("  Lines missed: $totalLineMissed")
+        println("  Total lines: $totalLines")
+        println("  Coverage: $lineCoveragePercent%")
+        println("  Threshold: 80%")
+
+        if (lineCoveragePercent < 80) {
+            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 80%")
+        }
+
+        println("✓ Backend coverage check passed!")
+    }
+}
