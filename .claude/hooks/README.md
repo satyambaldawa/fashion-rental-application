@@ -3,18 +3,34 @@
 Three enforcement layers, all agent-agnostic (they do not care whether a skill,
 a subagent, or the main session issued the command):
 
-1. **`permissions.deny` in `.claude/settings.json`** — blocks the Read/Edit/Grep
-   tools from touching `.env*`, `*key.json`, `*service-account*`. Highest
-   precedence, evaluated before hooks. The only layer that can stop the
-   file-reading tools (the hook only sees Bash command text).
+1. **`permissions.deny` in `.claude/settings.json`** — blocks the Read/Edit/Grep/
+   Write/NotebookEdit tools from touching `.env*`, `*key.json`,
+   `*service-account*`, and anything under `.claude/worktrees/pr-*` (the
+   `pr-review` skill's checkouts). Highest precedence, evaluated before hooks —
+   this still fires even if `guard.py` crashes or is misconfigured.
 
-2. **`guard.py` PreToolUse hook** — runs on every Bash call, dispatches to ordered
-   policies (`secrets` → `destructive` → `gcp` → `db` → `github`), first match
-   wins, unmatched → defer to normal permissions. Blocks destructive commands,
-   secret reads, and dangerous domain operations by matching the command text.
+2. **`guard.py` PreToolUse hook** — registered for `Bash`, `Edit`, `Write`, and
+   `NotebookEdit`. Runs every policy (`secrets`, `destructive`, `gcp`, `db`,
+   `github`, `pr_review`) and collects all their verdicts — **deny always wins**
+   over allow, and allow wins over the default defer-to-normal-permissions.
+   This matters for chained commands: `gh pr view 86 && rm ...` would otherwise
+   let `github`'s allow-list for `gh pr view` launder the `rm` straight past
+   every other policy just because it ran first in the dispatch order. Blocks
+   destructive commands, secret reads, dangerous domain operations, and — via
+   `pr_review` — any edit/write, or Bash command shaped like a mutation (`rm`,
+   `mv`, `sed -i`, `git add|commit|checkout|reset|clean|restore`, shell
+   redirects, …), targeting a `pr-review` worktree. `pr_review` strips heredoc
+   bodies before matching, so a PR description or JSON payload that merely
+   *mentions* the worktree path or a command like `sed -i` as prose can't
+   trip it — only text that's actually part of the invoked command counts.
 
 3. **Scoped credentials** (see `infra/agent-credentials-runbook.md`) — the real
    guarantee. An agent physically cannot do what its credentials do not permit.
+
+`permissions.deny` and `guard.py` overlap deliberately for `.claude/worktrees/pr-*`
+edits/writes: the former is a static backstop that survives a hook bug, the
+latter also catches Bash-based mutations (`rm`, `sed -i`, `git commit`, shell
+redirects) that no `permissions.deny` glob could ever see.
 
 ## Skills are guidance, not enforcement
 

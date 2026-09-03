@@ -5,9 +5,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from policy import secrets, destructive, gcp, db, github  # noqa: E402
+from policy import secrets, destructive, gcp, db, github, pr_review  # noqa: E402
 
-_CHECKERS = (secrets.check, destructive.check, gcp.check, db.check, github.check)
+_CHECKERS = (secrets.check, destructive.check, gcp.check, db.check, github.check, pr_review.check)
 
 
 def _extract_text(tool_input):
@@ -19,10 +19,19 @@ def _extract_text(tool_input):
 
 def decide(tool_name, tool_input):
     text = _extract_text(tool_input)
-    for checker in _CHECKERS:
-        result = checker(tool_name, text, tool_input or {})
-        if result is not None:
-            return result
+    results = [checker(tool_name, text, tool_input or {}) for checker in _CHECKERS]
+    results = [result for result in results if result is not None]
+
+    # A chained command (`gh pr view 86 && rm ...`) can trip one checker's
+    # allow-list and another's deny rule at once. Deny must win regardless of
+    # which checker ran first, or an allow-listed prefix would launder a
+    # dangerous suffix straight past every later policy.
+    for decision, reason in results:
+        if decision == "deny":
+            return (decision, reason)
+    for decision, reason in results:
+        if decision == "allow":
+            return (decision, reason)
     return ("defer", "")
 
 

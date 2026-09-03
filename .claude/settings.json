@@ -9,6 +9,33 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"
           }
         ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"
+          }
+        ]
+      },
+      {
+        "matcher": "NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py"
+          }
+        ]
       }
     ]
   },
@@ -25,7 +52,10 @@
       "Edit(**/*key.json)",
       "Edit(**/*service-account*)",
       "Grep(**/*key.json)",
-      "Grep(**/*service-account*)"
+      "Grep(**/*service-account*)",
+      "Edit(**/.claude/worktrees/pr-*/**)",
+      "Write(**/.claude/worktrees/pr-*/**)",
+      "NotebookEdit(**/.claude/worktrees/pr-*/**)"
     ]
   }
 }
