@@ -5,9 +5,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from policy import secrets, destructive, gcp, db, github  # noqa: E402
+from policy import secrets, destructive, gcp, db, github, pr_review  # noqa: E402
 
-_CHECKERS = (secrets.check, destructive.check, gcp.check, db.check, github.check)
+_CHECKERS = (secrets.check, destructive.check, gcp.check, db.check, github.check, pr_review.check)
 
 
 def _extract_text(tool_input):

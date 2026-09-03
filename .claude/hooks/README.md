@@ -3,18 +3,30 @@
 Three enforcement layers, all agent-agnostic (they do not care whether a skill,
 a subagent, or the main session issued the command):
 
-1. **`permissions.deny` in `.claude/settings.json`** — blocks the Read/Edit/Grep
-   tools from touching `.env*`, `*key.json`, `*service-account*`. Highest
-   precedence, evaluated before hooks. The only layer that can stop the
-   file-reading tools (the hook only sees Bash command text).
+1. **`permissions.deny` in `.claude/settings.json`** — blocks the Read/Edit/Grep/
+   Write/NotebookEdit tools from touching `.env*`, `*key.json`,
+   `*service-account*`, and anything under `.claude/worktrees/pr-*` (the
+   `pr-review` skill's checkouts). Highest precedence, evaluated before hooks —
+   this still fires even if `guard.py` crashes or is misconfigured.
 
-2. **`guard.py` PreToolUse hook** — runs on every Bash call, dispatches to ordered
-   policies (`secrets` → `destructive` → `gcp` → `db` → `github`), first match
-   wins, unmatched → defer to normal permissions. Blocks destructive commands,
-   secret reads, and dangerous domain operations by matching the command text.
+2. **`guard.py` PreToolUse hook** — registered for `Bash`, `Edit`, `Write`, and
+   `NotebookEdit`. Dispatches to ordered policies (`secrets` → `destructive` →
+   `gcp` → `db` → `github` → `pr_review`), first match wins, unmatched → defer
+   to normal permissions. Blocks destructive commands, secret reads, dangerous
+   domain operations, and — via `pr_review` — any edit/write/mutating-shell-command
+   targeting a `pr-review` worktree, by inspecting `file_path` for the file
+   tools and command text for Bash. `pr_review` is default-deny within that one
+   path pattern (allow-list of read-only/lifecycle commands, everything else
+   blocked) rather than a denylist, since a PR review worktree only ever needs
+   reading, `git fetch`, and `git worktree add|remove`.
 
 3. **Scoped credentials** (see `infra/agent-credentials-runbook.md`) — the real
    guarantee. An agent physically cannot do what its credentials do not permit.
+
+`permissions.deny` and `guard.py` overlap deliberately for `.claude/worktrees/pr-*`
+edits/writes: the former is a static backstop that survives a hook bug, the
+latter also catches Bash-based mutations (`rm`, `sed -i`, `git commit`, shell
+redirects) that no `permissions.deny` glob could ever see.
 
 ## Skills are guidance, not enforcement
 
