@@ -10,15 +10,19 @@ a subagent, or the main session issued the command):
    this still fires even if `guard.py` crashes or is misconfigured.
 
 2. **`guard.py` PreToolUse hook** — registered for `Bash`, `Edit`, `Write`, and
-   `NotebookEdit`. Dispatches to ordered policies (`secrets` → `destructive` →
-   `gcp` → `db` → `github` → `pr_review`), first match wins, unmatched → defer
-   to normal permissions. Blocks destructive commands, secret reads, dangerous
-   domain operations, and — via `pr_review` — any edit/write/mutating-shell-command
-   targeting a `pr-review` worktree, by inspecting `file_path` for the file
-   tools and command text for Bash. `pr_review` is default-deny within that one
-   path pattern (allow-list of read-only/lifecycle commands, everything else
-   blocked) rather than a denylist, since a PR review worktree only ever needs
-   reading, `git fetch`, and `git worktree add|remove`.
+   `NotebookEdit`. Runs every policy (`secrets`, `destructive`, `gcp`, `db`,
+   `github`, `pr_review`) and collects all their verdicts — **deny always wins**
+   over allow, and allow wins over the default defer-to-normal-permissions.
+   This matters for chained commands: `gh pr view 86 && rm ...` would otherwise
+   let `github`'s allow-list for `gh pr view` launder the `rm` straight past
+   every other policy just because it ran first in the dispatch order. Blocks
+   destructive commands, secret reads, dangerous domain operations, and — via
+   `pr_review` — any edit/write, or Bash command shaped like a mutation (`rm`,
+   `mv`, `sed -i`, `git add|commit|checkout|reset|clean|restore`, shell
+   redirects, …), targeting a `pr-review` worktree. `pr_review` strips heredoc
+   bodies before matching, so a PR description or JSON payload that merely
+   *mentions* the worktree path or a command like `sed -i` as prose can't
+   trip it — only text that's actually part of the invoked command counts.
 
 3. **Scoped credentials** (see `infra/agent-credentials-runbook.md`) — the real
    guarantee. An agent physically cannot do what its credentials do not permit.

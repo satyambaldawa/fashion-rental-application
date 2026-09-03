@@ -4,21 +4,41 @@ _FILE_TOOLS = {"Edit", "Write", "NotebookEdit"}
 
 _WORKTREE_PATH_RE = re.compile(r"\.claude/worktrees/pr-[^/\s'\"]+")
 
-_LIFECYCLE_ALLOW_RE = re.compile(r"\bgit\s+worktree\s+(add|remove|list|prune)\b")
-_READ_ONLY_ALLOW_RE = re.compile(
-    r"\b(cat|less|more|head|tail|grep|rg|find|ls|wc|file|stat|tree|awk|sed)\b"
-)
-_GIT_READ_ONLY_ALLOW_RE = re.compile(
-    r"\bgit\s+(diff|log|show|status|blame|ls-files|ls-tree|rev-parse|fetch|branch)\b"
-)
-_GH_READ_ONLY_ALLOW_RE = re.compile(r"\bgh\s+pr\s+diff\b")
+_HEREDOC_START_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 
-_SED_INPLACE_RE = re.compile(r"\bsed\s+(-\w*i\w*|--in-place)\b")
+_MUTATION_RE = re.compile(
+    r"\bgit\s+(add|commit|checkout|reset|clean|restore|apply|am|rebase|merge|rm|mv|stash)\b"
+    r"|\b(rm|mv|cp|tee|chmod|chown|truncate|dd|mkdir|rmdir|perl|python[23]?|node)\b"
+    r"|\bsed\s+(-\w*i\w*|--in-place)\b"
+)
+_REDIRECT_RE = re.compile(r"(?<![&\d])>>?(?!&)")
 
 _WORKTREE_DENY_REASON = (
-    "pr-review worktrees (.claude/worktrees/pr-*) are read-only — findings get reported "
-    "as PR comments, never applied to the checkout. Blocked by pr-review policy."
+    "pr-review worktrees (.claude/worktrees/pr-*) are read-only — this command would "
+    "mutate the checkout. Findings get reported as PR comments, never applied to the "
+    "checkout. Blocked by pr-review policy."
 )
+
+
+def _strip_heredocs(text):
+    """Drop heredoc bodies so prose/data they carry (a PR description, a JSON
+    payload) can't be mistaken for a command operating on the worktree path."""
+    lines = text.split("\n")
+    kept = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        match = _HEREDOC_START_RE.search(line)
+        if match:
+            delimiter = match.group(2)
+            i += 1
+            while i < len(lines) and lines[i].strip() != delimiter:
+                i += 1
+            i += 1  # also drop the delimiter line itself
+            continue
+        i += 1
+    return "\n".join(kept)
 
 
 def check(tool_name, text, tool_input):
@@ -28,24 +48,14 @@ def check(tool_name, text, tool_input):
             return ("deny", _WORKTREE_DENY_REASON)
         return None
 
-    if not text or not _WORKTREE_PATH_RE.search(text):
+    if not text:
         return None
 
-    if _SED_INPLACE_RE.search(text):
+    command_text = _strip_heredocs(text)
+    if not _WORKTREE_PATH_RE.search(command_text):
+        return None
+
+    if _MUTATION_RE.search(command_text) or _REDIRECT_RE.search(command_text):
         return ("deny", _WORKTREE_DENY_REASON)
 
-    if (
-        _LIFECYCLE_ALLOW_RE.search(text)
-        or _GIT_READ_ONLY_ALLOW_RE.search(text)
-        or _GH_READ_ONLY_ALLOW_RE.search(text)
-        or _READ_ONLY_ALLOW_RE.search(text)
-    ):
-        return None
-
-    return (
-        "deny",
-        "pr-review worktrees (.claude/worktrees/pr-*) are read-only and this command "
-        "isn't on the recognized read/lifecycle allow-list (git worktree add/remove, "
-        "git fetch, read-only git commands, or plain file-reading commands). Blocked by "
-        "pr-review policy — inspect files with Read/Grep instead.",
-    )
+    return None

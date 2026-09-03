@@ -19,10 +19,19 @@ def _extract_text(tool_input):
 
 def decide(tool_name, tool_input):
     text = _extract_text(tool_input)
-    for checker in _CHECKERS:
-        result = checker(tool_name, text, tool_input or {})
-        if result is not None:
-            return result
+    results = [checker(tool_name, text, tool_input or {}) for checker in _CHECKERS]
+    results = [result for result in results if result is not None]
+
+    # A chained command (`gh pr view 86 && rm ...`) can trip one checker's
+    # allow-list and another's deny rule at once. Deny must win regardless of
+    # which checker ran first, or an allow-listed prefix would launder a
+    # dangerous suffix straight past every later policy.
+    for decision, reason in results:
+        if decision == "deny":
+            return (decision, reason)
+    for decision, reason in results:
+        if decision == "allow":
+            return (decision, reason)
     return ("defer", "")
 
 
