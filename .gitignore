@@ -16,6 +16,7 @@ backend/.claude/
 frontend/.claude/
 .claude/agent-memory/
 .claude/worktrees/
+.playwright-mcp/
 backend/*.war
 backend/target/
 backend/uploads/items/
