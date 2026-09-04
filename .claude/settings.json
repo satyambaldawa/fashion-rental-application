@@ -40,6 +40,22 @@
     ]
   },
   "permissions": {
+    "allow": [
+      "Bash(podman machine list)",
+      "Bash(podman ps*)",
+      "Bash(podman exec fashion-rental-application-postgres-1 pg_isready -U postgres)",
+      "Bash(podman exec fashion-rental-application-postgres-1 psql -U postgres -d fashionrental -tAc \"select count(*) from items\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/actuator/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(until curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; do sleep 1; done; echo \"backend healthy\")",
+      "Bash(until curl -sf http://localhost:5173 >/dev/null 2>&1; do sleep 1; done; echo \"frontend healthy\")",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_find",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "mcp__plugin_playwright_playwright__browser_fill_form",
+      "mcp__plugin_playwright_playwright__browser_click"
+    ],
     "deny": [
       "Read(**/.env)",
       "Read(**/.env.*)",
