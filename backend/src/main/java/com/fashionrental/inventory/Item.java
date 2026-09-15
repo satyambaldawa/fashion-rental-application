@@ -54,6 +54,9 @@ public class Item {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "is_ad_hoc", nullable = false)
+    private Boolean isAdHoc = false;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -109,6 +112,8 @@ public class Item {
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getIsAdHoc() { return isAdHoc; }
+    public void setIsAdHoc(Boolean isAdHoc) { this.isAdHoc = isAdHoc; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public Integer getPurchaseRate() { return purchaseRate; }

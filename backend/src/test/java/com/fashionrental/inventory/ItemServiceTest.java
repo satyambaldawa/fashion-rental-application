@@ -11,6 +11,7 @@ import com.fashionrental.inventory.storage.ImageStorageService;
 import com.fashionrental.inventory.storage.UploadResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,10 +28,16 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Root;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,6 +113,30 @@ class ItemServiceTest {
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isZero();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void should_exclude_ad_hoc_items_from_item_list() {
+        ArgumentCaptor<Specification<Item>> specCaptor = ArgumentCaptor.forClass(Specification.class);
+        when(itemRepository.findAll(specCaptor.capture(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(availabilityService.batchGetAvailableQuantities(any(), any(), any())).thenReturn(Map.of());
+
+        itemService.listItems(null, null, null, null, 0, 20, null, null);
+
+        Root<Item> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        Path<Boolean> activePath = mock(Path.class);
+        Path<Boolean> adHocPath = mock(Path.class);
+        when(root.get("isActive")).thenReturn((Path) activePath);
+        when(root.get("isAdHoc")).thenReturn((Path) adHocPath);
+
+        specCaptor.getValue().toPredicate(root, query, cb);
+
+        verify(cb).isTrue(activePath);
+        verify(cb).isFalse(adHocPath);
     }
 
     @Test

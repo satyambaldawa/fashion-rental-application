@@ -55,6 +55,7 @@ public class ItemService {
         Specification<Item> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("isActive")));
+            predicates.add(cb.isFalse(root.get("isAdHoc")));
             if (search != null && !search.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%"));
             }
