@@ -664,6 +664,15 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
         key: 'lineDeposit',
         render: (_: unknown, r: CartItem) => formatCurrency(r.deposit * r.quantity),
       },
+      {
+        title: '',
+        key: 'remove',
+        render: (_: unknown, r: CartItem) => (
+          <Button type="link" danger onClick={() => removeItem(r.lineKey)}>
+            Remove
+          </Button>
+        ),
+      },
     ]
 
     const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)

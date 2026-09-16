@@ -326,4 +326,40 @@ describe('CheckoutPage quick rental entry screen', () => {
 
     expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeEnabled()
   })
+
+  it('lets a line -- catalogue or ad-hoc -- be removed directly from Order Preview', async () => {
+    setAuth('OWNER')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Jwellery', size: null,
+      quantity: 1, deposit: 100, flatPrice: 100,
+    }
+    seedCart([{ ...baseCartItem }, adHocItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    expect(await screen.findByText('Jwellery')).toBeInTheDocument()
+    expect(screen.getByText('Royal Sherwani')).toBeInTheDocument()
+
+    const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
+    expect(removeButtons).toHaveLength(2)
+
+    await user.click(removeButtons[0]) // removes the catalogue line (Royal Sherwani, listed first)
+    await flush()
+
+    expect(screen.queryByText('Royal Sherwani')).not.toBeInTheDocument()
+    expect(screen.getByText('Jwellery')).toBeInTheDocument()
+
+    // Only the ad-hoc line remains; Confirm & Proceed stays enabled until the cart is fully empty.
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Remove' })) // removes the last remaining line
+    await flush()
+
+    expect(screen.queryByText('Jwellery')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeDisabled()
+  })
 })
