@@ -280,4 +280,25 @@ describe('CheckoutPage quick rental entry screen', () => {
     expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add custom product/i })).not.toBeInTheDocument()
   })
+
+  it('lets an owner add a custom product from the Order Preview screen, without going back to browse', async () => {
+    setAuth('OWNER')
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    expect(await screen.findByText('Counter Sherwani')).toBeInTheDocument()
+    // baseCartItem: 300/day × 1 day × qty 1 = 300. New ad-hoc line: 250 flat × qty 1 = 250. Total 550.
+    expect(screen.getByText('₹550')).toBeInTheDocument()
+  })
 })

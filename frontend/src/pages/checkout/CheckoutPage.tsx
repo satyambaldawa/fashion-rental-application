@@ -703,10 +703,24 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
 
         <Space>
           <Button onClick={() => setScreen('browse')}>Back to Items</Button>
+          {isOwner && (
+            <Button icon={<PlusOutlined />} onClick={() => setShowAdHocModal(true)}>
+              Add custom product
+            </Button>
+          )}
           <Button type="primary" onClick={() => setScreen('customer')}>
             Confirm & Proceed
           </Button>
         </Space>
+
+        {isOwner && (
+          <AdHocItemModal
+            open={showAdHocModal}
+            rentalDays={cart!.rentalDays}
+            onCancel={() => setShowAdHocModal(false)}
+            onAdd={(item) => { addItem(item); setShowAdHocModal(false) }}
+          />
+        )}
       </div>
     )
   }
