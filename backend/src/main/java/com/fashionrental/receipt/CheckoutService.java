@@ -269,7 +269,11 @@ public class CheckoutService {
     // later means relaxing or removing this single check — see technical-architecture.md for the
     // tradeoffs that decision should weigh.
     private boolean hasOwnerRole() {
-        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_OWNER"));
     }
 

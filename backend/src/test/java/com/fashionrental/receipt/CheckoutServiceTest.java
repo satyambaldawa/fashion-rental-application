@@ -519,6 +519,25 @@ class CheckoutServiceTest {
     }
 
     @Test
+    void should_reject_ad_hoc_checkout_when_no_authentication_is_present() {
+        SecurityContextHolder.clearContext();
+
+        UUID customerId = UUID.randomUUID();
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END, List.of(),
+                List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("owner");
+
+        verify(itemRepository, never()).save(any(Item.class));
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
+    @Test
     void should_allow_catalogue_only_checkout_from_a_non_owner_role() {
         var executiveAuth = new UsernamePasswordAuthenticationToken(
                 "executive", null, List.of(new SimpleGrantedAuthority("ROLE_EXECUTIVE")));

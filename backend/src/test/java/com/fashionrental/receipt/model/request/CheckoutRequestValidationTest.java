@@ -104,4 +104,24 @@ class CheckoutRequestValidationTest {
 
         assertThat(validator.validate(request)).isEmpty();
     }
+
+    @Test
+    void should_reject_ad_hoc_item_priced_above_one_million_rupees() {
+        Set<ConstraintViolation<CheckoutRequest>> violations =
+                validator.validate(withOnlyAdHoc(new AdHocLineItem("Red Sherwani", "L", 1_000_001, 1000, 1)));
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("adHocItems[0].flatPrice");
+    }
+
+    @Test
+    void should_reject_ad_hoc_item_quantity_above_one_hundred() {
+        Set<ConstraintViolation<CheckoutRequest>> violations =
+                validator.validate(withOnlyAdHoc(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 101)));
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("adHocItems[0].quantity");
+    }
 }
