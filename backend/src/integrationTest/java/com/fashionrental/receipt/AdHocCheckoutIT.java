@@ -6,6 +6,7 @@ import com.fashionrental.customer.Customer;
 import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
+import com.fashionrental.invoice.InvoiceRepository;
 import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
@@ -40,6 +41,8 @@ class AdHocCheckoutIT extends AbstractIntegrationTest {
     @Autowired private CheckoutService checkoutService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
+    @Autowired private ReceiptRepository receiptRepository;
+    @Autowired private InvoiceRepository invoiceRepository;
 
     @BeforeEach
     void authenticateAsOwner() {
@@ -48,9 +51,15 @@ class AdHocCheckoutIT extends AbstractIntegrationTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
+    // Deletion order matters: Invoice FKs to Receipt (no cascade), Receipt cascades to its own
+    // ReceiptLineItems but Item has no knowledge of either. A future happy-path test in this class
+    // that persists a receipt (and, via return, an invoice) would otherwise leave an FK violation
+    // here rather than in the test itself.
     @AfterEach
     void cleanUp() {
         SecurityContextHolder.clearContext();
+        invoiceRepository.deleteAll();
+        receiptRepository.deleteAll();
         itemRepository.deleteAll();
         customerRepository.deleteAll();
     }
