@@ -668,12 +668,13 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
       {
         title: '',
         key: 'remove',
-        width: 48,
+        width: 56,
         render: (_: unknown, r: CartItem) => (
           <Button
             type="text"
             danger
-            icon={<DeleteOutlined />}
+            size="large"
+            icon={<DeleteOutlined style={{ fontSize: 20 }} />}
             aria-label="Remove"
             onClick={() => removeItem(r.lineKey)}
           />
@@ -686,7 +687,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
     const grandTotal = totalRent + totalDeposit
 
     return (
-      <div style={{ maxWidth: 920 }}>
+      <div style={{ maxWidth: 920, width: '100%' }}>
         <Typography.Title level={4}>Order Preview</Typography.Title>
 
         <Descriptions size="small" style={{ marginBottom: 16 }}>
@@ -695,15 +696,16 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
           <Descriptions.Item label="Duration">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Descriptions.Item>
         </Descriptions>
 
-        <Table
-          dataSource={cart!.items}
-          columns={previewColumns}
-          rowKey="lineKey"
-          pagination={false}
-          size="small"
-          scroll={{ x: 'max-content' }}
-          style={{ marginBottom: 24 }}
-        />
+        <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+          <Table
+            dataSource={cart!.items}
+            columns={previewColumns}
+            rowKey="lineKey"
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+          />
+        </div>
 
         <Card size="small" style={{ maxWidth: 360, marginBottom: 24 }}>
           <Descriptions column={1} size="small">
@@ -715,7 +717,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
           </Descriptions>
         </Card>
 
-        <Space>
+        <Space wrap>
           <Button onClick={() => setScreen('browse')}>Back to Items</Button>
           {isOwner && (
             <Button icon={<PlusOutlined />} onClick={() => setShowAdHocModal(true)}>
