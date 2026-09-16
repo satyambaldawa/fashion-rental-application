@@ -9,11 +9,17 @@ import com.fashionrental.invoice.ReturnService;
 import com.fashionrental.invoice.model.request.ProcessReturnRequest;
 import com.fashionrental.invoice.model.request.ReturnLineItem;
 import com.fashionrental.invoice.model.response.InvoiceResponse;
+import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -34,6 +40,18 @@ class RentalFlowIT extends AbstractIntegrationTest {
     @Autowired private ReturnService returnService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
+
+    @BeforeEach
+    void authenticateAsOwner() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "owner", null, List.of(new SimpleGrantedAuthority("ROLE_OWNER")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void checkout_then_return_on_time_refunds_the_full_deposit() {
@@ -87,6 +105,48 @@ class RentalFlowIT extends AbstractIntegrationTest {
         // ── receipt is now marked returned ──
         Receipt persisted = receiptRepositoryFind(receipt.id());
         assertThat(persisted.getStatus()).isEqualTo(Receipt.Status.RETURNED);
+    }
+
+    @Test
+    void ad_hoc_only_rental_completes_checkout_and_return() {
+        Customer customer = new Customer();
+        customer.setName("Anil");
+        customer.setPhone("9800011122");
+        customer.setCustomerType(Customer.CustomerType.MISC);
+        customer.setIsActive(true);
+        customer = customerRepository.save(customer);
+
+        OffsetDateTime start = OffsetDateTime.parse("2026-04-18T10:00:00+05:30");
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-21T10:00:00+05:30");
+
+        // ── checkout: no catalogue items, one typed-in product ──
+        ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
+                customer.getId(), start, end,
+                List.of(),
+                List.of(new AdHocLineItem("Walk-in Lehenga", "Free size", 500, 1000, 1)),
+                null
+        ));
+
+        assertThat(receipt.lineItems()).hasSize(1);
+        assertThat(receipt.lineItems().get(0).itemName()).isEqualTo("Walk-in Lehenga");
+        assertThat(receipt.lineItems().get(0).itemSize()).isEqualTo("Free size");
+        assertThat(receipt.lineItems().get(0).lineRent()).isEqualTo(500);
+        assertThat(receipt.lineItems().get(0).itemPurchaseRate()).isNull();
+        assertThat(receipt.totalRent()).isEqualTo(500);
+        assertThat(receipt.totalDeposit()).isEqualTo(1000);
+
+        // ── return on time → full deposit back, product name carries through to the invoice ──
+        InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
+                end,
+                List.of(new ReturnLineItem(receipt.lineItems().get(0).id(), false, null, null)),
+                "CASH", null, null
+        ));
+
+        assertThat(invoice.totalLateFee()).isZero();
+        assertThat(invoice.depositToReturn()).isEqualTo(1000);
+        assertThat(invoice.transactionType()).isEqualTo("REFUND");
+        assertThat(invoice.lineItems()).hasSize(1);
+        assertThat(invoice.lineItems().get(0).itemName()).isEqualTo("Walk-in Lehenga");
     }
 
     @Autowired private ReceiptRepository receiptRepository;
