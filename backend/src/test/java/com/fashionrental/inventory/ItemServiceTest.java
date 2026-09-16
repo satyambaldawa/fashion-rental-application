@@ -31,6 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,13 +131,18 @@ class ItemServiceTest {
         CriteriaBuilder cb = mock(CriteriaBuilder.class);
         Path<Boolean> activePath = mock(Path.class);
         Path<Boolean> adHocPath = mock(Path.class);
+        Predicate activePredicate = mock(Predicate.class);
+        Predicate adHocPredicate = mock(Predicate.class);
         when(root.get("isActive")).thenReturn((Path) activePath);
         when(root.get("isAdHoc")).thenReturn((Path) adHocPath);
+        when(cb.isTrue(activePath)).thenReturn(activePredicate);
+        when(cb.isFalse(adHocPath)).thenReturn(adHocPredicate);
 
         specCaptor.getValue().toPredicate(root, query, cb);
 
-        verify(cb).isTrue(activePath);
-        verify(cb).isFalse(adHocPath);
+        ArgumentCaptor<Predicate[]> conjunctionCaptor = ArgumentCaptor.forClass(Predicate[].class);
+        verify(cb).and(conjunctionCaptor.capture());
+        assertThat(conjunctionCaptor.getValue()).contains(activePredicate, adHocPredicate);
     }
 
     @Test
