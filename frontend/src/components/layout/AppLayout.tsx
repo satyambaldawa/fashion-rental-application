@@ -50,8 +50,7 @@ export default function AppLayout() {
             <Route path="/customers/register" element={<RegisterCustomerPage />} />
             <Route path="/customers/:id/edit" element={<EditCustomerPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/checkout" element={<CheckoutPage key="checkout" />} />
-            <Route path="/quick-rental" element={<CheckoutPage key="quick" initialScreen="adhoc" />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/receipts" element={<ReceiptsPage />} />
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
             <Route path="/receipts/:id/return" element={<ProcessReturnPage />} />

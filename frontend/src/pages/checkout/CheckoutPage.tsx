@@ -44,17 +44,12 @@ import type { CartItem, CatalogueCartItem, AdHocCartItem, CheckoutRequest } from
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
-import AdHocEntryScreen from './AdHocEntryScreen'
 import { lineRentOf, perDayRateOf } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 
-type Screen = 'home' | 'adhoc' | 'browse' | 'preview' | 'customer'
+type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
-interface CheckoutPageProps {
-  initialScreen?: Screen
-}
-
-export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) {
+export default function CheckoutPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
@@ -62,12 +57,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
   const { isOwner } = useAuth()
   const { cart, createCart, addItem, removeItem, updateQuantity, clearCart } = useCart()
 
-  const [screen, setScreen] = useState<Screen>(initialScreen ?? (cart ? 'browse' : 'home'))
-  const [screenAfterCreate, setScreenAfterCreate] = useState<Screen>('browse')
-  // Stable for the life of this mount (a route change remounts CheckoutPage under a new `key`),
-  // so this never goes stale. Without it, once a Quick Rental cart leaves the entry screen there
-  // is no way back to correct or remove a typed-in line short of deleting the whole cart.
-  const cameFromAdhoc = initialScreen === 'adhoc'
+  const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
@@ -157,7 +147,6 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
   // --- Create cart helpers ---
 
   function handleOpenCreateModal() {
-    setScreenAfterCreate(screen === 'adhoc' ? 'adhoc' : 'browse')
     setUseNow(true)
     setStartPicker(null)
     setRentalDays(1)
@@ -174,7 +163,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
     const end = start.add(rentalDays, 'day')
     createCart(toApiDatetime(start), toApiDatetime(end), rentalDays)
     setShowCreateModal(false)
-    setScreen(screenAfterCreate)
+    setScreen('browse')
   }
 
   // --- Cart actions ---
@@ -269,37 +258,6 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
     )
   }
 
-  // ---- QUICK RENTAL (typed-in entry) ----
-  if (screen === 'adhoc') {
-    return (
-      <>
-        <AdHocEntryScreen
-          cart={cart}
-          rentalDays={cart?.rentalDays ?? 1}
-          canAddCustomProducts={isOwner}
-          onSetUpDates={handleOpenCreateModal}
-          onAddItem={addItem}
-          onRemoveItem={removeItem}
-          onBrowse={() => setScreen('browse')}
-          onReview={() => setScreen('preview')}
-        />
-
-        <CreateCartModal
-          open={showCreateModal}
-          useNow={useNow}
-          startPicker={startPicker}
-          rentalDays={rentalDays}
-          error={createError}
-          onUseNowChange={setUseNow}
-          onStartPickerChange={setStartPicker}
-          onDaysChange={setRentalDays}
-          onConfirm={handleConfirmCreate}
-          onCancel={() => setShowCreateModal(false)}
-        />
-      </>
-    )
-  }
-
   // ---- BROWSE ----
   if (screen === 'browse') {
     const packageModalCartLine = packageModal
@@ -315,11 +273,6 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
           accent="Items"
           action={
             <Space>
-              {cameFromAdhoc && (
-                <Button size="small" onClick={() => setScreen('adhoc')}>
-                  Back to typed-in products
-                </Button>
-              )}
               <Tag color="blue">{dayjs(cart!.startDatetime).format('DD MMM HH:mm')} → {dayjs(cart!.endDatetime).format('DD MMM HH:mm')}</Tag>
               <Tag color="purple">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Tag>
             </Space>

@@ -11,7 +11,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: '/checkout',  label: 'New Rental',     roles: ['OWNER', 'EXECUTIVE'] },
-  { key: '/quick-rental', label: 'Quick Rental', roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/receipts',  label: 'Active Rentals',  roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/customers', label: 'Customers',       roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },

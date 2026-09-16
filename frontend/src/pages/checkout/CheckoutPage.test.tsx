@@ -139,94 +139,10 @@ describe('CheckoutPage mixed cart pricing', () => {
   })
 })
 
-describe('CheckoutPage quick rental entry screen', () => {
+describe('CheckoutPage custom product entry', () => {
   afterEach(() => {
     localStorage.removeItem(CART_STORAGE_KEY)
     useAuthStore.setState({ token: null, role: null })
-  })
-
-  it('opens on the typed-in entry screen with Add product and Browse inventory for an owner', async () => {
-    setAuth('OWNER')
-    seedCart([])
-
-    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
-    await flush()
-
-    expect(await screen.findByRole('button', { name: /add product/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /browse inventory/i })).toBeInTheDocument()
-  })
-
-  it('hides Add product for a non-owner and shows the explanatory note instead', async () => {
-    setAuth('EXECUTIVE')
-    seedCart([])
-
-    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
-    await flush()
-
-    expect(await screen.findByRole('button', { name: /browse inventory/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add product/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/only the owner can add products not in inventory/i)).toBeInTheDocument()
-  })
-
-  it('Browse inventory from the entry screen lands on the normal browse screen with the cart intact', async () => {
-    setAuth('OWNER')
-    seedCart([baseCartItem])
-    server.use(
-      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
-    )
-
-    const user = userEvent.setup()
-    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
-    await flush()
-
-    await user.click(await screen.findByRole('button', { name: /browse inventory/i }))
-    await flush()
-
-    expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
-    expect(screen.getByText('In cart ×1')).toBeInTheDocument()
-  })
-
-  it('lets an owner return from browse to the typed-in entry screen to correct or remove an ad-hoc line', async () => {
-    setAuth('OWNER')
-    const adHocItem: AdHocCartItem = {
-      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Fat-fingered Sherwani', size: null,
-      quantity: 1, deposit: 0, flatPrice: 5000,
-    }
-    seedCart([adHocItem])
-    server.use(
-      http.get('*/api/items', () => ok(page([]))),
-    )
-
-    const user = userEvent.setup()
-    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
-    await flush()
-
-    await user.click(await screen.findByRole('button', { name: /browse inventory/i }))
-    await flush()
-
-    // Before the fix, nothing on the browse or preview screens could get back to the entry
-    // screen -- a mistyped ad-hoc price was only correctable by deleting the whole cart.
-    await user.click(await screen.findByRole('button', { name: /back to typed-in products/i }))
-    await flush()
-
-    expect(await screen.findByText('Fat-fingered Sherwani')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
-  })
-
-  it('confirming dates from the ad-hoc screen returns to the ad-hoc screen, not browse', async () => {
-    setAuth('OWNER')
-    // no seeded cart — the entry screen's "Set rental dates" prompt path
-
-    const user = userEvent.setup()
-    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
-    await flush()
-
-    await user.click(await screen.findByRole('button', { name: /set rental dates/i }))
-    await user.click(await screen.findByRole('button', { name: 'Start Browsing' }))
-    await flush()
-
-    expect(await screen.findByRole('button', { name: /add product/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Checkout' })).not.toBeInTheDocument()
   })
 
   it('submits catalogue and ad-hoc lines as correctly shaped separate lists', async () => {
