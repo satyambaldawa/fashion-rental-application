@@ -63,6 +63,10 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
 
   const [screen, setScreen] = useState<Screen>(initialScreen ?? (cart ? 'browse' : 'home'))
   const [screenAfterCreate, setScreenAfterCreate] = useState<Screen>('browse')
+  // Stable for the life of this mount (a route change remounts CheckoutPage under a new `key`),
+  // so this never goes stale. Without it, once a Quick Rental cart leaves the entry screen there
+  // is no way back to correct or remove a typed-in line short of deleting the whole cart.
+  const cameFromAdhoc = initialScreen === 'adhoc'
 
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
@@ -220,6 +224,10 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
     }
   }
 
+  // Known, accepted gap: a non-owner submitting a cart with inherited ad-hoc lines (e.g. the
+  // owner built one and logged out without checking out, on the shared tablet) gets a clean 400
+  // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
+  // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
   function handleConfirmReceipt() {
     if (!selectedCustomer) return
     setConflictError(null)
@@ -306,6 +314,11 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
           accent="Items"
           action={
             <Space>
+              {cameFromAdhoc && (
+                <Button size="small" onClick={() => setScreen('adhoc')}>
+                  Back to typed-in products
+                </Button>
+              )}
               <Tag color="blue">{dayjs(cart!.startDatetime).format('DD MMM HH:mm')} → {dayjs(cart!.endDatetime).format('DD MMM HH:mm')}</Tag>
               <Tag color="purple">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Tag>
             </Space>

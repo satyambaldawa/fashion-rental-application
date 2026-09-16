@@ -186,6 +186,33 @@ describe('CheckoutPage quick rental entry screen', () => {
     expect(screen.getByText('In cart ×1')).toBeInTheDocument()
   })
 
+  it('lets an owner return from browse to the typed-in entry screen to correct or remove an ad-hoc line', async () => {
+    setAuth('OWNER')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Fat-fingered Sherwani', size: null,
+      quantity: 1, deposit: 0, flatPrice: 5000,
+    }
+    seedCart([adHocItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([]))),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: /browse inventory/i }))
+    await flush()
+
+    // Before the fix, nothing on the browse or preview screens could get back to the entry
+    // screen -- a mistyped ad-hoc price was only correctable by deleting the whole cart.
+    await user.click(await screen.findByRole('button', { name: /back to typed-in products/i }))
+    await flush()
+
+    expect(await screen.findByText('Fat-fingered Sherwani')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+  })
+
   it('confirming dates from the ad-hoc screen returns to the ad-hoc screen, not browse', async () => {
     setAuth('OWNER')
     // no seeded cart — the entry screen's "Set rental dates" prompt path
