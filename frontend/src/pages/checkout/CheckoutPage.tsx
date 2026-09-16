@@ -42,6 +42,7 @@ import type { ItemSummary } from '../../types/inventory'
 import type { CartItem, CheckoutRequest } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
+import { lineRentOf, perDayRateOf } from './cartPricing'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
@@ -164,6 +165,8 @@ export default function CheckoutPage() {
 
   function handleAddToCart(item: ItemSummary) {
     const cartItem: CartItem = {
+      kind: 'CATALOGUE',
+      lineKey: item.id,
       itemId: item.id,
       itemName: item.name,
       itemType: item.itemType,
@@ -191,7 +194,10 @@ export default function CheckoutPage() {
       customerId,
       startDatetime: cart!.startDatetime,
       endDatetime: cart!.endDatetime,
-      items: cart!.items.map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+      items: cart!.items
+        .filter((i): i is Extract<CartItem, { kind: 'CATALOGUE' }> => i.kind === 'CATALOGUE')
+        .map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+      adHocItems: [],
     }
   }
 
@@ -205,7 +211,7 @@ export default function CheckoutPage() {
 
   const cartCount = cart?.items.reduce((s, i) => s + i.quantity, 0) ?? 0
   const cartTotal = cart
-    ? cart.items.reduce((s, i) => s + i.rate * cart.rentalDays * i.quantity + i.deposit * i.quantity, 0)
+    ? cart.items.reduce((s, i) => s + lineRentOf(i, cart.rentalDays) + i.deposit * i.quantity, 0)
     : 0
 
   // ---- HOME ----
@@ -237,6 +243,10 @@ export default function CheckoutPage() {
 
   // ---- BROWSE ----
   if (screen === 'browse') {
+    const packageModalCartLine = packageModal
+      ? cart!.items.find(c => c.kind === 'CATALOGUE' && c.itemId === packageModal.id)
+      : undefined
+
     return (
       <div style={{ paddingBottom: 100 }}>
         {/* Header */}
@@ -356,7 +366,7 @@ export default function CheckoutPage() {
 
         <Row gutter={[16, 16]}>
           {availableItems.map(item => {
-            const inCart = cart!.items.find(c => c.itemId === item.id)
+            const inCart = cart!.items.find(c => c.kind === 'CATALOGUE' && c.itemId === item.id)
             return (
               <Col key={item.id} xs={24} sm={12} lg={8}>
                 <Card
@@ -385,7 +395,7 @@ export default function CheckoutPage() {
                         <Button
                           size="small"
                           icon={<MinusOutlined />}
-                          onClick={() => inCart.quantity === 1 ? removeItem(item.id) : updateQuantity(item.id, inCart.quantity - 1)}
+                          onClick={() => inCart.quantity === 1 ? removeItem(inCart.lineKey) : updateQuantity(inCart.lineKey, inCart.quantity - 1)}
                         />
                         <Typography.Text strong style={{ minWidth: 20, textAlign: 'center' }}>
                           {inCart.quantity}
@@ -394,7 +404,7 @@ export default function CheckoutPage() {
                           size="small"
                           icon={<PlusOutlined />}
                           disabled={inCart.quantity >= item.availableQuantity}
-                          onClick={() => updateQuantity(item.id, inCart.quantity + 1)}
+                          onClick={() => updateQuantity(inCart.lineKey, inCart.quantity + 1)}
                         />
                       </div>
                     ) : (
@@ -484,7 +494,8 @@ export default function CheckoutPage() {
           onAddToCart={handleAddToCart}
           onRemoveFromCart={removeItem}
           onUpdateQty={updateQuantity}
-          inCartQty={packageModal ? (cart!.items.find(c => c.itemId === packageModal.id)?.quantity ?? 0) : 0}
+          inCartQty={packageModalCartLine?.quantity ?? 0}
+          inCartLineKey={packageModalCartLine?.lineKey ?? null}
           maxQty={packageModal?.availableQuantity ?? 1}
         />
       </div>
@@ -501,11 +512,11 @@ export default function CheckoutPage() {
         title: 'Item',
         key: 'name',
         render: (_: unknown, r: CartItem) => {
-          const fresh = freshItemMap.get(r.itemId)
-          const category = fresh?.category ?? r.category
+          const fresh = r.kind === 'CATALOGUE' ? freshItemMap.get(r.itemId) : undefined
+          const category = r.kind === 'CATALOGUE' ? (fresh?.category ?? r.category) : null
           const size = fresh?.size ?? r.size ?? null
-          const componentNames = fresh?.componentNames ?? r.componentNames ?? null
-          const thumbnailUrl = r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null
+          const componentNames = r.kind === 'CATALOGUE' ? (fresh?.componentNames ?? r.componentNames ?? null) : null
+          const thumbnailUrl = r.kind === 'CATALOGUE' ? (r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null) : null
           return (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
@@ -522,13 +533,14 @@ export default function CheckoutPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
                   <span style={{ fontWeight: 500 }}>{r.itemName}</span>
-                  {r.itemType === 'PACKAGE'
+                  {r.kind === 'CATALOGUE' && (r.itemType === 'PACKAGE'
                     ? <Tag color="purple" style={{ margin: 0 }}>Combo</Tag>
-                    : <Tag style={{ margin: 0 }}>Individual</Tag>}
+                    : <Tag style={{ margin: 0 }}>Individual</Tag>)}
+                  {r.kind === 'ADHOC' && <Tag color="gold" style={{ margin: 0 }}>Custom</Tag>}
                   {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
                   {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
                 </div>
-                {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
+                {r.kind === 'CATALOGUE' && r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
                   <div style={{ fontSize: 12, paddingLeft: 2 }}>
                     <div style={{ color: '#722ed1', fontWeight: 500, marginBottom: 3 }}>Includes:</div>
                     {componentNames.map((name, i) => (
@@ -550,19 +562,26 @@ export default function CheckoutPage() {
         render: (qty: number, row: CartItem) => (
           <InputNumber
             min={1}
-            max={row.availableQuantity}
+            max={row.kind === 'CATALOGUE' ? row.availableQuantity : 100}
+            precision={0}
             value={qty}
-            onChange={(v) => { if (v && v >= 1) updateQuantity(row.itemId, v) }}
+            onChange={(v) => { if (v && v >= 1) updateQuantity(row.lineKey, v) }}
             size="small"
           />
         ),
       },
-      { title: 'Rate/day', key: 'rate', render: (_: unknown, r: CartItem) => formatCurrency(r.rate) },
+      {
+        title: 'Rate/day',
+        key: 'rate',
+        render: (_: unknown, r: CartItem) => r.kind === 'ADHOC'
+          ? <span>{formatCurrency(perDayRateOf(r, cart!.rentalDays))} <Typography.Text type="secondary" style={{ fontSize: 11 }}>(derived)</Typography.Text></span>
+          : formatCurrency(perDayRateOf(r, cart!.rentalDays)),
+      },
       { title: 'Deposit', key: 'deposit', render: (_: unknown, r: CartItem) => formatCurrency(r.deposit) },
       {
         title: 'Line Rent',
         key: 'lineRent',
-        render: (_: unknown, r: CartItem) => formatCurrency(r.rate * cart!.rentalDays * r.quantity),
+        render: (_: unknown, r: CartItem) => formatCurrency(lineRentOf(r, cart!.rentalDays)),
       },
       {
         title: 'Line Deposit',
@@ -571,7 +590,7 @@ export default function CheckoutPage() {
       },
     ]
 
-    const totalRent = cart!.items.reduce((s, i) => s + i.rate * cart!.rentalDays * i.quantity, 0)
+    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
     const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
     const grandTotal = totalRent + totalDeposit
 
@@ -588,7 +607,7 @@ export default function CheckoutPage() {
         <Table
           dataSource={cart!.items}
           columns={previewColumns}
-          rowKey="itemId"
+          rowKey="lineKey"
           pagination={false}
           size="small"
           scroll={{ x: 'max-content' }}
@@ -617,7 +636,7 @@ export default function CheckoutPage() {
 
   // ---- CUSTOMER SELECTION ----
   if (screen === 'customer') {
-    const totalRent = cart!.items.reduce((s, i) => s + i.rate * cart!.rentalDays * i.quantity, 0)
+    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
     const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
 
     return (
