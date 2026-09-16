@@ -25,6 +25,7 @@ import {
   ShoppingCartOutlined,
   PlusOutlined,
   MinusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
@@ -667,10 +668,15 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
       {
         title: '',
         key: 'remove',
+        width: 48,
         render: (_: unknown, r: CartItem) => (
-          <Button type="link" danger onClick={() => removeItem(r.lineKey)}>
-            Remove
-          </Button>
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            aria-label="Remove"
+            onClick={() => removeItem(r.lineKey)}
+          />
         ),
       },
     ]
@@ -680,7 +686,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
     const grandTotal = totalRent + totalDeposit
 
     return (
-      <div style={{ maxWidth: 860 }}>
+      <div style={{ maxWidth: 920 }}>
         <Typography.Title level={4}>Order Preview</Typography.Title>
 
         <Descriptions size="small" style={{ marginBottom: 16 }}>
