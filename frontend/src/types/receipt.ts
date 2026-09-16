@@ -3,10 +3,19 @@ export interface CheckoutLineItem {
   quantity: number
 }
 
+export interface AdHocLineItem {
+  name: string
+  size: string | null
+  flatPrice: number
+  deposit: number
+  quantity: number
+}
+
 export interface CheckoutPreviewRequest {
   startDatetime: string
   endDatetime: string
   items: CheckoutLineItem[]
+  adHocItems: AdHocLineItem[]
 }
 
 export interface CheckoutRequest {
@@ -14,11 +23,12 @@ export interface CheckoutRequest {
   startDatetime: string
   endDatetime: string
   items: CheckoutLineItem[]
+  adHocItems: AdHocLineItem[]
   notes?: string
 }
 
 export interface PreviewLineItem {
-  itemId: string
+  itemId: string | null
   itemName: string
   rate: number
   deposit: number
@@ -91,19 +101,31 @@ export interface ReceiptSummary {
   overdueHours: number | null
 }
 
-export interface CartItem {
-  itemId: string
+interface CartItemBase {
+  lineKey: string          // stable cart key and React key
   itemName: string
+  size: string | null
+  quantity: number
+  deposit: number          // per unit
+}
+
+export interface CatalogueCartItem extends CartItemBase {
+  kind: 'CATALOGUE'
+  itemId: string
   itemType: 'INDIVIDUAL' | 'PACKAGE'
   category: string
-  size: string | null
   componentNames: string[] | null   // null for INDIVIDUAL; ["Name ×qty", ...] for PACKAGE
   thumbnailUrl: string | null
-  rate: number
-  deposit: number
-  quantity: number
+  rate: number             // per day
   availableQuantity: number
 }
+
+export interface AdHocCartItem extends CartItemBase {
+  kind: 'ADHOC'
+  flatPrice: number        // per unit, for the WHOLE rental — not per day
+}
+
+export type CartItem = CatalogueCartItem | AdHocCartItem
 
 export interface Cart {
   startDatetime: string   // ISO 8601 with IST offset
