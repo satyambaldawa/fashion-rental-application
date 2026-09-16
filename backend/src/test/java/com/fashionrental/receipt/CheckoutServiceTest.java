@@ -67,7 +67,8 @@ class CheckoutServiceTest {
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, END,
-                List.of(new CheckoutLineItem(itemId, 2))
+                List.of(new CheckoutLineItem(itemId, 2)),
+                List.of()
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -94,7 +95,8 @@ class CheckoutServiceTest {
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, END,
-                List.of(new CheckoutLineItem(itemId, 2)) // requesting 2, only 1 available
+                List.of(new CheckoutLineItem(itemId, 2)), // requesting 2, only 1 available
+                List.of()
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -109,7 +111,8 @@ class CheckoutServiceTest {
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, end,
-                List.of(new CheckoutLineItem(UUID.randomUUID(), 1))
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
+                List.of()
         );
 
         assertThatThrownBy(() -> checkoutService.preview(request))
@@ -142,6 +145,7 @@ class CheckoutServiceTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now().plusDays(2),
                 List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(),
                 null
         );
 
@@ -182,6 +186,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(),
                 null
         );
 
@@ -200,6 +205,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
+                List.of(),
                 null
         );
 
@@ -232,6 +238,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(),
                 null
         );
 
@@ -276,6 +283,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(packageId, 1)),
+                List.of(),
                 null
         );
 
@@ -345,6 +353,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(packageId, 2)), // renting 2 packages
+                List.of(),
                 null
         );
 

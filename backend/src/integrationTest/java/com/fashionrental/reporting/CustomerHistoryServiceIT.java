@@ -77,6 +77,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
         ReceiptResponse packageReceipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(weddingPackage.getId(), 1)),
+                List.of(),
                 null
         ));
         List<ReturnLineItem> returnLines = packageReceipt.lineItems().stream()
@@ -90,6 +91,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
         ReceiptResponse plainReceipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(sherwani.getId(), 1)),
+                List.of(),
                 null
         ));
 
