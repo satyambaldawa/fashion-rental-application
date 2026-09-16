@@ -301,4 +301,29 @@ describe('CheckoutPage quick rental entry screen', () => {
     // baseCartItem: 300/day × 1 day × qty 1 = 300. New ad-hoc line: 250 flat × qty 1 = 250. Total 550.
     expect(screen.getByText('₹550')).toBeInTheDocument()
   })
+
+  it('reaches Order Preview from an empty cart, with Confirm & Proceed disabled until a product is added', async () => {
+    setAuth('OWNER')
+    seedCart([])
+    server.use(
+      http.get('*/api/items', () => ok(page([]))),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeDisabled()
+
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeEnabled()
+  })
 })

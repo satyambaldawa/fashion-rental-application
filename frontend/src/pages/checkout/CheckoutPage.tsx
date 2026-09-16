@@ -548,7 +548,6 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
             <Button danger onClick={handleDeleteCart}>Delete Cart</Button>
             <Button
               type="primary"
-              disabled={cartCount === 0}
               onClick={() => setScreen('preview')}
             >
               Checkout
@@ -708,7 +707,7 @@ export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) 
               Add custom product
             </Button>
           )}
-          <Button type="primary" onClick={() => setScreen('customer')}>
+          <Button type="primary" disabled={cart!.items.length === 0} onClick={() => setScreen('customer')}>
             Confirm & Proceed
           </Button>
         </Space>
