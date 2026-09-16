@@ -39,16 +39,31 @@ You are the **orchestrator** for issue **#$1**. Drive it end-to-end through the 
   a migration will therefore be refused. Write the body to a file and use `gh pr create --body-file`.
 - **Subagents are non-interactive.** A subagent that triggers a permission prompt is killed mid-call
   and returns an empty result, which reads exactly like a model failure. Consequences:
-  - **There is no `Grep` or `Glob` tool in this environment.** Subagents search with read-only
-    `Bash` (`grep -rn`, `find`, `ls`, `cat`, `git log/diff/show`), which is allow-listed in
-    `.claude/settings.json`. Keep that allowlist intact or every review dies again.
+  - **Tell every subagent to use `Read`/`Grep`/`Glob` and to avoid `Bash` entirely.** Subagents
+    have `Grep` and `Glob` even though you do not, and those need no permission. `Bash` does: the
+    allowlist in `.claude/settings.json` matches **simple single commands only**, so `a && b`, a
+    pipe, or a `cat` of a path outside the repo stops matching, prompts, and kills the agent
+    mid-call. This killed three dispatches across #99 and #100 before it was understood.
+  - **Personas must not write memory.** `memory: project` gives them their notes read-only; a
+    `Write`/`Edit` to `.claude/agent-memory/` prompts and kills them, and allow-listing the path
+    did not change that. Their frontmatter grants no `Write`/`Edit`; keep it that way. Anything
+    worth remembering comes back in the verdict under `### For the record`.
   - **Anything outside the read-only set, you must hand them.** Before dispatching a review, write
     the plan (and, in the post-build loop, `git diff`) to a file and pass the **path** in the
     prompt. Never assume a subagent can run a build or a test.
+  - **Handoff files must be opened with `Read`, never `cat`.** Scratchpad paths live outside the
+    repo; a subagent's `Read` reaches them but `Bash cat` on the same path raises a prompt and
+    kills it. Say so explicitly in every dispatch prompt that names a path.
+  - **Diagnose an empty result from the transcript, never by guessing.** `guard.py` returning
+    `defer` means the hook allowed it and the *permission layer* refused — do not blame the hook.
+    Find the last `tool_use` with no matching `tool_result`: that call names the exact problem.
   - If a subagent returns nothing or only a preamble, treat it as **infrastructure failure, not a
-    verdict** — say so at the gate and never present its absence as an approval. Inspect its
-    transcript under `~/.claude/projects/<project>/<session>/subagents/agent-<id>.jsonl`; a final
-    `tool_use` with no matching `tool_result` means it hit a permission prompt.
+    verdict** — say so at the gate and never present its absence as an approval. Read its
+    transcript (the task notification names the output file; each line is a JSONL event) and find
+    the last `tool_use` id with no matching `tool_result` — that call hit a permission prompt, and
+    it names the exact tool to allow-list. Then **resume the agent with `SendMessage`** telling it
+    what killed it and to emit the verdict directly; its analysis is still in its context, so this
+    recovers the review for a fraction of a re-run.
 - **Honor the repo's rules** in `CLAUDE.md` (no secrets, no unrequested scope, money = INTEGER, etc.).
 - **Never push to `main`.** Work happens on a feature branch; the finale is a PR.
 
