@@ -5,7 +5,18 @@ import { renderWithProviders, flush, screen, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import CheckoutPage from './CheckoutPage'
+import { useAuthStore } from '../../store/authStore'
 import type { Cart, CartItem, CatalogueCartItem, AdHocCartItem } from '../../types/receipt'
+
+function jwtWithRole(role: string): string {
+  const encode = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return `${encode({ alg: 'HS256' })}.${encode({ sub: 'user', role, exp: 9999999999 })}.signature`
+}
+
+function setAuth(role: 'OWNER' | 'EXECUTIVE') {
+  useAuthStore.setState({ token: jwtWithRole(role), role })
+}
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
 const page = (content: unknown[]) => ({
@@ -125,5 +136,121 @@ describe('CheckoutPage mixed cart pricing', () => {
     expect(await screen.findByText('Custom Lehenga')).toBeInTheDocument()
     expect(screen.getByText('₹1,900')).toBeInTheDocument()
     expect(screen.queryByText('₹3,900')).not.toBeInTheDocument()
+  })
+})
+
+describe('CheckoutPage quick rental entry screen', () => {
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  it('opens on the typed-in entry screen with Add product and Browse inventory for an owner', async () => {
+    setAuth('OWNER')
+    seedCart([])
+
+    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /add product/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /browse inventory/i })).toBeInTheDocument()
+  })
+
+  it('hides Add product for a non-owner and shows the explanatory note instead', async () => {
+    setAuth('EXECUTIVE')
+    seedCart([])
+
+    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /browse inventory/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add product/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/only the owner can add products not in inventory/i)).toBeInTheDocument()
+  })
+
+  it('Browse inventory from the entry screen lands on the normal browse screen with the cart intact', async () => {
+    setAuth('OWNER')
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: /browse inventory/i }))
+    await flush()
+
+    expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
+    expect(screen.getByText('In cart ×1')).toBeInTheDocument()
+  })
+
+  it('confirming dates from the ad-hoc screen returns to the ad-hoc screen, not browse', async () => {
+    setAuth('OWNER')
+    // no seeded cart — the entry screen's "Set rental dates" prompt path
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage initialScreen="adhoc" />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: /set rental dates/i }))
+    await user.click(await screen.findByRole('button', { name: 'Start Browsing' }))
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /add product/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Checkout' })).not.toBeInTheDocument()
+  })
+
+  it('submits catalogue and ad-hoc lines as correctly shaped separate lists', async () => {
+    setAuth('OWNER')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Custom Lehenga', size: 'Free size',
+      quantity: 2, deposit: 200, flatPrice: 500,
+    }
+    seedCart([{ ...baseCartItem }, adHocItem])
+
+    let capturedBody: unknown = null
+    server.use(
+      http.get('*/api/customers/cust-1', () => ok(f.aCustomer({ id: 'cust-1' }))),
+      http.post('*/api/receipts', async ({ request }) => {
+        capturedBody = await request.json()
+        return ok(f.aReceipt())
+      }),
+    )
+
+    // path is given so a post-create navigate() unmounts CheckoutPage the same way <Routes>
+    // does in the real app -- without it, nothing intercepts the route change and CheckoutPage
+    // re-renders on the now-cart-less 'customer' screen instead of being swapped out.
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout?newCustomerId=cust-1', path: '/checkout' })
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Create Receipt' }))
+    await flush()
+
+    expect(capturedBody).toMatchObject({
+      items: [{ itemId: 'item-1', quantity: 1 }],
+      adHocItems: [{ name: 'Custom Lehenga', size: 'Free size', flatPrice: 500, deposit: 200, quantity: 2 }],
+    })
+  })
+
+  it('shows Add custom product on the browse screen for an owner and hides it for a non-owner', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    setAuth('OWNER')
+    const owner = renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(await screen.findByRole('button', { name: /add custom product/i })).toBeInTheDocument()
+    owner.unmount()
+
+    setAuth('EXECUTIVE')
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add custom product/i })).not.toBeInTheDocument()
   })
 })

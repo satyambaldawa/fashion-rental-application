@@ -39,21 +39,30 @@ import CustomerSearch from '../../components/common/CustomerSearch'
 import { customersApi } from '../../api/customers'
 import type { CustomerSummary } from '../../types/customer'
 import type { ItemSummary } from '../../types/inventory'
-import type { CartItem, CheckoutRequest } from '../../types/receipt'
+import type { CartItem, CatalogueCartItem, AdHocCartItem, CheckoutRequest } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
+import AdHocItemModal from './AdHocItemModal'
+import AdHocEntryScreen from './AdHocEntryScreen'
 import { lineRentOf, perDayRateOf } from './cartPricing'
+import { useAuth } from '../../hooks/useAuth'
 
-type Screen = 'home' | 'browse' | 'preview' | 'customer'
+type Screen = 'home' | 'adhoc' | 'browse' | 'preview' | 'customer'
 
-export default function CheckoutPage() {
+interface CheckoutPageProps {
+  initialScreen?: Screen
+}
+
+export default function CheckoutPage({ initialScreen }: CheckoutPageProps = {}) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
   const isMobile = !screens.lg
+  const { isOwner } = useAuth()
   const { cart, createCart, addItem, removeItem, updateQuantity, clearCart } = useCart()
 
-  const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
+  const [screen, setScreen] = useState<Screen>(initialScreen ?? (cart ? 'browse' : 'home'))
+  const [screenAfterCreate, setScreenAfterCreate] = useState<Screen>('browse')
 
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
@@ -92,6 +101,7 @@ export default function CheckoutPage() {
   const [itemType, setItemType] = useState<'INDIVIDUAL' | 'PACKAGE' | undefined>(undefined)
   const [browsePage, setBrowsePage] = useState(0)
   const [packageModal, setPackageModal] = useState<ItemSummary | null>(null)
+  const [showAdHocModal, setShowAdHocModal] = useState(false)
 
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
@@ -142,6 +152,7 @@ export default function CheckoutPage() {
   // --- Create cart helpers ---
 
   function handleOpenCreateModal() {
+    setScreenAfterCreate(screen === 'adhoc' ? 'adhoc' : 'browse')
     setUseNow(true)
     setStartPicker(null)
     setRentalDays(1)
@@ -158,7 +169,7 @@ export default function CheckoutPage() {
     const end = start.add(rentalDays, 'day')
     createCart(toApiDatetime(start), toApiDatetime(end), rentalDays)
     setShowCreateModal(false)
-    setScreen('browse')
+    setScreen(screenAfterCreate)
   }
 
   // --- Cart actions ---
@@ -195,9 +206,17 @@ export default function CheckoutPage() {
       startDatetime: cart!.startDatetime,
       endDatetime: cart!.endDatetime,
       items: cart!.items
-        .filter((i): i is Extract<CartItem, { kind: 'CATALOGUE' }> => i.kind === 'CATALOGUE')
+        .filter((i): i is CatalogueCartItem => i.kind === 'CATALOGUE')
         .map(i => ({ itemId: i.itemId, quantity: i.quantity })),
-      adHocItems: [],
+      adHocItems: cart!.items
+        .filter((i): i is AdHocCartItem => i.kind === 'ADHOC')
+        .map(i => ({
+          name: i.itemName,
+          size: i.size,
+          flatPrice: i.flatPrice,
+          deposit: i.deposit,
+          quantity: i.quantity,
+        })),
     }
   }
 
@@ -238,6 +257,37 @@ export default function CheckoutPage() {
           onCancel={() => setShowCreateModal(false)}
         />
       </div>
+    )
+  }
+
+  // ---- QUICK RENTAL (typed-in entry) ----
+  if (screen === 'adhoc') {
+    return (
+      <>
+        <AdHocEntryScreen
+          cart={cart}
+          rentalDays={cart?.rentalDays ?? 1}
+          canAddCustomProducts={isOwner}
+          onSetUpDates={handleOpenCreateModal}
+          onAddItem={addItem}
+          onRemoveItem={removeItem}
+          onBrowse={() => setScreen('browse')}
+          onReview={() => setScreen('preview')}
+        />
+
+        <CreateCartModal
+          open={showCreateModal}
+          useNow={useNow}
+          startPicker={startPicker}
+          rentalDays={rentalDays}
+          error={createError}
+          onUseNowChange={setUseNow}
+          onStartPickerChange={setStartPicker}
+          onDaysChange={setRentalDays}
+          onConfirm={handleConfirmCreate}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      </>
     )
   }
 
@@ -353,6 +403,11 @@ export default function CheckoutPage() {
                 </button>
               )
             })}
+            {isOwner && (
+              <Button icon={<PlusOutlined />} onClick={() => setShowAdHocModal(true)}>
+                Add custom product
+              </Button>
+            )}
           </Space>
         </div>
 
@@ -498,6 +553,15 @@ export default function CheckoutPage() {
           inCartLineKey={packageModalCartLine?.lineKey ?? null}
           maxQty={packageModal?.availableQuantity ?? 1}
         />
+
+        {isOwner && (
+          <AdHocItemModal
+            open={showAdHocModal}
+            rentalDays={cart!.rentalDays}
+            onCancel={() => setShowAdHocModal(false)}
+            onAdd={(item) => { addItem(item); setShowAdHocModal(false) }}
+          />
+        )}
       </div>
     )
   }
