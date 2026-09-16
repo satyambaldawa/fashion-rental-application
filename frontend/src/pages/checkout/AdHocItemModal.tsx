@@ -1,6 +1,7 @@
 import { Form, Input, InputNumber, Modal, Typography } from 'antd'
 import type { AdHocCartItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import { deriveFlooredPerDayRate, MAX_AD_HOC_QUANTITY } from './cartPricing'
 
 interface AdHocItemModalProps {
   open: boolean
@@ -17,14 +18,23 @@ interface FormValues {
   quantity: number
 }
 
+// crypto.randomUUID is only available in a secure context (HTTPS, or localhost). Plain HTTP on a
+// LAN IP -- a realistic way this app reaches an on-prem box from a tablet -- leaves it undefined;
+// falling back keeps "Add to cart" from silently doing nothing in that case.
+function newLineKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `adhoc-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export default function AdHocItemModal({ open, rentalDays, onCancel, onAdd }: AdHocItemModalProps) {
   const [form] = Form.useForm<FormValues>()
   const flatPrice = Form.useWatch('flatPrice', form)
 
   // Mirrors CheckoutService#derivePerDayRate's ₹1 floor, so this preview never shows a
   // late-fee basis (e.g. ₹0/day) that the backend would never actually persist.
-  const perDayRate =
-    typeof flatPrice === 'number' ? Math.max(1, Math.round(flatPrice / Math.max(1, rentalDays))) : null
+  const perDayRate = typeof flatPrice === 'number' ? deriveFlooredPerDayRate(flatPrice, rentalDays) : null
 
   async function handleSubmit() {
     let values: FormValues
@@ -35,7 +45,7 @@ export default function AdHocItemModal({ open, rentalDays, onCancel, onAdd }: Ad
     }
     onAdd({
       kind: 'ADHOC',
-      lineKey: crypto.randomUUID(),
+      lineKey: newLineKey(),
       itemName: values.itemName.trim(),
       size: values.size?.trim() || null,
       flatPrice: values.flatPrice,
@@ -95,7 +105,7 @@ export default function AdHocItemModal({ open, rentalDays, onCancel, onAdd }: Ad
           name="quantity"
           rules={[{ required: true, message: 'Enter a quantity' }]}
         >
-          <InputNumber min={1} max={100} precision={0} style={{ width: '100%' }} />
+          <InputNumber min={1} max={MAX_AD_HOC_QUANTITY} precision={0} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </Modal>

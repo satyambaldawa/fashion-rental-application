@@ -6,13 +6,9 @@ import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import CheckoutPage from './CheckoutPage'
 import { useAuthStore } from '../../store/authStore'
+import { STORAGE_KEY as CART_STORAGE_KEY } from '../../hooks/useCart'
+import { jwtWithRole } from '../../test/auth'
 import type { Cart, CartItem, CatalogueCartItem, AdHocCartItem } from '../../types/receipt'
-
-function jwtWithRole(role: string): string {
-  const encode = (obj: object) =>
-    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  return `${encode({ alg: 'HS256' })}.${encode({ sub: 'user', role, exp: 9999999999 })}.signature`
-}
 
 function setAuth(role: 'OWNER' | 'EXECUTIVE') {
   useAuthStore.setState({ token: jwtWithRole(role), role })
@@ -22,8 +18,6 @@ const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: nu
 const page = (content: unknown[]) => ({
   content, totalElements: content.length, totalPages: 1, number: 0, size: 20,
 })
-
-const CART_STORAGE_KEY = 'rental_cart_v2'
 
 const baseCartItem: CatalogueCartItem = {
   kind: 'CATALOGUE',
@@ -176,6 +170,36 @@ describe('CheckoutPage custom product entry', () => {
       items: [{ itemId: 'item-1', quantity: 1 }],
       adHocItems: [{ name: 'Custom Lehenga', size: 'Free size', flatPrice: 500, deposit: 200, quantity: 2 }],
     })
+  })
+
+  it('surfaces the backend 400 when a non-owner submits a cart with an inherited ad-hoc line', async () => {
+    // Accepted gap (documented on handleConfirmReceipt): the UI only blocks *creating* ad-hoc
+    // lines for a non-owner, not *submitting* a cart that already has one -- e.g. inherited from
+    // a shared device where the owner built one and logged out. This proves that path degrades to
+    // a readable error via conflictError rather than an unhandled rejection or a silent no-op.
+    setAuth('EXECUTIVE')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Inherited Lehenga', size: null,
+      quantity: 1, deposit: 1000, flatPrice: 500,
+    }
+    seedCart([adHocItem])
+
+    server.use(
+      http.get('*/api/customers/cust-1', () => ok(f.aCustomer({ id: 'cust-1' }))),
+      http.post('*/api/receipts', () => HttpResponse.json(
+        { success: false, data: null, error: 'Ad-hoc items can only be checked out by the owner.' },
+        { status: 400 },
+      )),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout?newCustomerId=cust-1', path: '/checkout' })
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Create Receipt' }))
+    await flush()
+
+    expect(await screen.findByText('Ad-hoc items can only be checked out by the owner.')).toBeInTheDocument()
   })
 
   it('shows Add custom product on the browse screen for an owner and hides it for a non-owner', async () => {

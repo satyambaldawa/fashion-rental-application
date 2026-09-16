@@ -44,7 +44,7 @@ import type { CartItem, CatalogueCartItem, AdHocCartItem, CheckoutRequest } from
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
-import { lineRentOf, perDayRateOf } from './cartPricing'
+import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
@@ -592,7 +592,7 @@ export default function CheckoutPage() {
         render: (qty: number, row: CartItem) => (
           <InputNumber
             min={1}
-            max={row.kind === 'CATALOGUE' ? row.availableQuantity : 100}
+            max={row.kind === 'CATALOGUE' ? row.availableQuantity : MAX_AD_HOC_QUANTITY}
             precision={0}
             value={qty}
             onChange={(v) => { if (v && v >= 1) updateQuantity(row.lineKey, v) }}

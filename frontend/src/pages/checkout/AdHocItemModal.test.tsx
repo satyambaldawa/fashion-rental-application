@@ -2,11 +2,16 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdHocItemModal from './AdHocItemModal'
+import type { AdHocCartItem } from '../../types/receipt'
+
+function renderModal(onAdd: (item: AdHocCartItem) => void = () => {}) {
+  render(<AdHocItemModal open rentalDays={3} onCancel={() => {}} onAdd={onAdd} />)
+}
 
 describe('AdHocItemModal', () => {
   it('emits an ad-hoc cart item with a generated lineKey', async () => {
     const onAdd = vi.fn()
-    render(<AdHocItemModal open rentalDays={3} onCancel={() => {}} onAdd={onAdd} />)
+    renderModal(onAdd)
 
     await userEvent.type(screen.getByLabelText(/product name/i), 'Walk-in Lehenga')
     await userEvent.type(screen.getByLabelText(/size/i), 'Free size')
@@ -25,7 +30,7 @@ describe('AdHocItemModal', () => {
   })
 
   it('shows the derived per-day rate used for late fees', async () => {
-    render(<AdHocItemModal open rentalDays={3} onCancel={() => {}} onAdd={() => {}} />)
+    renderModal()
 
     await userEvent.clear(screen.getByLabelText(/total price/i))
     await userEvent.type(screen.getByLabelText(/total price/i), '500')
@@ -35,7 +40,7 @@ describe('AdHocItemModal', () => {
 
   it('refuses to submit without a product name, even when every other field is filled', async () => {
     const onAdd = vi.fn()
-    render(<AdHocItemModal open rentalDays={3} onCancel={() => {}} onAdd={onAdd} />)
+    renderModal(onAdd)
 
     await userEvent.clear(screen.getByLabelText(/total price/i))
     await userEvent.type(screen.getByLabelText(/total price/i), '500')
@@ -46,7 +51,7 @@ describe('AdHocItemModal', () => {
 
   it('refuses to submit a whitespace-only product name', async () => {
     const onAdd = vi.fn()
-    render(<AdHocItemModal open rentalDays={3} onCancel={() => {}} onAdd={onAdd} />)
+    renderModal(onAdd)
 
     await userEvent.type(screen.getByLabelText(/product name/i), '   ')
     await userEvent.clear(screen.getByLabelText(/total price/i))

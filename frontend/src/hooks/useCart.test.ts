@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { useCart } from './useCart'
+import { useCart, STORAGE_KEY, LEGACY_STORAGE_KEY } from './useCart'
 import type { CatalogueCartItem, AdHocCartItem } from '../types/receipt'
 
 const aCatalogueItem = (overrides: Partial<CatalogueCartItem> = {}): CatalogueCartItem => ({
@@ -53,23 +53,23 @@ describe('useCart', () => {
     expect(result.current.cart?.items[0].lineKey).toBe('adhoc-2')
   })
 
-  it('persists to and loads from localStorage under rental_cart_v2', () => {
+  it('persists to and loads from localStorage under the current storage key', () => {
     const first = renderHook(() => useCart())
     act(() => first.result.current.createCart('s', 'e', 2))
-    expect(JSON.parse(localStorage.getItem('rental_cart_v2')!).rentalDays).toBe(2)
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).rentalDays).toBe(2)
 
     const second = renderHook(() => useCart())
     expect(second.result.current.cart?.rentalDays).toBe(2)
   })
 
-  it('ignores a v1 cart under the old rental_cart key rather than parsing it', () => {
-    localStorage.setItem('rental_cart', JSON.stringify({ startDatetime: 's', endDatetime: 'e', rentalDays: 3, items: [] }))
+  it('ignores a v1 cart under the legacy storage key rather than parsing it', () => {
+    localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ startDatetime: 's', endDatetime: 'e', rentalDays: 3, items: [] }))
     const { result } = renderHook(() => useCart())
     expect(result.current.cart).toBeNull()
   })
 
   it('recovers from corrupt localStorage by starting empty', () => {
-    localStorage.setItem('rental_cart_v2', 'not-json')
+    localStorage.setItem(STORAGE_KEY, 'not-json')
     const { result } = renderHook(() => useCart())
     expect(result.current.cart).toBeNull()
   })

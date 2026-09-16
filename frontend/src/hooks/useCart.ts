@@ -3,8 +3,8 @@ import type { Cart, CartItem } from '../types/receipt'
 
 export type { Cart, CartItem }
 
-const STORAGE_KEY = 'rental_cart_v2'
-const LEGACY_STORAGE_KEY = 'rental_cart'
+export const STORAGE_KEY = 'rental_cart_v2'
+export const LEGACY_STORAGE_KEY = 'rental_cart'
 
 function loadCart(): Cart | null {
   try {
