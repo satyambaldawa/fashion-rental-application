@@ -48,6 +48,12 @@ public class Receipt {
     @Column(name = "total_deposit", nullable = false)
     private int totalDeposit;
 
+    @Column(name = "coupon_code", length = 32)
+    private String couponCode;
+
+    @Column(name = "discount_amount", nullable = false)
+    private int discountAmount = 0;
+
     @Column(name = "grand_total", nullable = false)
     private int grandTotal;
 
@@ -95,6 +101,10 @@ public class Receipt {
     public void setTotalRent(int totalRent) { this.totalRent = totalRent; }
     public int getTotalDeposit() { return totalDeposit; }
     public void setTotalDeposit(int totalDeposit) { this.totalDeposit = totalDeposit; }
+    public String getCouponCode() { return couponCode; }
+    public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+    public int getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(int discountAmount) { this.discountAmount = discountAmount; }
     public int getGrandTotal() { return grandTotal; }
     public void setGrandTotal(int grandTotal) { this.grandTotal = grandTotal; }
     public Status getStatus() { return status; }
