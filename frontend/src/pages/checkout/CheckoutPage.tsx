@@ -25,6 +25,7 @@ import {
   ShoppingCartOutlined,
   PlusOutlined,
   MinusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
@@ -39,9 +40,12 @@ import CustomerSearch from '../../components/common/CustomerSearch'
 import { customersApi } from '../../api/customers'
 import type { CustomerSummary } from '../../types/customer'
 import type { ItemSummary } from '../../types/inventory'
-import type { CartItem, CheckoutRequest } from '../../types/receipt'
+import type { CartItem, CatalogueCartItem, AdHocCartItem, CheckoutRequest } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
+import AdHocItemModal from './AdHocItemModal'
+import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
+import { useAuth } from '../../hooks/useAuth'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
@@ -50,6 +54,7 @@ export default function CheckoutPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
   const isMobile = !screens.lg
+  const { isOwner } = useAuth()
   const { cart, createCart, addItem, removeItem, updateQuantity, clearCart } = useCart()
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
@@ -91,6 +96,7 @@ export default function CheckoutPage() {
   const [itemType, setItemType] = useState<'INDIVIDUAL' | 'PACKAGE' | undefined>(undefined)
   const [browsePage, setBrowsePage] = useState(0)
   const [packageModal, setPackageModal] = useState<ItemSummary | null>(null)
+  const [showAdHocModal, setShowAdHocModal] = useState(false)
 
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
@@ -164,6 +170,8 @@ export default function CheckoutPage() {
 
   function handleAddToCart(item: ItemSummary) {
     const cartItem: CartItem = {
+      kind: 'CATALOGUE',
+      lineKey: item.id,
       itemId: item.id,
       itemName: item.name,
       itemType: item.itemType,
@@ -191,10 +199,25 @@ export default function CheckoutPage() {
       customerId,
       startDatetime: cart!.startDatetime,
       endDatetime: cart!.endDatetime,
-      items: cart!.items.map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+      items: cart!.items
+        .filter((i): i is CatalogueCartItem => i.kind === 'CATALOGUE')
+        .map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+      adHocItems: cart!.items
+        .filter((i): i is AdHocCartItem => i.kind === 'ADHOC')
+        .map(i => ({
+          name: i.itemName,
+          size: i.size,
+          flatPrice: i.flatPrice,
+          deposit: i.deposit,
+          quantity: i.quantity,
+        })),
     }
   }
 
+  // Known, accepted gap: a non-owner submitting a cart with inherited ad-hoc lines (e.g. the
+  // owner built one and logged out without checking out, on the shared tablet) gets a clean 400
+  // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
+  // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
   function handleConfirmReceipt() {
     if (!selectedCustomer) return
     setConflictError(null)
@@ -205,7 +228,7 @@ export default function CheckoutPage() {
 
   const cartCount = cart?.items.reduce((s, i) => s + i.quantity, 0) ?? 0
   const cartTotal = cart
-    ? cart.items.reduce((s, i) => s + i.rate * cart.rentalDays * i.quantity + i.deposit * i.quantity, 0)
+    ? cart.items.reduce((s, i) => s + lineRentOf(i, cart.rentalDays) + i.deposit * i.quantity, 0)
     : 0
 
   // ---- HOME ----
@@ -237,6 +260,10 @@ export default function CheckoutPage() {
 
   // ---- BROWSE ----
   if (screen === 'browse') {
+    const packageModalCartLine = packageModal
+      ? cart!.items.find(c => c.kind === 'CATALOGUE' && c.itemId === packageModal.id)
+      : undefined
+
     return (
       <div style={{ paddingBottom: 100 }}>
         {/* Header */}
@@ -343,6 +370,11 @@ export default function CheckoutPage() {
                 </button>
               )
             })}
+            {isOwner && (
+              <Button icon={<PlusOutlined />} onClick={() => setShowAdHocModal(true)}>
+                Add custom product
+              </Button>
+            )}
           </Space>
         </div>
 
@@ -356,7 +388,7 @@ export default function CheckoutPage() {
 
         <Row gutter={[16, 16]}>
           {availableItems.map(item => {
-            const inCart = cart!.items.find(c => c.itemId === item.id)
+            const inCart = cart!.items.find(c => c.kind === 'CATALOGUE' && c.itemId === item.id)
             return (
               <Col key={item.id} xs={24} sm={12} lg={8}>
                 <Card
@@ -385,7 +417,7 @@ export default function CheckoutPage() {
                         <Button
                           size="small"
                           icon={<MinusOutlined />}
-                          onClick={() => inCart.quantity === 1 ? removeItem(item.id) : updateQuantity(item.id, inCart.quantity - 1)}
+                          onClick={() => inCart.quantity === 1 ? removeItem(inCart.lineKey) : updateQuantity(inCart.lineKey, inCart.quantity - 1)}
                         />
                         <Typography.Text strong style={{ minWidth: 20, textAlign: 'center' }}>
                           {inCart.quantity}
@@ -394,7 +426,7 @@ export default function CheckoutPage() {
                           size="small"
                           icon={<PlusOutlined />}
                           disabled={inCart.quantity >= item.availableQuantity}
-                          onClick={() => updateQuantity(item.id, inCart.quantity + 1)}
+                          onClick={() => updateQuantity(inCart.lineKey, inCart.quantity + 1)}
                         />
                       </div>
                     ) : (
@@ -470,7 +502,6 @@ export default function CheckoutPage() {
             <Button danger onClick={handleDeleteCart}>Delete Cart</Button>
             <Button
               type="primary"
-              disabled={cartCount === 0}
               onClick={() => setScreen('preview')}
             >
               Checkout
@@ -484,9 +515,19 @@ export default function CheckoutPage() {
           onAddToCart={handleAddToCart}
           onRemoveFromCart={removeItem}
           onUpdateQty={updateQuantity}
-          inCartQty={packageModal ? (cart!.items.find(c => c.itemId === packageModal.id)?.quantity ?? 0) : 0}
+          inCartQty={packageModalCartLine?.quantity ?? 0}
+          inCartLineKey={packageModalCartLine?.lineKey ?? null}
           maxQty={packageModal?.availableQuantity ?? 1}
         />
+
+        {isOwner && (
+          <AdHocItemModal
+            open={showAdHocModal}
+            rentalDays={cart!.rentalDays}
+            onCancel={() => setShowAdHocModal(false)}
+            onAdd={(item) => { addItem(item); setShowAdHocModal(false) }}
+          />
+        )}
       </div>
     )
   }
@@ -501,11 +542,11 @@ export default function CheckoutPage() {
         title: 'Item',
         key: 'name',
         render: (_: unknown, r: CartItem) => {
-          const fresh = freshItemMap.get(r.itemId)
-          const category = fresh?.category ?? r.category
+          const fresh = r.kind === 'CATALOGUE' ? freshItemMap.get(r.itemId) : undefined
+          const category = r.kind === 'CATALOGUE' ? (fresh?.category ?? r.category) : null
           const size = fresh?.size ?? r.size ?? null
-          const componentNames = fresh?.componentNames ?? r.componentNames ?? null
-          const thumbnailUrl = r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null
+          const componentNames = r.kind === 'CATALOGUE' ? (fresh?.componentNames ?? r.componentNames ?? null) : null
+          const thumbnailUrl = r.kind === 'CATALOGUE' ? (r.thumbnailUrl ?? fresh?.thumbnailUrl ?? null) : null
           return (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ width: 72, height: 72, flexShrink: 0, overflow: 'hidden', borderRadius: 4 }}>
@@ -522,13 +563,14 @@ export default function CheckoutPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
                   <span style={{ fontWeight: 500 }}>{r.itemName}</span>
-                  {r.itemType === 'PACKAGE'
+                  {r.kind === 'CATALOGUE' && (r.itemType === 'PACKAGE'
                     ? <Tag color="purple" style={{ margin: 0 }}>Combo</Tag>
-                    : <Tag style={{ margin: 0 }}>Individual</Tag>}
+                    : <Tag style={{ margin: 0 }}>Individual</Tag>)}
+                  {r.kind === 'ADHOC' && <Tag color="gold" style={{ margin: 0 }}>Custom</Tag>}
                   {category && <Tag color="blue" style={{ margin: 0 }}>{category}</Tag>}
                   {size && <Tag style={{ margin: 0 }}>{size}</Tag>}
                 </div>
-                {r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
+                {r.kind === 'CATALOGUE' && r.itemType === 'PACKAGE' && componentNames && componentNames.length > 0 && (
                   <div style={{ fontSize: 12, paddingLeft: 2 }}>
                     <div style={{ color: '#722ed1', fontWeight: 500, marginBottom: 3 }}>Includes:</div>
                     {componentNames.map((name, i) => (
@@ -550,33 +592,55 @@ export default function CheckoutPage() {
         render: (qty: number, row: CartItem) => (
           <InputNumber
             min={1}
-            max={row.availableQuantity}
+            max={row.kind === 'CATALOGUE' ? row.availableQuantity : MAX_AD_HOC_QUANTITY}
+            precision={0}
             value={qty}
-            onChange={(v) => { if (v && v >= 1) updateQuantity(row.itemId, v) }}
+            onChange={(v) => { if (v && v >= 1) updateQuantity(row.lineKey, v) }}
             size="small"
           />
         ),
       },
-      { title: 'Rate/day', key: 'rate', render: (_: unknown, r: CartItem) => formatCurrency(r.rate) },
+      {
+        title: 'Rate/day',
+        key: 'rate',
+        render: (_: unknown, r: CartItem) => r.kind === 'ADHOC'
+          ? <span>{formatCurrency(perDayRateOf(r, cart!.rentalDays))} <Typography.Text type="secondary" style={{ fontSize: 11 }}>(derived)</Typography.Text></span>
+          : formatCurrency(perDayRateOf(r, cart!.rentalDays)),
+      },
       { title: 'Deposit', key: 'deposit', render: (_: unknown, r: CartItem) => formatCurrency(r.deposit) },
       {
         title: 'Line Rent',
         key: 'lineRent',
-        render: (_: unknown, r: CartItem) => formatCurrency(r.rate * cart!.rentalDays * r.quantity),
+        render: (_: unknown, r: CartItem) => formatCurrency(lineRentOf(r, cart!.rentalDays)),
       },
       {
         title: 'Line Deposit',
         key: 'lineDeposit',
         render: (_: unknown, r: CartItem) => formatCurrency(r.deposit * r.quantity),
       },
+      {
+        title: '',
+        key: 'remove',
+        width: 56,
+        render: (_: unknown, r: CartItem) => (
+          <Button
+            type="text"
+            danger
+            size="large"
+            icon={<DeleteOutlined style={{ fontSize: 20 }} />}
+            aria-label="Remove"
+            onClick={() => removeItem(r.lineKey)}
+          />
+        ),
+      },
     ]
 
-    const totalRent = cart!.items.reduce((s, i) => s + i.rate * cart!.rentalDays * i.quantity, 0)
+    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
     const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
     const grandTotal = totalRent + totalDeposit
 
     return (
-      <div style={{ maxWidth: 860 }}>
+      <div style={{ maxWidth: 920, width: '100%' }}>
         <Typography.Title level={4}>Order Preview</Typography.Title>
 
         <Descriptions size="small" style={{ marginBottom: 16 }}>
@@ -585,15 +649,16 @@ export default function CheckoutPage() {
           <Descriptions.Item label="Duration">{cart!.rentalDays} day{cart!.rentalDays !== 1 ? 's' : ''}</Descriptions.Item>
         </Descriptions>
 
-        <Table
-          dataSource={cart!.items}
-          columns={previewColumns}
-          rowKey="itemId"
-          pagination={false}
-          size="small"
-          scroll={{ x: 'max-content' }}
-          style={{ marginBottom: 24 }}
-        />
+        <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+          <Table
+            dataSource={cart!.items}
+            columns={previewColumns}
+            rowKey="lineKey"
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+          />
+        </div>
 
         <Card size="small" style={{ maxWidth: 360, marginBottom: 24 }}>
           <Descriptions column={1} size="small">
@@ -605,19 +670,33 @@ export default function CheckoutPage() {
           </Descriptions>
         </Card>
 
-        <Space>
+        <Space wrap>
           <Button onClick={() => setScreen('browse')}>Back to Items</Button>
-          <Button type="primary" onClick={() => setScreen('customer')}>
+          {isOwner && (
+            <Button icon={<PlusOutlined />} onClick={() => setShowAdHocModal(true)}>
+              Add custom product
+            </Button>
+          )}
+          <Button type="primary" disabled={cart!.items.length === 0} onClick={() => setScreen('customer')}>
             Confirm & Proceed
           </Button>
         </Space>
+
+        {isOwner && (
+          <AdHocItemModal
+            open={showAdHocModal}
+            rentalDays={cart!.rentalDays}
+            onCancel={() => setShowAdHocModal(false)}
+            onAdd={(item) => { addItem(item); setShowAdHocModal(false) }}
+          />
+        )}
       </div>
     )
   }
 
   // ---- CUSTOMER SELECTION ----
   if (screen === 'customer') {
-    const totalRent = cart!.items.reduce((s, i) => s + i.rate * cart!.rentalDays * i.quantity, 0)
+    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
     const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
 
     return (

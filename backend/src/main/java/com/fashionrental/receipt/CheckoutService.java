@@ -12,11 +12,13 @@ import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemRepository;
 import com.fashionrental.inventory.PackageComponent;
 import com.fashionrental.inventory.PackageComponentRepository;
+import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
 import com.fashionrental.receipt.model.response.PreviewLineItem;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,7 +77,7 @@ public class CheckoutService {
             Item item = itemRepository.findById(lineItem.itemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + lineItem.itemId()));
 
-            if (!item.getIsActive()) {
+            if (!item.getIsActive() || item.getIsAdHoc()) {
                 throw new ValidationException("Item '" + item.getName() + "' is no longer available.");
             }
 
@@ -101,6 +103,21 @@ public class CheckoutService {
             ));
         }
 
+        for (AdHocLineItem adHoc : request.adHocItems()) {
+            int perDayRate = derivePerDayRate(adHoc.flatPrice(), rentalDays);
+            lineItems.add(new PreviewLineItem(
+                    null,
+                    adHoc.name(),
+                    perDayRate,
+                    adHoc.deposit(),
+                    adHoc.quantity(),
+                    rentalDays,
+                    adHoc.flatPrice() * adHoc.quantity(),
+                    adHoc.deposit() * adHoc.quantity(),
+                    adHoc.quantity()
+            ));
+        }
+
         int totalRent = lineItems.stream().mapToInt(PreviewLineItem::lineRent).sum();
         int totalDeposit = lineItems.stream().mapToInt(PreviewLineItem::lineDeposit).sum();
         int grandTotal = totalRent + totalDeposit;
@@ -118,6 +135,10 @@ public class CheckoutService {
 
     @Transactional
     public ReceiptResponse createReceipt(CheckoutRequest request) {
+        if (!request.adHocItems().isEmpty() && !hasOwnerRole()) {
+            throw new ValidationException("Ad-hoc items can only be checked out by the owner.");
+        }
+
         validateDateRange(request.startDatetime(), request.endDatetime());
 
         OffsetDateTime start = request.startDatetime();
@@ -144,7 +165,7 @@ public class CheckoutService {
             Item item = itemRepository.findById(lineItemRequest.itemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found: " + lineItemRequest.itemId()));
 
-            if (!item.getIsActive()) {
+            if (!item.getIsActive() || item.getIsAdHoc()) {
                 throw new ValidationException("Item '" + item.getName() + "' is no longer available.");
             }
 
@@ -173,6 +194,14 @@ public class CheckoutService {
             }
         }
 
+        for (AdHocLineItem adHoc : request.adHocItems()) {
+            Item adHocItem = itemRepository.save(buildAdHocItem(adHoc, rentalDays));
+            ReceiptLineItem line = buildAdHocLineItem(receipt, adHocItem, adHoc, rentalDays);
+            lineItems.add(line);
+            totalRent    += line.getLineRent();
+            totalDeposit += line.getLineDeposit();
+        }
+
         receipt.setTotalRent(totalRent);
         receipt.setTotalDeposit(totalDeposit);
         receipt.setGrandTotal(totalRent + totalDeposit);
@@ -193,6 +222,59 @@ public class CheckoutService {
         li.setLineRent(rate * rentalDays * qty);
         li.setLineDeposit(deposit * qty);
         return li;
+    }
+
+    private Item buildAdHocItem(AdHocLineItem adHoc, int rentalDays) {
+        Item item = new Item();
+        item.setName(adHoc.name());
+        item.setSize(adHoc.size());
+        item.setCategory(Item.Category.OTHER);
+        item.setItemType(Item.ItemType.INDIVIDUAL);
+        item.setRate(derivePerDayRate(adHoc.flatPrice(), rentalDays));
+        item.setDeposit(adHoc.deposit());
+        item.setQuantity(adHoc.quantity());
+        item.setIsActive(true);
+        item.setIsAdHoc(true);
+        return item;
+    }
+
+    // lineRent is the flat price the staff typed, times quantity — never rate * days * quantity.
+    // rateSnapshot is derived only as the late-fee basis (BillingService) and for display; nothing
+    // recomputes lineRent from it, so a rupee or two of rounding drift between the two is expected
+    // and safe.
+    private ReceiptLineItem buildAdHocLineItem(Receipt receipt, Item item, AdHocLineItem adHoc, int rentalDays) {
+        ReceiptLineItem li = new ReceiptLineItem();
+        li.setReceipt(receipt);
+        li.setItem(item);
+        li.setQuantity(adHoc.quantity());
+        li.setRateSnapshot(derivePerDayRate(adHoc.flatPrice(), rentalDays));
+        li.setDepositSnapshot(adHoc.deposit());
+        li.setLineRent(adHoc.flatPrice() * adHoc.quantity());
+        li.setLineDeposit(adHoc.deposit() * adHoc.quantity());
+        return li;
+    }
+
+    // Floors the result at ₹1: items.rate has CHECK (rate > 0), so a flat price that rounds down to
+    // 0 over a long rental would fail the insert rather than merely mis-price the late fee. Also
+    // floors the divisor itself so the safety is co-located with the division, not borrowed from
+    // whoever computed rentalDays.
+    private int derivePerDayRate(int flatPrice, int rentalDays) {
+        int days = Math.max(1, rentalDays);
+        return Math.max(1, (int) Math.round((double) flatPrice / days));
+    }
+
+    // Content-based check, not route-based: POST /api/receipts also serves ordinary catalogue
+    // checkout, open to both roles, so SecurityConfig's URL matchers can't express "OWNER only when
+    // this particular request happens to carry adHocItems." Extending ad-hoc checkout to EXECUTIVE
+    // later means relaxing or removing this single check — see technical-architecture.md for the
+    // tradeoffs that decision should weigh.
+    private boolean hasOwnerRole() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_OWNER"));
     }
 
     private void validateDateRange(OffsetDateTime start, OffsetDateTime end) {

@@ -5,16 +5,23 @@ import { renderWithProviders, flush, screen, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import CheckoutPage from './CheckoutPage'
-import type { Cart, CartItem } from '../../types/receipt'
+import { useAuthStore } from '../../store/authStore'
+import { STORAGE_KEY as CART_STORAGE_KEY } from '../../hooks/useCart'
+import { jwtWithRole } from '../../test/auth'
+import type { Cart, CartItem, CatalogueCartItem, AdHocCartItem } from '../../types/receipt'
+
+function setAuth(role: 'OWNER' | 'EXECUTIVE') {
+  useAuthStore.setState({ token: jwtWithRole(role), role })
+}
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
 const page = (content: unknown[]) => ({
   content, totalElements: content.length, totalPages: 1, number: 0, size: 20,
 })
 
-const CART_STORAGE_KEY = 'rental_cart'
-
-const baseCartItem: CartItem = {
+const baseCartItem: CatalogueCartItem = {
+  kind: 'CATALOGUE',
+  lineKey: 'item-1',
   itemId: 'item-1',
   itemName: 'Royal Sherwani',
   itemType: 'INDIVIDUAL',
@@ -28,11 +35,11 @@ const baseCartItem: CartItem = {
   availableQuantity: 3,
 }
 
-function seedCart(items: CartItem[]) {
+function seedCart(items: CartItem[], overrides: Partial<Pick<Cart, 'rentalDays' | 'endDatetime'>> = {}) {
   const cart: Cart = {
     startDatetime: '2026-04-18T10:00:00+05:30',
-    endDatetime: '2026-04-19T10:00:00+05:30',
-    rentalDays: 1,
+    endDatetime: overrides.endDatetime ?? '2026-04-19T10:00:00+05:30',
+    rentalDays: overrides.rentalDays ?? 1,
     items,
   }
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
@@ -96,5 +103,203 @@ describe('CheckoutPage preview thumbnails', () => {
     const itemCell = nameCell.closest('td')!
     expect(within(itemCell).queryByRole('img')).not.toBeInTheDocument()
     expect(itemCell.querySelector('svg')).toBeInTheDocument()
+  })
+})
+
+describe('CheckoutPage mixed cart pricing', () => {
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+  })
+
+  it('totals a mixed cart as catalogue rate×days×qty plus ad-hoc flat×qty, never rate×days for the ad-hoc line', async () => {
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Custom Lehenga', size: null,
+      quantity: 2, deposit: 200, flatPrice: 500,
+    }
+    // 3-day rental so the two candidate formulas diverge:
+    // catalogue: rate 300 × 3 days × qty 1 = 900. ad-hoc, correct: flatPrice 500 × qty 2 = 1000 → total 1,900.
+    // ad-hoc, WRONG (treating flatPrice as a per-day rate, 500 × 3 days × qty 2 = 3000) → total 3,900.
+    // At 1 day these two formulas coincide (500×1×2 = 500×2), so this must not use a 1-day cart.
+    seedCart([{ ...baseCartItem }, adHocItem], { rentalDays: 3, endDatetime: '2026-04-21T10:00:00+05:30' })
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    await goToPreview()
+
+    expect(await screen.findByText('Custom Lehenga')).toBeInTheDocument()
+    expect(screen.getByText('₹1,900')).toBeInTheDocument()
+    expect(screen.queryByText('₹3,900')).not.toBeInTheDocument()
+  })
+})
+
+describe('CheckoutPage custom product entry', () => {
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  it('submits catalogue and ad-hoc lines as correctly shaped separate lists', async () => {
+    setAuth('OWNER')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Custom Lehenga', size: 'Free size',
+      quantity: 2, deposit: 200, flatPrice: 500,
+    }
+    seedCart([{ ...baseCartItem }, adHocItem])
+
+    let capturedBody: unknown = null
+    server.use(
+      http.get('*/api/customers/cust-1', () => ok(f.aCustomer({ id: 'cust-1' }))),
+      http.post('*/api/receipts', async ({ request }) => {
+        capturedBody = await request.json()
+        return ok(f.aReceipt())
+      }),
+    )
+
+    // path is given so a post-create navigate() unmounts CheckoutPage the same way <Routes>
+    // does in the real app -- without it, nothing intercepts the route change and CheckoutPage
+    // re-renders on the now-cart-less 'customer' screen instead of being swapped out.
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout?newCustomerId=cust-1', path: '/checkout' })
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Create Receipt' }))
+    await flush()
+
+    expect(capturedBody).toMatchObject({
+      items: [{ itemId: 'item-1', quantity: 1 }],
+      adHocItems: [{ name: 'Custom Lehenga', size: 'Free size', flatPrice: 500, deposit: 200, quantity: 2 }],
+    })
+  })
+
+  it('surfaces the backend 400 when a non-owner submits a cart with an inherited ad-hoc line', async () => {
+    // Accepted gap (documented on handleConfirmReceipt): the UI only blocks *creating* ad-hoc
+    // lines for a non-owner, not *submitting* a cart that already has one -- e.g. inherited from
+    // a shared device where the owner built one and logged out. This proves that path degrades to
+    // a readable error via conflictError rather than an unhandled rejection or a silent no-op.
+    setAuth('EXECUTIVE')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Inherited Lehenga', size: null,
+      quantity: 1, deposit: 1000, flatPrice: 500,
+    }
+    seedCart([adHocItem])
+
+    server.use(
+      http.get('*/api/customers/cust-1', () => ok(f.aCustomer({ id: 'cust-1' }))),
+      http.post('*/api/receipts', () => HttpResponse.json(
+        { success: false, data: null, error: 'Ad-hoc items can only be checked out by the owner.' },
+        { status: 400 },
+      )),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout?newCustomerId=cust-1', path: '/checkout' })
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Create Receipt' }))
+    await flush()
+
+    expect(await screen.findByText('Ad-hoc items can only be checked out by the owner.')).toBeInTheDocument()
+  })
+
+  it('shows Add custom product on the browse screen for an owner and hides it for a non-owner', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    setAuth('OWNER')
+    const owner = renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(await screen.findByRole('button', { name: /add custom product/i })).toBeInTheDocument()
+    owner.unmount()
+
+    setAuth('EXECUTIVE')
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add custom product/i })).not.toBeInTheDocument()
+  })
+
+  it('lets an owner add a custom product from the Order Preview screen, without going back to browse', async () => {
+    setAuth('OWNER')
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    expect(await screen.findByText('Counter Sherwani')).toBeInTheDocument()
+    // baseCartItem: 300/day × 1 day × qty 1 = 300. New ad-hoc line: 250 flat × qty 1 = 250. Total 550.
+    expect(screen.getByText('₹550')).toBeInTheDocument()
+  })
+
+  it('reaches Order Preview from an empty cart, with Confirm & Proceed disabled until a product is added', async () => {
+    setAuth('OWNER')
+    seedCart([])
+    server.use(
+      http.get('*/api/items', () => ok(page([]))),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeDisabled()
+
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeEnabled()
+  })
+
+  it('lets a line -- catalogue or ad-hoc -- be removed directly from Order Preview', async () => {
+    setAuth('OWNER')
+    const adHocItem: AdHocCartItem = {
+      kind: 'ADHOC', lineKey: 'adhoc-1', itemName: 'Jwellery', size: null,
+      quantity: 1, deposit: 100, flatPrice: 100,
+    }
+    seedCart([{ ...baseCartItem }, adHocItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    expect(await screen.findByText('Jwellery')).toBeInTheDocument()
+    expect(screen.getByText('Royal Sherwani')).toBeInTheDocument()
+
+    const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
+    expect(removeButtons).toHaveLength(2)
+
+    await user.click(removeButtons[0]) // removes the catalogue line (Royal Sherwani, listed first)
+    await flush()
+
+    expect(screen.queryByText('Royal Sherwani')).not.toBeInTheDocument()
+    expect(screen.getByText('Jwellery')).toBeInTheDocument()
+
+    // Only the ad-hoc line remains; Confirm & Proceed stays enabled until the cart is fully empty.
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Remove' })) // removes the last remaining line
+    await flush()
+
+    expect(screen.queryByText('Jwellery')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm & Proceed' })).toBeDisabled()
   })
 })

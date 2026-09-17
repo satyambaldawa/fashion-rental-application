@@ -21,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -47,6 +48,7 @@ class ReceiptControllerTest {
         return new CheckoutRequest(
                 UUID.randomUUID(), START, END,
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
+                List.of(),
                 null
         );
     }
@@ -139,14 +141,15 @@ class ReceiptControllerTest {
     @WithMockUser
     void should_return_400_when_items_empty() throws Exception {
         CheckoutRequest invalidRequest = new CheckoutRequest(
-                UUID.randomUUID(), START, END, List.of(), null
+                UUID.randomUUID(), START, END, List.of(), List.of(), null
         );
 
         mockMvc.perform(post("/api/receipts").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value(containsString("at least one item")));
     }
 
     @Test

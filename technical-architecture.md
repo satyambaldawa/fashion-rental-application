@@ -1024,6 +1024,18 @@ Aligned with the P0 features from the discovery document.
 
 ---
 
+### ADR-012: Ad-Hoc Checkout Line Items Are OWNER-Only (Content-Based, Not Route-Based)
+
+| Field | Value |
+|-------|-------|
+| **Status** | Accepted |
+| **Context** | Epic #98 lets staff bill a product that isn't in the inventory catalogue by typing its name/size/price/deposit/quantity directly at checkout. Each typed-in product becomes a hidden `items` row (`is_ad_hoc = true`) so the rest of the system — returns, invoices, customer history — works against a real foreign key unchanged. `POST /api/receipts` and `POST /api/checkout/preview` are currently open to both `OWNER` and `EXECUTIVE` (Section 7 / `SecurityConfig`), because they also serve ordinary catalogue checkout. `CLAUDE.md` states plainly that `EXECUTIVE` cannot access inventory writes — but an ad-hoc line item is, functionally, an inventory write (a new `Item` row) riding inside the checkout endpoint. |
+| **Decision** | Ad-hoc checkout is restricted to `OWNER` for now, enforced inside `CheckoutService.createReceipt` rather than at the route level: `if (!request.adHocItems().isEmpty() && !hasOwnerRole())` throws a `ValidationException` before any work begins. `hasOwnerRole()` reads the role from `SecurityContextHolder` (`ROLE_OWNER`, set by `JwtAuthFilter`). `preview` is not gated — it persists nothing, so there's no inventory-write risk to guard against. |
+| **Rationale** | `SecurityConfig`'s URL matchers are route-based (`.requestMatchers("/api/items/**").hasRole("OWNER")`) and cannot express "OWNER only when *this particular request body* happens to carry `adHocItems`" — the same endpoint legitimately serves EXECUTIVE-accessible catalogue checkout. This is the first content-based (as opposed to route-based) authorization check in the codebase; it reuses the existing `ValidationException` → `400 Bad Request` vocabulary rather than introducing a new `AccessDeniedException` handler for a single check. Restricting to OWNER for now is a deliberate, conservative default — nothing in the epic's acceptance criteria requires EXECUTIVE access, and it's easier to relax a restriction later than to have shipped an unintended inventory-write path for EXECUTIVE. |
+| **Consequences** | An `EXECUTIVE` staff member cannot ring up a walk-in/uncatalogued item — only an `OWNER` login can. **Extending this to `EXECUTIVE` later is a one-line change** (relax or remove the `hasOwnerRole()` check in `CheckoutService.createReceipt`), not a structural one — it becomes a pure product decision once someone decides counter staff should be trusted to create walk-in inventory rows unsupervised. If that happens, revisit whether `preview` should be gated too (currently it isn't, since it persists nothing) and whether the checkout-path `isAdHoc` exclusion guard (added in the same change, preventing a persisted ad-hoc `Item`'s UUID from being resubmitted through the ordinary catalogue-line path) still fully covers the surface. |
+
+---
+
 ## 11. Risks & Mitigations
 
 | # | Risk | Likelihood | Impact | Mitigation |

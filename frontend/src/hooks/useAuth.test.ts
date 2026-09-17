@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useAuth } from './useAuth'
 import { useAuthStore } from '../store/authStore'
-
-function jwtWithRole(role: string): string {
-  const encode = (obj: object) =>
-    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  return `${encode({ alg: 'HS256' })}.${encode({ sub: 'user', role, exp: 9999999999 })}.signature`
-}
+import { jwtWithRole } from '../test/auth'
 
 describe('useAuth', () => {
   beforeEach(() => useAuthStore.setState({ token: null, role: null }))

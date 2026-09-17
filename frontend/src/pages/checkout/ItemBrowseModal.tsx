@@ -16,14 +16,15 @@ interface Props {
   item: ItemSummary | null
   onClose: () => void
   onAddToCart: (item: ItemSummary) => void
-  onRemoveFromCart: (itemId: string) => void
-  onUpdateQty: (itemId: string, qty: number) => void
+  onRemoveFromCart: (lineKey: string) => void
+  onUpdateQty: (lineKey: string, qty: number) => void
   inCartQty: number
+  inCartLineKey: string | null
   maxQty: number
 }
 
 export default function ItemBrowseModal({
-  item, onClose, onAddToCart, onRemoveFromCart, onUpdateQty, inCartQty, maxQty,
+  item, onClose, onAddToCart, onRemoveFromCart, onUpdateQty, inCartQty, inCartLineKey, maxQty,
 }: Props) {
   const [photoIndex, setPhotoIndex] = useState(0)
   const [syncedId, setSyncedId] = useState<string | null>(null)
@@ -278,7 +279,7 @@ export default function ItemBrowseModal({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Button
                       icon={<MinusOutlined />}
-                      onClick={() => inCartQty === 1 ? onRemoveFromCart(item.id) : onUpdateQty(item.id, inCartQty - 1)}
+                      onClick={() => inCartQty === 1 ? onRemoveFromCart(inCartLineKey!) : onUpdateQty(inCartLineKey!, inCartQty - 1)}
                     />
                     <Typography.Text strong style={{ minWidth: 32, textAlign: 'center', fontSize: 16 }}>
                       {inCartQty}
@@ -286,7 +287,7 @@ export default function ItemBrowseModal({
                     <Button
                       icon={<PlusOutlined />}
                       disabled={inCartQty >= maxQty}
-                      onClick={() => onUpdateQty(item.id, inCartQty + 1)}
+                      onClick={() => onUpdateQty(inCartLineKey!, inCartQty + 1)}
                     />
                     <Typography.Text type="secondary" style={{ fontSize: 13 }}>in cart</Typography.Text>
                   </div>

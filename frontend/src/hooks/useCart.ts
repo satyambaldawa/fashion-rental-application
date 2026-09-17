@@ -3,10 +3,12 @@ import type { Cart, CartItem } from '../types/receipt'
 
 export type { Cart, CartItem }
 
-const STORAGE_KEY = 'rental_cart'
+export const STORAGE_KEY = 'rental_cart_v2'
+export const LEGACY_STORAGE_KEY = 'rental_cart'
 
 function loadCart(): Cart | null {
   try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY) // pre-union cart shape; never parsed, just cleared
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? (JSON.parse(raw) as Cart) : null
   } catch {
@@ -37,18 +39,18 @@ export function useCart() {
   const addItem = useCallback((item: CartItem) => {
     setCart({
       ...cart!,
-      items: cart!.items.some(i => i.itemId === item.itemId)
-        ? cart!.items.map(i => i.itemId === item.itemId ? { ...i, quantity: i.quantity + 1 } : i)
+      items: cart!.items.some(i => i.lineKey === item.lineKey)
+        ? cart!.items.map(i => i.lineKey === item.lineKey ? { ...i, quantity: i.quantity + 1 } : i)
         : [...cart!.items, item],
     })
   }, [cart, setCart])
 
-  const removeItem = useCallback((itemId: string) => {
-    setCart({ ...cart!, items: cart!.items.filter(i => i.itemId !== itemId) })
+  const removeItem = useCallback((lineKey: string) => {
+    setCart({ ...cart!, items: cart!.items.filter(i => i.lineKey !== lineKey) })
   }, [cart, setCart])
 
-  const updateQuantity = useCallback((itemId: string, quantity: number) => {
-    setCart({ ...cart!, items: cart!.items.map(i => i.itemId === itemId ? { ...i, quantity } : i) })
+  const updateQuantity = useCallback((lineKey: string, quantity: number) => {
+    setCart({ ...cart!, items: cart!.items.map(i => i.lineKey === lineKey ? { ...i, quantity } : i) })
   }, [cart, setCart])
 
   const clearCart = useCallback(() => {
