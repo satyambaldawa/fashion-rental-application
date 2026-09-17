@@ -706,6 +706,82 @@ Pass 2 verdicts: devils-advocate REVISE (5 blockers — all second-order defects
 
 ---
 
+## 12. Build-time corrections (#66 + #67)
+
+Post-build review of the #66/#67 diff against this plan and the two issues. Both issues' ACs
+are met and all seven §10/§11 mandatory fixes shipped. One defect and five unfilled gaps were
+found and closed; all are backend-only and none changed the design.
+
+### Defect: the deactivation branch of `claimCouponUsage` was unreachable
+
+§11 fix 2 required `claimCouponUsage` to distinguish "deactivated mid-checkout" from "usage
+limit reached" on a zero-row claim. As built it re-read via `couponRepository.findById(...)` —
+but `CouponDiscountResolver.resolve()` has already loaded that `Coupon` earlier in the **same
+transaction**, so the lookup is served from the persistence context and returns the read-time
+`isActive`, which is necessarily `true` or `resolve()` would have thrown. The deactivation
+branch could never execute; every mid-checkout deactivation reported "has reached its usage
+limit" — the exact false message §11 fix 2 exists to prevent.
+
+`CheckoutServiceTest` covered the branch and passed, because a Mockito repository has no
+persistence context and could be stubbed to return a second, deactivated instance. **The test
+proved the `if` was written correctly and nothing about whether it runs.** This is the same
+first-level-cache trap that produced the `entityManager.clear()` fix in `CouponCheckoutIT`;
+`clear()` is not an option here because §2 rules it out — it would detach the in-flight
+`Receipt` aggregate.
+
+Fix — a scalar projection cannot be served from the entity cache:
+```java
+@Query("SELECT c.isActive FROM Coupon c WHERE c.id = :id")
+Optional<Boolean> findIsActiveById(@Param("id") UUID id);
+```
+`CouponClaimStaleReadIT` pins the read semantics the fix depends on: in one transaction, after
+an out-of-band deactivation, `findById` reports `true` while `findIsActiveById` reports `false`.
+The unit test now asserts `verify(couponRepository, never()).findById(any())`, so reverting to
+the entity lookup fails a test rather than silently re-breaking the branch. The row-deleted case
+(`Optional.empty()`) gained its own test.
+
+**Rule this generalises to:** a mocked repository cannot prove anything about persistence-context
+behaviour. Any read that must observe a write made outside the current entity's load needs an
+integration test, not a Mockito stub.
+
+### Gaps closed
+
+| # | Gap | Origin | Resolution |
+|---|---|---|---|
+| 1 | `CouponAdminDoesNotClobberTimesUsedIT` never written | §7, §8 risk 9 | Added (2 tests: `updateCoupon`, `setStatus`). Verified non-tautological — with `@DynamicUpdate` stripped from `Coupon`, both fail |
+| 2 | Server-side `validTo` end-of-day IST normalisation absent | §11 fix 5 | Added to `CouponService`, applied before window validation. 4 tests incl. an IST-vs-UTC calendar-day case and a single-day promotion (which only validates *because* of the normalisation) |
+| 3 | `should_allow_executive_to_apply_coupon_at_checkout` missing | §10 good-to-have | Added to `CouponCheckoutIT` |
+| 4 | `@Size(max = 32)` on `couponCode` missing | §10 good-to-have | Added to both checkout requests, with 32/33-char boundary tests |
+| 5 | Min-subtotal message hardcoded "rent subtotal" | §10 good-to-have | Derived from new `DiscountableSubtotals.label()` — `"rent subtotal"` today, `"rent and sale subtotal"` once #57 populates the sale bucket. Test passes `(900, 600)` to pin the seam |
+
+### Deviations from the plan, accepted
+
+- **`CouponAdminSecurityIT` → `CouponControllerTest`.** §7 specified a Testcontainers IT for the
+  EXECUTIVE-blocked AC; built instead as `@WebMvcTest` + `@Import(SecurityConfig.class)`. Same real
+  filter chain, no container. Better trade.
+- **`validFrom` is deliberately not normalised.** §11 fix 5 scoped only `validTo`, and a date picker
+  already sends IST midnight. A non-browser client sending `validFrom` at 14:00 makes the coupon dead
+  that morning; symmetric handling is defensible but was not in scope.
+- **Money in rejection messages renders `₹2000`, not §4's `₹2,000`.** The backend has no currency
+  formatter (`formatCurrency` is frontend-only). Cosmetic.
+- `should_reject_non_positive_value` absent from `CouponServiceTest` — covered by `@Min(1)` and the
+  `coupons_value_positive_check` constraint.
+
+### Still open before merge
+
+1. Comment on issue **#66** documenting the per-entity-REST-over-replace-all decision (§10 fix 7 —
+   was specified as pre-coding, now pre-review).
+2. Run `SELECT count(*) FROM receipts WHERE grand_total <> total_rent + total_deposit` against
+   production and confirm zero rows (§10 fix 5). A single violating row fails the Flyway migration
+   and blocks startup.
+3. The PR body must call out the CRUD verb deviation and the `Invoice.totalRent` gross→net semantic
+   change — §10 marks this mandatory, not optional.
+4. **Between #67 merging and #69 shipping, `netFlow` in the daily/monthly revenue reports overstates
+   cash by exactly the discounts given** (§5). Anticipated by the plan, which sequences #69 last, but
+   the owner should know the window exists.
+
+---
+
 ### Critical files for implementation
 
 - `backend/src/main/java/com/fashionrental/receipt/CheckoutService.java` — `preview()` and `createReceipt()` both need the resolver call; `discountableSubtotals()` is the #57 seam

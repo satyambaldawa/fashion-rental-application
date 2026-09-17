@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -12,7 +13,8 @@ public record CheckoutPreviewRequest(
         @NotNull OffsetDateTime startDatetime,
         @NotNull OffsetDateTime endDatetime,
         @Valid List<CheckoutLineItem> items,
-        List<@NotNull @Valid AdHocLineItem> adHocItems
+        List<@NotNull @Valid AdHocLineItem> adHocItems,
+        @Size(max = 32) String couponCode
 ) {
     public CheckoutPreviewRequest {
         items = items == null ? List.of() : items;

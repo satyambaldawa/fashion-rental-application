@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -15,7 +16,8 @@ public record CheckoutRequest(
         @NotNull OffsetDateTime endDatetime,
         @Valid List<CheckoutLineItem> items,
         List<@NotNull @Valid AdHocLineItem> adHocItems,
-        String notes
+        String notes,
+        @Size(max = 32) String couponCode
 ) {
     // JSON that omits either key binds null; without this the guard below would NPE.
     public CheckoutRequest {

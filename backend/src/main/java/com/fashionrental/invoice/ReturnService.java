@@ -93,7 +93,10 @@ public class ReturnService {
         invoice.setReceipt(receipt);
         invoice.setCustomer(receipt.getCustomer());
         invoice.setReturnDatetime(request.returnDatetime());
-        invoice.setTotalRent(receipt.getTotalRent());
+        // Net of any coupon discount — the customer never paid the gross figure, so the
+        // invoice must not quote it. Existing receipts all have discountAmount = 0, so
+        // this is numerically a no-op for every row created before this change.
+        invoice.setTotalRent(receipt.getTotalRent() - receipt.getDiscountAmount());
         invoice.setTotalDepositCollected(receipt.getTotalDeposit());
         invoice.setPaymentMethod(parsePaymentMethod(request.paymentMethod()));
         invoice.setDamageNotes(request.damageNotes());
