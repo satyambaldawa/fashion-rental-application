@@ -767,18 +767,27 @@ integration test, not a Mockito stub.
 - `should_reject_non_positive_value` absent from `CouponServiceTest` — covered by `@Min(1)` and the
   `coupons_value_positive_check` constraint.
 
-### Still open before merge
+### Pre-merge checklist
 
-1. Comment on issue **#66** documenting the per-entity-REST-over-replace-all decision (§10 fix 7 —
-   was specified as pre-coding, now pre-review).
-2. Run `SELECT count(*) FROM receipts WHERE grand_total <> total_rent + total_deposit` against
-   production and confirm zero rows (§10 fix 5). A single violating row fails the Flyway migration
-   and blocks startup.
+1. ~~Comment on issue **#66** documenting the per-entity-REST-over-replace-all decision~~ (§10 fix 7)
+   — **done**, [issue #66 comment](https://github.com/satyambaldawa/fashion-rental-application/issues/66#issuecomment-5714183158).
+2. ~~Confirm zero rows from `SELECT count(*) FROM receipts WHERE grand_total <> total_rent + total_deposit`
+   against production~~ (§10 fix 5) — **done**, returned `0`. The `receipts_grand_total_check`
+   constraint validates cleanly against existing data; no `NOT VALID` fallback needed.
 3. The PR body must call out the CRUD verb deviation and the `Invoice.totalRent` gross→net semantic
    change — §10 marks this mandatory, not optional.
 4. **Between #67 merging and #69 shipping, `netFlow` in the daily/monthly revenue reports overstates
    cash by exactly the discounts given** (§5). Anticipated by the plan, which sequences #69 last, but
    the owner should know the window exists.
+
+### Deviation from §9's PR sequencing
+
+§9 specified one PR per sub-issue, keeping #65 separate so a migration could be reverted independently
+of the application logic that depends on it. In practice #65, #66 and #67 were built on a single branch
+(`feat/issue-65-coupon-data-model`) and ship as one PR. **That independent-revert property is gone** —
+rolling back the coupon feature now means rolling back the migration with it. Accepted at single-shop
+scale with the migration being purely additive (a new table plus two nullable/defaulted columns), but
+it is a real reduction in rollback granularity and the PR title should not imply the branch is #65 only.
 
 ---
 
