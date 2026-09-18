@@ -17,7 +17,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/customers', label: 'Customers',       roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },
   { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
-  { key: '/coupons',   label: 'Coupons',         roles: ['OWNER'] },
   { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
   { key: '/gallery',   label: 'Gallery',         roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/gallery/manage', label: 'Manage Gallery', roles: ['OWNER'] },
