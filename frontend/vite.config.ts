@@ -24,6 +24,12 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Multi-step tests (typing across several fields, opening an antd Modal, awaiting a
+    // network round trip) comfortably clear vitest's 5000ms default locally, but under
+    // --coverage's v8 instrumentation on a loaded CI runner they've intermittently tipped
+    // over it — different tests each run, the signature of a shared timing margin rather
+    // than a broken test. 10s keeps a real hang failing fast while giving CI headroom.
+    testTimeout: 10000,
     coverage: {
       provider: 'v8',
       all: true,
