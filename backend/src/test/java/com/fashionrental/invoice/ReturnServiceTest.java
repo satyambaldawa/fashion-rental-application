@@ -147,6 +147,40 @@ class ReturnServiceTest {
         assertThat(captor.getValue().getLineItems()).hasSize(1);
     }
 
+    @Test
+    void processReturn_threads_the_receipts_coupon_onto_the_invoice_response() {
+        receipt.setCouponCode("SAVE20");
+        receipt.setDiscountAmount(60);
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0003");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(false));
+
+        assertThat(response.couponCode()).isEqualTo("SAVE20");
+        assertThat(response.discountAmount()).isEqualTo(60);
+        // totalRent is net of the discount — the customer never paid the gross figure.
+        // receipt: rate 300 × 1 day × qty 1 = 300 rent, minus the 60 discount = 240.
+        assertThat(response.totalRent()).isEqualTo(240);
+    }
+
+    @Test
+    void processReturn_reports_a_null_coupon_code_and_zero_discount_when_none_was_applied() {
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0004");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(false));
+
+        assertThat(response.couponCode()).isNull();
+        assertThat(response.discountAmount()).isZero();
+        assertThat(response.totalRent()).isEqualTo(300);
+    }
+
     @ParameterizedTest
     @CsvSource({"UPI,UPI", "OTHER,OTHER", "CASH,CASH", "garbage,CASH"})
     void processReturn_parses_payment_method_and_falls_back_to_cash(String input, String expected) {

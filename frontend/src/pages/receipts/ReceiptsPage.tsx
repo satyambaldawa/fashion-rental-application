@@ -66,6 +66,11 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
           <div>
             <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
           </div>
+          {receipt.couponCode && (
+            <Tag color="green" style={{ marginTop: 4 }}>
+              {receipt.couponCode} −{formatCurrency(receipt.discountAmount)}
+            </Tag>
+          )}
           <div style={{ marginTop: 8 }}>
             <Button size="small" onClick={() => navigate(`/receipts/${receipt.id}`)}>
               Process Return

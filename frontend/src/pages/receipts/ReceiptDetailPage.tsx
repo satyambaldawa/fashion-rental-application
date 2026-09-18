@@ -243,6 +243,11 @@ export default function ReceiptDetailPage() {
                   ({formatCurrency(receipt.totalRent / receipt.rentalDays)}/day × {receipt.rentalDays} day{receipt.rentalDays !== 1 ? 's' : ''})
                 </span>
               </Descriptions.Item>
+              {receipt.couponCode && (
+                <Descriptions.Item label={`Discount (${receipt.couponCode})`}>
+                  <span style={{ color: '#52c41a' }}>−{formatCurrency(receipt.discountAmount)}</span>
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Total Deposit">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
               <Descriptions.Item label={<strong>Grand Total Paid</strong>}>
                 <strong>{formatCurrency(receipt.grandTotal)}</strong>

@@ -5,9 +5,10 @@ import type { ItemSummary, ItemDetail } from '../types/inventory'
 import type { GalleryImage } from '../types/gallery'
 import type { Receipt, ReceiptSummary, CheckoutPreview } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
-import type { DailyRevenue, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
+import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
 import type { LateFeeRule } from '../types/config'
 import type { UserRecord, LoginResponse } from '../types/auth'
+import type { Coupon } from '../types/coupons'
 
 type Partialize<T> = (overrides?: Partial<T>) => T
 
@@ -51,7 +52,8 @@ export const aReceipt: Partialize<Receipt> = (o = {}) => ({
   id: 'rcpt-1', receiptNumber: 'R-2026-0001', shareToken: 'share-r', customerId: 'cust-1',
   customerName: 'Meera', customerPhone: '9811122233',
   startDatetime: '2026-04-18T10:00:00+05:30', endDatetime: '2026-04-19T10:00:00+05:30',
-  rentalDays: 1, totalRent: 300, totalDeposit: 1000, grandTotal: 1300, status: 'GIVEN',
+  rentalDays: 1, totalRent: 300, couponCode: null, discountAmount: 0,
+  totalDeposit: 1000, grandTotal: 1300, status: 'GIVEN',
   notes: null, createdAt: '2026-04-18T10:00:00+05:30',
   lineItems: [{
     id: 'rli-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M',
@@ -63,12 +65,14 @@ export const aReceipt: Partialize<Receipt> = (o = {}) => ({
 export const aReceiptSummary: Partialize<ReceiptSummary> = (o = {}) => ({
   id: 'rcpt-1', receiptNumber: 'R-2026-0001', customerName: 'Meera', customerPhone: '9811122233',
   itemNames: ['Royal Sherwani ×1'], startDatetime: '2026-04-18T10:00:00+05:30',
-  endDatetime: '2026-04-19T10:00:00+05:30', rentalDays: 1, totalRent: 300, totalDeposit: 1000,
+  endDatetime: '2026-04-19T10:00:00+05:30', rentalDays: 1, totalRent: 300,
+  couponCode: null, discountAmount: 0, totalDeposit: 1000,
   grandTotal: 1300, status: 'GIVEN', isOverdue: false, overdueHours: null, ...o,
 })
 
 export const aCheckoutPreview: Partialize<CheckoutPreview> = (o = {}) => ({
-  allAvailable: true, rentalDays: 1, totalRent: 300, totalDeposit: 1000, grandTotal: 1300,
+  allAvailable: true, rentalDays: 1, totalRent: 300, couponCode: null, discountAmount: 0,
+  totalDeposit: 1000, grandTotal: 1300,
   unavailableItems: [], lineItems: [{
     itemId: 'item-1', itemName: 'Royal Sherwani', rate: 300, deposit: 1000, quantity: 1,
     rentalDays: 1, lineRent: 300, lineDeposit: 1000, availableQuantity: 3,
@@ -78,7 +82,8 @@ export const aCheckoutPreview: Partialize<CheckoutPreview> = (o = {}) => ({
 export const anInvoice: Partialize<Invoice> = (o = {}) => ({
   id: 'inv-1', invoiceNumber: 'INV-2026-0001', shareToken: 'share-i', receiptId: 'rcpt-1',
   receiptNumber: 'R-2026-0001', customerId: 'cust-1', customerName: 'Meera', customerPhone: '9811122233',
-  returnDatetime: '2026-04-19T10:00:00+05:30', totalRent: 300, totalDepositCollected: 1000,
+  returnDatetime: '2026-04-19T10:00:00+05:30', totalRent: 300, couponCode: null, discountAmount: 0,
+  totalDepositCollected: 1000,
   totalLateFee: 0, totalDamageCost: 0, depositToReturn: 1000, finalAmount: 1000,
   transactionType: 'REFUND', paymentMethod: 'CASH', damageNotes: null, notes: null,
   createdAt: '2026-04-19T10:00:00+05:30', lineItems: [{
@@ -96,7 +101,7 @@ export const aReturnPreview: Partialize<ReturnPreview> = (o = {}) => ({
 
 export const aDailyRevenue: Partialize<DailyRevenue> = (o = {}) => ({
   date: '2026-04-19', rentCollected: 300, depositsCollected: 1000, depositsRefunded: 0,
-  collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, netFlow: 1300,
+  collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, totalDiscountsGiven: 0, netFlow: 1300,
   newReceiptsCount: 1, returnsProcessedCount: 0, ...o,
 })
 
@@ -113,11 +118,24 @@ export const overdueRentals: Partialize<OverdueRentals> = (o = {}) => ({
 
 export const aMonthlyRevenue: Partialize<MonthlyRevenue> = (o = {}) => ({
   year: 2026, month: 4, totalRentCollected: 300, totalDepositsCollected: 1000, totalDepositsRefunded: 0,
-  totalCollectedFromCustomers: 0, totalLateFeeIncome: 0, totalDamageIncome: 0, totalNetFlow: 1300,
+  totalCollectedFromCustomers: 0, totalLateFeeIncome: 0, totalDamageIncome: 0, totalDiscountsGiven: 0,
+  totalNetFlow: 1300,
   dailyBreakdown: [{
     date: '2026-04-19', rentCollected: 300, depositsCollected: 1000, depositsRefunded: 0,
-    collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, netFlow: 1300,
+    collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, totalDiscountsGiven: 0, netFlow: 1300,
   }], ...o,
+})
+
+export const aDiscountsGiven: Partialize<DiscountsGiven> = (o = {}) => ({
+  from: '2026-04-01', to: '2026-04-30', totalDiscountGiven: 60, receiptsWithCoupon: 1,
+  byCoupon: [{ couponCode: 'SAVE20', timesApplied: 1, totalDiscount: 60 }], ...o,
+})
+
+export const aCoupon: Partialize<Coupon> = (o = {}) => ({
+  id: 'coupon-1', code: 'SAVE20', discountType: 'PERCENT', value: 20, minSubtotal: null,
+  validFrom: '2026-04-01T00:00:00+05:30', validTo: '2026-04-30T23:59:59+05:30',
+  usageLimit: null, timesUsed: 0, isActive: true,
+  createdAt: '2026-04-01T00:00:00+05:30', updatedAt: '2026-04-01T00:00:00+05:30', ...o,
 })
 
 export const aLateFeeRule: Partialize<LateFeeRule> = (o = {}) => ({

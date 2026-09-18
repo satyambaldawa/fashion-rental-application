@@ -17,6 +17,7 @@ import InvoiceDetailPage from './invoices/InvoiceDetailPage'
 import InventoryPage from './inventory/InventoryPage'
 import AddItemPage from './inventory/AddItemPage'
 import ReportsPage from './reports/ReportsPage'
+import CouponsPage from './coupons/CouponsPage'
 import CheckoutPage from './checkout/CheckoutPage'
 import PublicReceiptPage from './public/PublicReceiptPage'
 import PublicInvoicePage from './public/PublicInvoicePage'
@@ -124,6 +125,12 @@ describe('page smoke renders', () => {
 
   it('ReportsPage renders', async () => {
     const { container } = renderWithProviders(<ReportsPage />)
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+
+  it('CouponsPage renders', async () => {
+    const { container } = renderWithProviders(<CouponsPage />)
     await flush()
     expect(container.firstChild).toBeTruthy()
   })

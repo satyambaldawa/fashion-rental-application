@@ -791,6 +791,170 @@ it is a real reduction in rollback granularity and the PR title should not imply
 
 ---
 
+## 13. Build-time corrections (#68 + #69)
+
+Post-build review of the #68/#69 diff by devils-advocate, tech-lead, and business-lead in
+parallel against §5, §6, and the two issues. Tech-lead and business-lead: APPROVE, no
+blockers. Devils-advocate: REVISE, 3 blockers — all in the coupon-apply flow's handling of
+async state, none requiring a design change. All three are fixed below; the backend is
+otherwise sound (verified independently by devils-advocate: `totalRent` really is gross,
+`netFlow`'s correction is arithmetically right, OWNER/EXECUTIVE split is correct).
+
+### Blockers found and fixed
+
+1. **The coupon preview request wasn't locked against a concurrent cart edit.** Nothing
+   disabled quantity/remove/add-product controls while a preview request was in flight, and
+   `onSuccess` wrote the response into the cart unconditionally. Concrete failure: apply a
+   coupon, then add an item before the response lands — the stale response (priced for the
+   old cart) gets applied on top of the new one, so the screen shows one grand total and
+   `createReceipt` persists a different one. Fixed with a cart signature captured in
+   `mutationFn` *before* the request fires and compared against the current cart in
+   `onSuccess`; a mismatch surfaces "the cart changed, please apply it again" and discards
+   the response rather than trusting it. `CheckoutPage.test.tsx`: `discards a coupon preview
+   response that resolves after the cart it priced has changed` — verified to fail without
+   the guard (found `Discount (SAVE20)` still rendered against the wrong cart).
+
+2. **`applyCoupon`/`removeCoupon` in `useCart.ts` used `cart!` with no null guard**, unlike
+   every other mutator. Every other mutator is only reachable from a screen that requires a
+   cart to exist; these two are reachable from an async callback that can fire *after* the
+   cart was cleared (e.g. a coupon preview resolving after `handleDeleteCart`). `{...null}`
+   silently evaluates to `{}`, so the bug wasn't a crash — it was `localStorage` gaining a
+   `{"appliedCoupon": {...}}` object with no `items`/dates, which then crashed every future
+   render reading `cart.items` and persisted across reloads until storage was cleared by
+   hand. Fixed with an early-return guard on both, plus a defensive `Array.isArray(cart.items)`
+   check in `loadCart()` as a second line of defense. `useCart.test.ts`: `is a no-op when the
+   cart was cleared while a coupon preview request was in flight` — verified to fail without
+   the guard (`cart` was the malformed object, not `null`).
+
+3. **A cart mutation that automatically cleared `cart.appliedCoupon` left the coupon code
+   still sitting in the (now-collapsed) input.** The discount row correctly disappeared, but
+   the input still read "SAVE20" — which reads as "still applied" even though
+   `buildRequest` was by then sending `couponCode: null`. A customer quoted a discount that
+   silently didn't make it onto the receipt. Fixed by tracking the last-applied code in a
+   ref and, when it's cleared out from under a non-empty input, clearing the input and
+   showing `message.warning`. The check against the *specific* previous code (not just "went
+   to null") is what tells an automatic clear apart from a deliberate Remove click — an
+   explicit removal clears the input in the same batch, so by the time the effect runs the
+   input no longer matches and the warning is correctly suppressed.
+   `CheckoutPage.test.tsx`'s existing custom-product coupon-clear test now also asserts the
+   input value and the warning text.
+
+### Suggestions adopted
+
+- **`getDiscountsGiven`'s default date range used the JVM's default zone**, not IST — new
+  code copying `getDailyRevenue`'s pre-existing (accepted, out-of-scope-to-fix-here) instance
+  of the same issue. Fixed locally: `ReportingController` now computes "today" against IST.
+- **No validation that `from <= to`.** A reversed range silently reported "₹0 discounts
+  given" instead of erroring. Added a `ValidationException` guard.
+- **The inclusive `BETWEEN` boundary, correctly accepted for the fixed daily/monthly
+  periods (plan §10), is a real defect for this endpoint specifically** because its range is
+  user-selected: querying June then July with an inclusive upper bound double-counts a
+  receipt created at exactly the boundary instant in both totals. Added
+  `ReceiptRepository#findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc`
+  (exclusive upper bound) and used it only here — the existing inclusive `BETWEEN` methods
+  are untouched, since the fixed-period reports' toleration of that quirk stands.
+  `DiscountsGivenReportIT` rewritten to pin the boundary at the exact instant (not a second
+  away) and to add a receipt whose IST day and UTC day differ, proving the range is
+  genuinely computed in IST rather than merely agreeing with it most of the time — both
+  verified to fail against the previous (inclusive-`BETWEEN`, unzoned) implementation.
+
+### Noted, not changed
+
+- **A ₹0 discount still renders as `CODE −₹0`** on `ReceiptsPage`. Devils-advocate suggested
+  suppressing it; declined — plan §4 explicitly decided the opposite ("The UI shows '₹0 off'.
+  Document this; it will otherwise be reported as a bug") after its own persona review, and
+  hiding it now would reintroduce exactly the "did my coupon even apply?" confusion that
+  decision was made to prevent.
+- **CLAUDE.md's `src/api/`/`src/types/` file listing wasn't updated** to mention the new
+  `coupons.ts` files, which §6 called out as required. Carry into the PR description.
+- **`CustomerReceiptResponse` (customer history view) doesn't carry `couponCode`/
+  `discountAmount`**, so a customer's rental history shows `grandTotal` without discount
+  context that every other receipt view now has. Out of scope for #68/#69's stated AC;
+  candidate for a follow-up ticket.
+- The >90%-discount confirm modal is scope beyond #68's literal AC (flagged by
+  business-lead); kept as a deliberate revenue-leakage guard, per §10's precedent of noting
+  additions rather than blocking on them.
+
+---
+
+## 14. Manual testing findings (post-review) and fixes
+
+The persona review in §13 covered the diff as written but not live behavior. Running the
+actual app end-to-end (real Postgres, real browser) surfaced three more findings — two real
+bugs and one confirmed-as-designed behavior. All three came from the user manually exercising
+the checkout flow after §13's fixes landed.
+
+### Finding 1 — coupon cleared when adding a custom product after applying it
+
+**Not a bug — flagged back to the user as working-as-designed, pending their call.** This is
+§6's stale-coupon guard exactly as specified: any cart mutation (`addItem`, `removeItem`,
+`updateQuantity`) clears an applied coupon because the discount is a function of the
+subtotal, which "Add custom product" changes. As of §13's B3 fix, this now also surfaces a
+`message.warning` explaining why, rather than silently vanishing. Auto-re-applying the same
+code against the new subtotal (rather than forcing a manual re-Apply) is the alternative if
+this still isn't what's wanted — not implemented here, since it would reverse a decision that
+already went through two rounds of persona review rather than fix a defect.
+
+### Finding 2 — coupon lost when registering a new customer mid-checkout (real bug, fixed)
+
+The "New Customer" button navigates to `/customers/register`, a separate route — this
+unmounts `CheckoutPage` and remounts it on return, running `useCart()`'s `loadCart()` fresh.
+§13's B3 fix already made this loss *visible* (a warning toast), but the user's report made
+clear the actual requirement was that the coupon **survive** this trip, not just be announced
+as lost — registering a walk-in customer mid-sale is routine, not an edge case.
+
+Fixed by distinguishing "the tab is still open" from "the tab was actually closed and
+reopened" using `sessionStorage` (survives navigations and reloads within one tab; cleared
+when the tab closes — exactly the boundary that matters here). `loadCart()` only drops the
+coupon when the marker is absent. Two implementation pitfalls surfaced by testing this for
+real, not just in unit tests, both now covered by regression tests and comments in
+`useCart.ts`:
+
+- **React 18 StrictMode double-invokes a `useState` lazy initializer in development.**
+  An earlier version of the fix wrote the marker *inside* `loadCart()`, so the second
+  StrictMode call saw the first call's own write and wrongly concluded "not a new session" —
+  and React keeps the *second* call's result, so the coupon survived even in the genuine
+  cross-session case the fix exists to catch. Caught by driving the actual dev server in a
+  browser (`page.goto()` reproduces the double-invoke; a unit test alone did not exercise it
+  the same way). Fixed by never writing inside the lazy initializer — `loadCart()` only
+  reads the marker; a separate `useEffect(() => sessionStorage.setItem(...), [])` writes it.
+  Effects run after render commits, so no read can ever observe its own mount's write,
+  regardless of how many times React calls the initializer for that mount.
+- **Vitest keeps one module instance alive across every test in a file**, unlike a real page
+  load. An early attempt at a fix used a module-level cache variable, which then leaked
+  across tests and required an exported test-only reset hook. The effect-based fix above
+  needed no such hook — each test's explicit `sessionStorage.setItem`/`clear()` is read
+  fresh by `loadCart()` on every call, with nothing cached to desync.
+
+Both directions verified live in the browser, not just in unit tests: seeded a cart with an
+applied coupon, then (a) cleared `sessionStorage` and navigated — coupon dropped, warning
+shown, ₹1,200 (undiscounted); (b) left the marker in place and navigated — coupon preserved,
+₹1,160, no warning.
+
+### Finding 3 — return/invoice pages showed full rent with no discount (real bug, fixed)
+
+Never in §6's original scope — the plan's "Receipt display" list named `ReceiptDetailPage`,
+`PublicReceiptPage`, and the `ReceiptsPage` list, but not the return flow. Two separate gaps:
+
+- **`ProcessReturnPage.tsx`** (the pre-submission return preview) read `receipt.totalRent`
+  directly — gross, correctly, since `Receipt.totalRent` is deliberately gross by design —
+  but never rendered `receipt.discountAmount` anywhere, in either the receipt-summary block
+  or the "Invoice Preview" card. Purely a missing display row; fixed by adding a
+  `Discount (CODE)` row in both places, conditional on `receipt.couponCode`. The deposit/
+  final-amount math was never wrong — it doesn't touch rent at all — so this was display-only.
+- **`InvoiceDetailPage.tsx` / `PublicInvoicePage.tsx`** — `Invoice.totalRent` is stored net of
+  the discount already (§4's original recommendation, committed with #67), so the number
+  itself was correct, just unexplained: no `couponCode`/`discountAmount` existed on
+  `InvoiceResponse` to render a discount line against. Fixed by threading both fields through
+  (`ReturnService.toInvoiceResponse`, read live off `invoice.getReceipt()` rather than
+  snapshotted — a receipt's coupon fields are immutable after checkout, so the FK is as
+  stable as a copy without a migration) and deriving gross rent on the frontend
+  (`invoice.totalRent + invoice.discountAmount`) so "Rent Charged" reads the same way here as
+  it does everywhere else in the app — gross, with a separate discount row — rather than
+  introducing a second, inconsistent display convention.
+
+---
+
 ### Critical files for implementation
 
 - `backend/src/main/java/com/fashionrental/receipt/CheckoutService.java` — `preview()` and `createReceipt()` both need the resolver call; `discountableSubtotals()` is the #57 seam

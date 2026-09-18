@@ -18,5 +18,11 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     List<Receipt> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
 
+    // Exclusive upper bound, unlike the BETWEEN above — for the one report where the range is
+    // user-selected rather than a fixed calendar period, so two adjacent queries (e.g. June
+    // then July) can't both count a receipt created exactly at the boundary instant.
+    List<Receipt> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+            OffsetDateTime from, OffsetDateTime to);
+
     java.util.Optional<Receipt> findByShareToken(String shareToken);
 }

@@ -52,10 +52,18 @@ export const handlers = [
   http.get('*/api/reports/outstanding-deposits', () => ok(f.outstandingDeposits())),
   http.get('*/api/reports/overdue-rentals', () => ok(f.overdueRentals())),
   http.get('*/api/reports/monthly-revenue', () => ok(f.aMonthlyRevenue())),
+  http.get('*/api/reports/discounts-given', () => ok(f.aDiscountsGiven())),
 
   // config
   http.get('*/api/config/late-fee-rules', () => ok([f.aLateFeeRule()])),
   http.put('*/api/config/late-fee-rules', () => ok([f.aLateFeeRule()])),
+
+  // coupons
+  http.get('*/api/config/coupons', () => ok([f.aCoupon()])),
+  http.get('*/api/config/coupons/:id', () => ok(f.aCoupon())),
+  http.post('*/api/config/coupons', () => ok(f.aCoupon())),
+  http.put('*/api/config/coupons/:id', () => ok(f.aCoupon())),
+  http.patch('*/api/config/coupons/:id/status', () => ok(f.aCoupon())),
 
   // public share pages
   http.get('*/api/public/receipts/:token', () => ok(f.aReceipt())),

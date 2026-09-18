@@ -2,6 +2,7 @@ package com.fashionrental.reporting;
 
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
+import com.fashionrental.reporting.model.response.DiscountsGivenResponse;
 import com.fashionrental.reporting.model.response.MonthlyRevenueResponse;
 import com.fashionrental.reporting.model.response.OutstandingDepositsResponse;
 import com.fashionrental.reporting.model.response.OverdueRentalsResponse;
@@ -15,11 +16,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 @RestController
 @RequestMapping("/api/reports")
 @Tag(name = "Reporting")
 public class ReportingController {
+
+    // Mirrors ReportingService's IST constant. LocalDate.now() with no zone reads the JVM's
+    // default zone, which is wrong for "today" in a shop that operates on IST regardless of
+    // where the server happens to run.
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private final ReportingService reportingService;
 
@@ -50,6 +57,17 @@ public class ReportingController {
                 ? java.time.YearMonth.of(year, month)
                 : java.time.YearMonth.now();
         return ResponseEntity.ok(ApiResponse.ok(reportingService.getMonthlyRevenue(ym.getYear(), ym.getMonthValue())));
+    }
+
+    @GetMapping("/discounts-given")
+    @Operation(summary = "Coupon discounts given within a date range")
+    public ResponseEntity<ApiResponse<DiscountsGivenResponse>> getDiscountsGiven(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        LocalDate today = LocalDate.now(IST);
+        LocalDate effectiveFrom = from != null ? from : today.withDayOfMonth(1);
+        LocalDate effectiveTo = to != null ? to : today;
+        return ResponseEntity.ok(ApiResponse.ok(reportingService.getDiscountsGiven(effectiveFrom, effectiveTo)));
     }
 
     @GetMapping("/overdue-rentals")

@@ -153,6 +153,11 @@ export default function ProcessReturnPage() {
             ({formatCurrency(receipt.totalRent / receipt.rentalDays)}/day × {receipt.rentalDays} day{receipt.rentalDays !== 1 ? 's' : ''})
           </span>
         </Descriptions.Item>
+        {receipt.couponCode && (
+          <Descriptions.Item label={`Discount (${receipt.couponCode})`}>
+            <span style={{ color: '#52c41a' }}>−{formatCurrency(receipt.discountAmount)}</span>
+          </Descriptions.Item>
+        )}
       </Descriptions>
 
       {/* Return datetime */}
@@ -293,10 +298,24 @@ export default function ProcessReturnPage() {
           style={{ marginBottom: 20, background: '#fafafa', borderColor: '#d9d9d9' }}
           title="Invoice Preview"
         >
-          <Descriptions column={1} size="small" bordered>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Rent — charged at checkout, not part of this return
+          </Typography.Text>
+          <Descriptions column={1} size="small" bordered style={{ marginTop: 4, marginBottom: 12 }}>
             <Descriptions.Item label={`Rent Charged (${receipt.rentalDays} day${receipt.rentalDays !== 1 ? 's' : ''})`}>
               {formatCurrency(receipt.totalRent)}
             </Descriptions.Item>
+            {receipt.couponCode && (
+              <Descriptions.Item label={`Discount (${receipt.couponCode})`}>
+                <span style={{ color: '#52c41a' }}>−{formatCurrency(receipt.discountAmount)}</span>
+              </Descriptions.Item>
+            )}
+          </Descriptions>
+
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Return settlement
+          </Typography.Text>
+          <Descriptions column={1} size="small" bordered style={{ marginTop: 4 }}>
             <Descriptions.Item label="Deposit Collected">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
             {preview.totalLateFee > 0 && (
               <Descriptions.Item label="Late Fee">
