@@ -144,7 +144,7 @@ export default function InvoiceDetailPage() {
 
       <div style={{ maxWidth: 900 }}>
         {/* Controls — hidden on print */}
-        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <Button
             type="link"
             icon={<ArrowLeftOutlined />}
@@ -153,7 +153,7 @@ export default function InvoiceDetailPage() {
           >
             Back to Active Rentals
           </Button>
-          <Space>
+          <Space wrap>
             <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
               Print / Share
             </Button>

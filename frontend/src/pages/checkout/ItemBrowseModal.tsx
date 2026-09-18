@@ -161,11 +161,12 @@ export default function ItemBrowseModal({
                     key={i}
                     onClick={() => setPhotoIndex(i)}
                     style={{
-                      width: i === safeIndex ? 18 : 6,
-                      height: 6, borderRadius: 3,
+                      width: 6, height: 6, borderRadius: 3,
+                      transform: `scaleX(${i === safeIndex ? 3 : 1})`,
+                      transformOrigin: 'center',
                       background: i === safeIndex ? '#fff' : 'rgba(255,255,255,0.5)',
                       cursor: 'pointer',
-                      transition: 'width 0.2s',
+                      transition: 'transform 0.2s',
                     }}
                   />
                 ))}
