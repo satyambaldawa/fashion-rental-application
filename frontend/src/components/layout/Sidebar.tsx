@@ -1,7 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Menu } from 'antd'
+import { Grid, Menu } from 'antd'
 import { useAuth } from '../../hooks/useAuth'
 import type { UserRole } from '../../types/auth'
+
+const { useBreakpoint } = Grid
 
 interface NavItem {
   key: string
@@ -71,16 +73,76 @@ function injectTopNavStylesOnce() {
   }
 }
 
+interface PillNavItem {
+  key: string
+  label: string
+}
+
+// Mobile nav: every item visible at once as a wrapping row of pills — the
+// same pattern CheckoutPage already uses for its category filter chips.
+// A horizontally-scrolling strip (tried first) required swiping to even
+// discover items past the edge; wrapping needs no gesture to see everything.
+function MobileNavPills({
+  items,
+  selectedKey,
+  onSelect,
+}: {
+  items: PillNavItem[]
+  selectedKey: string | undefined
+  onSelect: (key: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 16px' }}>
+      {items.map(item => {
+        const isActive = item.key === selectedKey
+        return (
+          <button
+            key={item.key}
+            onClick={() => onSelect(item.key)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 999,
+              border: `1px solid ${isActive ? '#EAB9CF' : 'rgba(255,255,255,0.3)'}`,
+              background: isActive ? '#EAB9CF' : 'transparent',
+              color: isActive ? '#6E0B37' : 'rgba(255,255,255,0.85)',
+              fontFamily: '"Jost", system-ui, sans-serif',
+              fontWeight: 500,
+              fontSize: 13,
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+            }}
+          >
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function TopNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const { role } = useAuth()
+  const screens = useBreakpoint()
+  const isMobile = !screens.lg
 
   injectTopNavStylesOnce()
 
   const visibleItems = NAV_ITEMS
     .filter(item => item.roles.includes(role))
     .map(({ key, label }) => ({ key, label }))
+
+  if (isMobile) {
+    return (
+      <MobileNavPills
+        items={visibleItems}
+        selectedKey={location.pathname}
+        onSelect={navigate}
+      />
+    )
+  }
 
   return (
     <Menu
@@ -107,10 +169,27 @@ export function TopNav() {
 export function PublicNav() {
   const navigate = useNavigate()
   const location = useLocation()
+  const screens = useBreakpoint()
+  const isMobile = !screens.lg
 
   injectTopNavStylesOnce()
 
   const selectedKey = PUBLIC_NAV_ITEMS.find(item => item.key === location.pathname)?.key
+
+  function goTo(key: string) {
+    const item = PUBLIC_NAV_ITEMS.find(i => i.key === key)
+    if (item) navigate(item.target)
+  }
+
+  if (isMobile) {
+    return (
+      <MobileNavPills
+        items={PUBLIC_NAV_ITEMS.map(({ key, label }) => ({ key, label }))}
+        selectedKey={selectedKey}
+        onSelect={goTo}
+      />
+    )
+  }
 
   return (
     <Menu
@@ -119,10 +198,7 @@ export function PublicNav() {
       theme="dark"
       selectedKeys={selectedKey ? [selectedKey] : []}
       items={PUBLIC_NAV_ITEMS.map(({ key, label }) => ({ key, label }))}
-      onClick={({ key }) => {
-        const item = PUBLIC_NAV_ITEMS.find(i => i.key === key)
-        if (item) navigate(item.target)
-      }}
+      onClick={({ key }) => goTo(key)}
       style={{
         background: '#6E0B37',
         flex: 1,
