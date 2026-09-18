@@ -5,6 +5,7 @@ import {
   Descriptions,
   Divider,
   Space,
+  Spin,
   Table,
   Tag,
   Typography,
@@ -15,6 +16,7 @@ import { receiptsApi } from '../../api/receipts'
 import type { ReceiptLineItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
+import PageHeader from '../../components/common/PageHeader'
 
 const PRINT_STYLES = `
 @media print {
@@ -68,11 +70,22 @@ export default function ReceiptDetailPage() {
   })
 
   if (isLoading) {
-    return <Typography.Text>Loading...</Typography.Text>
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+        <Spin size="large" />
+      </div>
+    )
   }
 
   if (isError || !receipt) {
-    return <Typography.Text type="danger">Receipt not found.</Typography.Text>
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '80px 0' }}>
+        <Typography.Text type="danger">Receipt not found.</Typography.Text>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/receipts')}>
+          Back to Active Rentals
+        </Button>
+      </div>
+    )
   }
 
   const lineItemColumns = [
@@ -163,6 +176,7 @@ export default function ReceiptDetailPage() {
         <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <Button
             type="link"
+            size="large"
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate('/receipts')}
             style={{ padding: 0 }}
@@ -170,10 +184,11 @@ export default function ReceiptDetailPage() {
             Back to Active Rentals
           </Button>
           <Space wrap>
-            <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+            <Button size="large" icon={<PrinterOutlined />} onClick={() => window.print()}>
               Print / Share
             </Button>
             <Button
+              size="large"
               icon={<WhatsAppOutlined />}
               style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#fff' }}
               href={buildReceiptWhatsAppUrl(receipt)}
@@ -183,7 +198,7 @@ export default function ReceiptDetailPage() {
               Send on WhatsApp
             </Button>
             {receipt.status === 'GIVEN' && (
-              <Button type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>
+              <Button size="large" type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>
                 Process Return
               </Button>
             )}
@@ -194,14 +209,30 @@ export default function ReceiptDetailPage() {
         <div className="receipt-print-area">
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {receipt.receiptNumber}
-            </Typography.Title>
-            <Tag color={receipt.status === 'GIVEN' ? 'blue' : 'green'}>
-              {receipt.status}
-            </Tag>
-          </div>
+          <PageHeader
+            label="Receipt"
+            title="Rental"
+            accent="Details"
+            action={
+              <Space>
+                <Typography.Text strong style={{ fontSize: 16 }}>
+                  {receipt.receiptNumber}
+                </Typography.Text>
+                <Tag
+                  style={{
+                    borderRadius: 999,
+                    border: 'none',
+                    fontWeight: 500,
+                    ...(receipt.status === 'GIVEN'
+                      ? { background: '#6E0B37', color: '#fff' }
+                      : { background: '#fff', color: '#7a5361', border: '1px solid #eed6e0' }),
+                  }}
+                >
+                  {receipt.status}
+                </Tag>
+              </Space>
+            }
+          />
 
           {/* Customer & rental details */}
           <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 20 }}>
@@ -223,15 +254,16 @@ export default function ReceiptDetailPage() {
 
           {/* Line items */}
           <Typography.Title level={5} style={{ marginBottom: 10 }}>Items Rented</Typography.Title>
-          <Table<ReceiptLineItem>
-            dataSource={receipt.lineItems}
-            columns={lineItemColumns}
-            rowKey="id"
-            pagination={false}
-            size="small"
-            scroll={{ x: 'max-content' }}
-            style={{ marginBottom: 20 }}
-          />
+          <div style={{ border: '1px solid #eed6e0', borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+            <Table<ReceiptLineItem>
+              dataSource={receipt.lineItems}
+              columns={lineItemColumns}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              scroll={{ x: 'max-content' }}
+            />
+          </div>
 
           {/* Financial summary */}
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -260,7 +292,7 @@ export default function ReceiptDetailPage() {
               border: '2px solid #C2185B',
               borderRadius: 8,
               padding: '16px 20px',
-              background: '#e6f4ff',
+              background: '#FBF1F5',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
