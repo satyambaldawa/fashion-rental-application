@@ -66,6 +66,18 @@ class CouponControllerTest {
 
     @Test
     @WithMockUser(roles = "OWNER")
+    void owner_can_get_a_coupon_by_id() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(couponService.getCoupon(id)).thenReturn(response());
+
+        mockMvc.perform(get("/api/config/coupons/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.code").value("SAVE20"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
     void owner_can_create_a_coupon() throws Exception {
         when(couponService.createCoupon(any())).thenReturn(response());
 
@@ -112,6 +124,13 @@ class CouponControllerTest {
     @WithMockUser(roles = "EXECUTIVE")
     void executive_is_forbidden_from_listing_coupons() throws Exception {
         mockMvc.perform(get("/api/config/coupons"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EXECUTIVE")
+    void executive_is_forbidden_from_getting_a_coupon_by_id() throws Exception {
+        mockMvc.perform(get("/api/config/coupons/" + UUID.randomUUID()))
                 .andExpect(status().isForbidden());
     }
 

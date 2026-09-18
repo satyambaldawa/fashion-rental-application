@@ -56,6 +56,8 @@ import { useAuth } from '../../hooks/useAuth'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
+const LARGE_DISCOUNT_WARNING_RATIO = 0.9
+
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -227,7 +229,8 @@ export default function CheckoutPage() {
       // legitimate 100%-off promotion also crosses this threshold; that's an acceptable
       // false positive; there's no backend hard cap to lean on instead, since a large
       // package subtotal shouldn't be artificially capped.
-      if (preview.totalRent > 0 && preview.discountAmount / preview.totalRent > 0.9) {
+      if (preview.totalRent > 0
+          && preview.discountAmount / preview.totalRent > LARGE_DISCOUNT_WARNING_RATIO) {
         Modal.confirm({
           title: 'Large discount',
           content: `This coupon discounts ${formatCurrency(preview.discountAmount)} off a ${formatCurrency(preview.totalRent)} rent subtotal. Apply it?`,

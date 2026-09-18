@@ -1,6 +1,10 @@
 package com.fashionrental.configuration;
 
 import com.fashionrental.AbstractIntegrationTest;
+import com.fashionrental.customer.Customer;
+import com.fashionrental.customer.CustomerRepository;
+import com.fashionrental.receipt.Receipt;
+import com.fashionrental.receipt.ReceiptRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,12 @@ class CouponMigrationIT extends AbstractIntegrationTest {
 
     @Autowired
     private CouponRepository couponRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private ReceiptRepository receiptRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -48,6 +58,48 @@ class CouponMigrationIT extends AbstractIntegrationTest {
         assertThat(loaded.getIsActive()).isTrue();
         assertThat(loaded.getCreatedAt()).isNotNull();
         assertThat(loaded.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    void receipt_with_a_discount_but_no_coupon_code_violates_the_check_constraint() {
+        Receipt receipt = newReceiptWithDiscount(null, 50);
+
+        assertThatThrownBy(() -> receiptRepository.saveAndFlush(receipt))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void receipt_with_a_zero_discount_and_no_coupon_code_is_allowed() {
+        Receipt receipt = newReceiptWithDiscount(null, 0);
+
+        assertThat(receiptRepository.saveAndFlush(receipt).getId()).isNotNull();
+    }
+
+    private Receipt newReceiptWithDiscount(String couponCode, int discountAmount) {
+        Customer customer = new Customer();
+        customer.setName("Test Customer");
+        customer.setPhone("9800000000" + System.nanoTime() % 100);
+        customer.setCustomerType(Customer.CustomerType.MISC);
+        customer.setIsActive(true);
+        customer = customerRepository.saveAndFlush(customer);
+
+        OffsetDateTime start = OffsetDateTime.now();
+        int totalRent = 300;
+        int totalDeposit = 100;
+
+        Receipt receipt = new Receipt();
+        receipt.setReceiptNumber("R-TEST-" + System.nanoTime());
+        receipt.setShareToken(String.valueOf(System.nanoTime()).substring(0, 12));
+        receipt.setCustomer(customer);
+        receipt.setStartDatetime(start);
+        receipt.setEndDatetime(start.plusDays(3));
+        receipt.setRentalDays(3);
+        receipt.setTotalRent(totalRent);
+        receipt.setTotalDeposit(totalDeposit);
+        receipt.setCouponCode(couponCode);
+        receipt.setDiscountAmount(discountAmount);
+        receipt.setGrandTotal(totalRent - discountAmount + totalDeposit);
+        return receipt;
     }
 
     private Coupon newCoupon(String code) {

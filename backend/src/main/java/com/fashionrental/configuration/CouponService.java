@@ -22,6 +22,8 @@ import java.util.UUID;
 public class CouponService {
 
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    private static final int MIN_PERCENT_DISCOUNT = 1;
+    private static final int MAX_PERCENT_DISCOUNT = 100;
 
     private final CouponRepository couponRepository;
 
@@ -110,7 +112,8 @@ public class CouponService {
     }
 
     private void validateDiscount(Coupon.DiscountType discountType, int value) {
-        if (discountType == Coupon.DiscountType.PERCENT && (value < 1 || value > 100)) {
+        if (discountType == Coupon.DiscountType.PERCENT
+                && (value < MIN_PERCENT_DISCOUNT || value > MAX_PERCENT_DISCOUNT)) {
             throw new ValidationException("A percentage discount must be between 1 and 100.");
         }
     }
