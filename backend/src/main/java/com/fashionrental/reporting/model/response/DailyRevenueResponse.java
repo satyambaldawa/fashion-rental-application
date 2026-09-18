@@ -10,6 +10,7 @@ public record DailyRevenueResponse(
         int collectedFromCustomers,
         int lateFeeIncome,
         int damageIncome,
+        int totalDiscountsGiven,
         int netFlow,
         int newReceiptsCount,
         int returnsProcessedCount

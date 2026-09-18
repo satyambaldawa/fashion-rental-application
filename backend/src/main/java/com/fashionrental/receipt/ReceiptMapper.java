@@ -26,6 +26,8 @@ public class ReceiptMapper {
                 receipt.getEndDatetime(),
                 receipt.getRentalDays(),
                 receipt.getTotalRent(),
+                receipt.getCouponCode(),
+                receipt.getDiscountAmount(),
                 receipt.getTotalDeposit(),
                 receipt.getGrandTotal(),
                 receipt.getStatus().name(),

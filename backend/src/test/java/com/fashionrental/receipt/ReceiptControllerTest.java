@@ -49,6 +49,7 @@ class ReceiptControllerTest {
                 UUID.randomUUID(), START, END,
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
                 List.of(),
+                null,
                 null
         );
     }
@@ -57,7 +58,7 @@ class ReceiptControllerTest {
         return new CheckoutPreviewResponse(
                 true,
                 List.of(),
-                3, 600, 1000, 1600,
+                3, 600, null, 0, 1000, 1600,
                 List.of()
         );
     }
@@ -66,7 +67,7 @@ class ReceiptControllerTest {
         return new ReceiptResponse(
                 UUID.randomUUID(), "R-20260421-001", "tok3nABCD12",
                 UUID.randomUUID(), "Ravi Sharma", "9876543210",
-                START, END, 3, 600, 1000, 1600,
+                START, END, 3, 600, null, 0, 1000, 1600,
                 "GIVEN", null,
                 List.of(new ReceiptLineItemResponse(
                         UUID.randomUUID(), UUID.randomUUID(), "Blue Sherwani",
@@ -141,7 +142,7 @@ class ReceiptControllerTest {
     @WithMockUser
     void should_return_400_when_items_empty() throws Exception {
         CheckoutRequest invalidRequest = new CheckoutRequest(
-                UUID.randomUUID(), START, END, List.of(), List.of(), null
+                UUID.randomUUID(), START, END, List.of(), List.of(), null, null
         );
 
         mockMvc.perform(post("/api/receipts").with(csrf())
@@ -169,7 +170,7 @@ class ReceiptControllerTest {
                 UUID.randomUUID(), "R-20260421-001",
                 "Ravi Sharma", "9876543210",
                 List.of("Blue Sherwani \u00d71"),
-                START, END, 3, 600, 1000, 1600,
+                START, END, 3, 600, null, 0, 1000, 1600,
                 "GIVEN", false, null
         );
 

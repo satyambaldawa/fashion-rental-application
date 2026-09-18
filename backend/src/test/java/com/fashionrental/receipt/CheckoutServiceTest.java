@@ -5,6 +5,8 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.common.util.ShareTokenService;
+import com.fashionrental.configuration.Coupon;
+import com.fashionrental.configuration.CouponRepository;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
@@ -40,7 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +60,8 @@ class CheckoutServiceTest {
     @Mock ShareTokenService shareTokenService;
     @Mock DateTimeUtil dateTimeUtil;
     @Mock ReceiptMapper receiptMapper;
+    @Mock CouponDiscountResolver couponDiscountResolver;
+    @Mock CouponRepository couponRepository;
 
     @InjectMocks CheckoutService checkoutService;
 
@@ -67,6 +73,14 @@ class CheckoutServiceTest {
         var auth = new UsernamePasswordAuthenticationToken(
                 "owner", null, List.of(new SimpleGrantedAuthority("ROLE_OWNER")));
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    // lenient: several tests throw before ever reaching the resolver (bad date range,
+    // missing customer, non-owner ad-hoc rejection), which would make this an
+    // "unnecessary stubbing" under strict Mockito for those specific tests.
+    @BeforeEach
+    void stubNoCouponByDefault() {
+        lenient().when(couponDiscountResolver.resolve(any(), any())).thenReturn(AppliedDiscount.none());
     }
 
     @AfterEach
@@ -88,7 +102,8 @@ class CheckoutServiceTest {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, END,
                 List.of(new CheckoutLineItem(itemId, 2)),
-                List.of()
+                List.of(),
+                null
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -102,6 +117,8 @@ class CheckoutServiceTest {
         assertThat(preview.grandTotal()).isEqualTo(3200);
         assertThat(preview.allAvailable()).isTrue();
         assertThat(preview.unavailableItems()).isEmpty();
+        assertThat(preview.couponCode()).isNull();
+        assertThat(preview.discountAmount()).isZero();
     }
 
     @Test
@@ -116,7 +133,8 @@ class CheckoutServiceTest {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, END,
                 List.of(new CheckoutLineItem(itemId, 2)), // requesting 2, only 1 available
-                List.of()
+                List.of(),
+                null
         );
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
@@ -132,7 +150,8 @@ class CheckoutServiceTest {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, end,
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
-                List.of()
+                List.of(),
+                null
         );
 
         assertThatThrownBy(() -> checkoutService.preview(request))
@@ -166,6 +185,7 @@ class CheckoutServiceTest {
                 OffsetDateTime.now().plusDays(2),
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -207,6 +227,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -226,6 +247,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -252,13 +274,14 @@ class CheckoutServiceTest {
         when(receiptMapper.toReceiptResponse(any(Receipt.class))).thenAnswer(inv -> {
             Receipt r = inv.getArgument(0);
             return new ReceiptResponse(null, null, null, null, null, null, null, null,
-                    r.getRentalDays(), 0, 0, 0, null, null, List.of(), null);
+                    r.getRentalDays(), 0, null, 0, 0, 0, null, null, List.of(), null);
         });
 
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -283,6 +306,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null,
                 null
         );
 
@@ -313,6 +337,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)),
+                null,
                 null
         );
 
@@ -339,6 +364,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null,
                 null
         );
 
@@ -365,6 +391,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Cheap Scarf", "S", 5, 0, 1)),
+                null,
                 null
         );
 
@@ -391,6 +418,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Cheap Scarf", "S", 5, 0, 1)),
+                null,
                 null
         );
 
@@ -418,6 +446,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)),
+                null,
                 null
         );
 
@@ -443,7 +472,8 @@ class CheckoutServiceTest {
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
                 START, END, List.of(),
-                List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)));
+                List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)),
+                null);
 
         CheckoutPreviewResponse preview = checkoutService.preview(request);
 
@@ -470,7 +500,7 @@ class CheckoutServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(adHocItem));
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
-                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of());
+                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), null);
 
         assertThatThrownBy(() -> checkoutService.preview(request))
                 .isInstanceOf(ValidationException.class)
@@ -490,7 +520,7 @@ class CheckoutServiceTest {
         when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
 
         CheckoutRequest request = new CheckoutRequest(
-                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), null);
+                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), null, null);
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
                 .isInstanceOf(ValidationException.class)
@@ -507,6 +537,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null,
                 null
         );
 
@@ -526,6 +557,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null,
                 null
         );
 
@@ -559,6 +591,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -586,6 +619,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null,
                 null
         );
 
@@ -639,6 +673,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(packageId, 1)),
                 List.of(),
+                null,
                 null
         );
 
@@ -709,6 +744,7 @@ class CheckoutServiceTest {
                 customerId, START, END,
                 List.of(new CheckoutLineItem(packageId, 2)), // renting 2 packages
                 List.of(),
+                null,
                 null
         );
 
@@ -730,6 +766,356 @@ class CheckoutServiceTest {
         assertThat(reservationLine.getQuantity()).isEqualTo(4); // 2 per set × 2 packages
     }
 
+    // ─── Coupons ────────────────────────────────────────────────────────────
+
+    @Test
+    void should_exclude_the_deposit_from_the_discountable_subtotal() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000); // rate=200, deposit=1000
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120)); // 20% of 600 rent
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE20"
+        );
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        // rent 600, deposit 1000, discount 120 -> grandTotal = 600 - 120 + 1000 = 1480
+        assertThat(saved.getTotalDeposit()).isEqualTo(1000);
+        assertThat(saved.getGrandTotal()).isEqualTo(1480);
+    }
+
+    @Test
+    void should_include_ad_hoc_line_rent_in_the_discountable_subtotal() {
+        UUID customerId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END, List.of(),
+                List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
+                null, "SAVE10"
+        );
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<DiscountableSubtotals> captor = ArgumentCaptor.forClass(DiscountableSubtotals.class);
+        verify(couponDiscountResolver).resolve(eq("SAVE10"), captor.capture());
+        assertThat(captor.getValue().rent()).isEqualTo(500); // ad-hoc flat price counted
+        assertThat(captor.getValue().sale()).isZero();
+    }
+
+    @Test
+    void should_set_grand_total_to_rent_minus_discount_plus_deposit() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 100, 500);
+        Coupon coupon = makeCoupon("FLAT50", Coupon.DiscountType.FIXED, 50);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(couponDiscountResolver.resolve(eq("FLAT50"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "FLAT50", 50));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "FLAT50"
+        );
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        // rent 200 (100*2*1), deposit 500, discount 50 -> grandTotal = 200-50+500 = 650
+        assertThat(saved.getTotalRent()).isEqualTo(200);
+        assertThat(saved.getTotalDeposit()).isEqualTo(500);
+        assertThat(saved.getGrandTotal()).isEqualTo(650);
+    }
+
+    @Test
+    void should_snapshot_coupon_code_and_discount_amount_on_the_receipt() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 100, 500);
+        Coupon coupon = makeCoupon("FLAT50", Coupon.DiscountType.FIXED, 50);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(couponDiscountResolver.resolve(eq("FLAT50"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "FLAT50", 50));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "FLAT50"
+        );
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        assertThat(saved.getCouponCode()).isEqualTo("FLAT50");
+        assertThat(saved.getDiscountAmount()).isEqualTo(50);
+    }
+
+    @Test
+    void should_persist_zero_discount_and_null_coupon_code_when_no_code_is_supplied() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 100, 500);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(2);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null
+        );
+
+        checkoutService.createReceipt(request);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt saved = captor.getValue();
+
+        assertThat(saved.getCouponCode()).isNull();
+        assertThat(saved.getDiscountAmount()).isZero();
+        verify(couponRepository, never()).incrementTimesUsed(any());
+    }
+
+    @Test
+    void should_not_increment_times_used_during_preview() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120));
+
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(
+                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), "SAVE20");
+
+        checkoutService.preview(request);
+
+        verify(couponRepository, never()).incrementTimesUsed(any());
+    }
+
+    @Test
+    void should_increment_times_used_exactly_once_on_receipt_creation() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(1);
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE20"
+        );
+
+        checkoutService.createReceipt(request);
+
+        verify(couponRepository, times(1)).incrementTimesUsed(any());
+    }
+
+    @Test
+    void should_reject_checkout_when_the_usage_claim_returns_zero_rows() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+        coupon.setUsageLimit(1);
+        coupon.setTimesUsed(1);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(0);
+        when(couponRepository.findIsActiveById(any())).thenReturn(Optional.of(true));
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE20"
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("usage limit");
+
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
+    @Test
+    void should_report_deactivation_not_usage_limit_when_the_coupon_was_deactivated_mid_checkout() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(0);
+
+        // A concurrent admin edit deactivated the coupon between resolve()'s read and the
+        // claim. The re-read must be the scalar projection, not findById — findById would be
+        // served from the persistence context and still report the read-time `true`, which
+        // is why this branch was unreachable before.
+        when(couponRepository.findIsActiveById(any())).thenReturn(Optional.of(false));
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE20"
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("no longer active");
+
+        verify(couponRepository, never()).findById(any());
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
+    @Test
+    void should_report_deactivation_when_the_coupon_row_has_been_removed_mid_checkout() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.resolve(eq("SAVE20"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE20", 120));
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(0);
+        when(couponRepository.findIsActiveById(any())).thenReturn(Optional.empty());
+
+        CheckoutRequest request = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE20"
+        );
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("no longer active");
+
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
+    @Test
+    void should_produce_identical_totals_from_preview_and_create_for_the_same_cart() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Customer customer = makeCustomer(customerId, "Anil", "9800011122");
+        Item item = makeItem(itemId, "Blue Sherwani", 150, 700);
+        Coupon coupon = makeCoupon("SAVE10", Coupon.DiscountType.PERCENT, 10);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(receiptNumberService.generateReceiptNumber()).thenReturn("R-001");
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(couponDiscountResolver.resolve(eq("SAVE10"), any()))
+                .thenReturn(new AppliedDiscount(coupon, "SAVE10", 45)); // 10% of 450
+        when(couponRepository.incrementTimesUsed(any())).thenReturn(1);
+
+        CheckoutPreviewRequest previewRequest = new CheckoutPreviewRequest(
+                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), "SAVE10");
+        CheckoutPreviewResponse preview = checkoutService.preview(previewRequest);
+
+        CheckoutRequest createRequest = new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, "SAVE10");
+        checkoutService.createReceipt(createRequest);
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        Receipt created = captor.getValue();
+
+        assertThat(preview.totalRent()).isEqualTo(created.getTotalRent());
+        assertThat(preview.discountAmount()).isEqualTo(created.getDiscountAmount());
+        assertThat(preview.totalDeposit()).isEqualTo(created.getTotalDeposit());
+        assertThat(preview.grandTotal()).isEqualTo(created.getGrandTotal());
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
     private void injectId(Item item, UUID id) {
         try {
             var field = Item.class.getDeclaredField("id");
@@ -739,8 +1125,6 @@ class CheckoutServiceTest {
             throw new RuntimeException(e);
         }
     }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private Item makeItem(UUID id, String name, int rate, int deposit) {
         Item item = new Item();
@@ -774,6 +1158,17 @@ class CheckoutServiceTest {
             throw new RuntimeException(e);
         }
         return customer;
+    }
+
+    private Coupon makeCoupon(String code, Coupon.DiscountType type, int value) {
+        Coupon coupon = new Coupon();
+        coupon.setCode(code);
+        coupon.setDiscountType(type);
+        coupon.setValue(value);
+        coupon.setValidFrom(START.minusDays(30));
+        coupon.setValidTo(START.plusDays(30));
+        coupon.setIsActive(true);
+        return coupon;
     }
 
     private Receipt buildReceipt(UUID customerId, Customer customer, UUID itemId, Item item, int rentalDays) {

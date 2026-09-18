@@ -6,6 +6,7 @@ export interface DailyRevenue {
   collectedFromCustomers: number
   lateFeeIncome: number
   damageIncome: number
+  totalDiscountsGiven: number
   netFlow: number
   newReceiptsCount: number
   returnsProcessedCount: number
@@ -50,6 +51,7 @@ export interface DailyRevenueSummary {
   collectedFromCustomers: number
   lateFeeIncome: number
   damageIncome: number
+  totalDiscountsGiven: number
   netFlow: number
 }
 
@@ -62,6 +64,21 @@ export interface MonthlyRevenue {
   totalCollectedFromCustomers: number
   totalLateFeeIncome: number
   totalDamageIncome: number
+  totalDiscountsGiven: number
   totalNetFlow: number
   dailyBreakdown: DailyRevenueSummary[]
+}
+
+export interface CouponDiscountSummary {
+  couponCode: string
+  timesApplied: number
+  totalDiscount: number
+}
+
+export interface DiscountsGiven {
+  from: string
+  to: string
+  totalDiscountGiven: number
+  receiptsWithCoupon: number
+  byCoupon: CouponDiscountSummary[]
 }

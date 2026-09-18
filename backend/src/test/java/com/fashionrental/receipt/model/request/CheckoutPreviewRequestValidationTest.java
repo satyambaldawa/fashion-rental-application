@@ -38,14 +38,14 @@ class CheckoutPreviewRequestValidationTest {
     @Test
     void should_accept_preview_with_only_ad_hoc_items() {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
-                START, END, List.of(), List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)));
+                START, END, List.of(), List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)), null);
 
         assertThat(validator.validate(request)).isEmpty();
     }
 
     @Test
     void should_reject_preview_when_both_item_lists_are_empty() {
-        CheckoutPreviewRequest request = new CheckoutPreviewRequest(START, END, List.of(), List.of());
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(START, END, List.of(), List.of(), null);
 
         Set<ConstraintViolation<CheckoutPreviewRequest>> violations = validator.validate(request);
 
@@ -56,7 +56,7 @@ class CheckoutPreviewRequestValidationTest {
 
     @Test
     void should_treat_missing_ad_hoc_list_as_empty() {
-        CheckoutPreviewRequest request = new CheckoutPreviewRequest(START, END, List.of(), null);
+        CheckoutPreviewRequest request = new CheckoutPreviewRequest(START, END, List.of(), null, null);
 
         Set<ConstraintViolation<CheckoutPreviewRequest>> violations = validator.validate(request);
 
@@ -68,7 +68,7 @@ class CheckoutPreviewRequestValidationTest {
     @Test
     void should_treat_missing_items_list_as_empty() {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
-                START, END, null, List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)));
+                START, END, null, List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)), null);
 
         assertThat(validator.validate(request)).isEmpty();
     }
@@ -76,7 +76,7 @@ class CheckoutPreviewRequestValidationTest {
     @Test
     void should_reject_null_ad_hoc_element() {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest(
-                START, END, List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), Arrays.asList((AdHocLineItem) null));
+                START, END, List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), Arrays.asList((AdHocLineItem) null), null);
 
         Set<ConstraintViolation<CheckoutPreviewRequest>> violations = validator.validate(request);
 

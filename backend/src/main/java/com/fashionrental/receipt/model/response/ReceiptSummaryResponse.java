@@ -14,6 +14,8 @@ public record ReceiptSummaryResponse(
         OffsetDateTime endDatetime,
         int rentalDays,
         int totalRent,
+        String couponCode,
+        int discountAmount,
         int totalDeposit,
         int grandTotal,
         String status,

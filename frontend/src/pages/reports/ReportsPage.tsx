@@ -13,6 +13,7 @@ import {
   Space,
   Spin,
   Statistic,
+  Table,
   Tabs,
   Tag,
   Typography,
@@ -32,7 +33,12 @@ import {
 import dayjs, { type Dayjs } from 'dayjs'
 import { reportsApi } from '../../api/reports'
 import { formatCurrency } from '../../utils/currency'
-import type { DailyRevenueSummary, OutstandingDepositItem, OverdueRentalItem } from '../../types/reports'
+import type {
+  CouponDiscountSummary,
+  DailyRevenueSummary,
+  OutstandingDepositItem,
+  OverdueRentalItem,
+} from '../../types/reports'
 
 function formatOverdueDuration(hours: number): string {
   if (hours < 24) return `${Math.floor(hours)} hr${Math.floor(hours) !== 1 ? 's' : ''}`
@@ -72,6 +78,11 @@ function DailyRevenueTab() {
           </Typography.Text>
           <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
             <Descriptions.Item label="Rent collected">{formatCurrency(data.rentCollected)}</Descriptions.Item>
+            {data.totalDiscountsGiven > 0 && (
+              <Descriptions.Item label="Discounts given">
+                <span style={{ color: '#52c41a' }}>−{formatCurrency(data.totalDiscountsGiven)}</span>
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Deposits taken on">{formatCurrency(data.depositsCollected)}</Descriptions.Item>
           </Descriptions>
 
@@ -321,6 +332,16 @@ function MonthlyRevenueTab() {
               </Card>
             </Col>
             <Col xs={12} sm={8} md={6}>
+              <Card size="small">
+                <Statistic
+                  title="Discounts Given"
+                  value={data.totalDiscountsGiven}
+                  formatter={v => formatCurrency(v as number)}
+                  valueStyle={{ color: '#52c41a', fontSize: 18 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={6}>
               <Card size="small" style={{ borderColor: data.totalNetFlow >= 0 ? '#b7eb8f' : '#ffa39e' }}>
                 <Statistic
                   title="Net Cash Flow"
@@ -357,6 +378,83 @@ function MonthlyRevenueTab() {
   )
 }
 
+function DiscountsGivenTab() {
+  const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs()])
+  const [from, to] = range
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['reports', 'discounts-given', from.format('YYYY-MM-DD'), to.format('YYYY-MM-DD')],
+    queryFn: () => reportsApi.getDiscountsGiven(from.format('YYYY-MM-DD'), to.format('YYYY-MM-DD')),
+  })
+
+  const columns = [
+    { title: 'Coupon', dataIndex: 'couponCode', key: 'couponCode' },
+    { title: 'Times Applied', dataIndex: 'timesApplied', key: 'timesApplied' },
+    {
+      title: 'Total Discount',
+      dataIndex: 'totalDiscount',
+      key: 'totalDiscount',
+      render: (v: number) => formatCurrency(v),
+    },
+  ]
+
+  return (
+    <div style={{ maxWidth: 700 }}>
+      <Space style={{ marginBottom: 20 }}>
+        <Typography.Text strong>Range:</Typography.Text>
+        <DatePicker.RangePicker
+          value={range}
+          onChange={v => v && v[0] && v[1] && setRange([v[0], v[1]])}
+          format="DD MMM YYYY"
+          allowClear={false}
+        />
+      </Space>
+
+      {isLoading && <Spin />}
+      {isError && <Alert type="error" message="Failed to load discounts given." />}
+
+      {data && (
+        <>
+          <div style={{
+            padding: '14px 20px',
+            background: '#f6ffed',
+            border: '1px solid #b7eb8f',
+            borderRadius: 8,
+            marginBottom: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <Typography.Text strong style={{ fontSize: 16 }}>Total Discount Given</Typography.Text>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {data.receiptsWithCoupon} receipt{data.receiptsWithCoupon !== 1 ? 's' : ''} with a coupon applied
+                </Typography.Text>
+              </div>
+            </div>
+            <Typography.Title level={4} style={{ margin: 0, color: '#52c41a' }}>
+              {formatCurrency(data.totalDiscountGiven)}
+            </Typography.Title>
+          </div>
+
+          {data.byCoupon.length === 0 ? (
+            <Typography.Text type="secondary">No coupons applied in this range.</Typography.Text>
+          ) : (
+            <Table<CouponDiscountSummary>
+              columns={columns}
+              dataSource={data.byCoupon}
+              rowKey="couponCode"
+              size="small"
+              pagination={false}
+            />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ReportsPage() {
   return (
     <div>
@@ -366,6 +464,7 @@ export default function ReportsPage() {
         items={[
           { key: 'monthly-revenue', label: 'Monthly Revenue', children: <MonthlyRevenueTab /> },
           { key: 'daily-revenue', label: 'Daily Revenue', children: <DailyRevenueTab /> },
+          { key: 'discounts-given', label: 'Discounts Given', children: <DiscountsGivenTab /> },
           { key: 'outstanding-deposits', label: 'Outstanding Deposits', children: <OutstandingDepositsTab /> },
           { key: 'overdue-rentals', label: 'Overdue Rentals', children: <OverdueRentalsTab /> },
         ]}

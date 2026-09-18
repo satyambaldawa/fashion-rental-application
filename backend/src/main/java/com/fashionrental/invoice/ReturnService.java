@@ -93,7 +93,10 @@ public class ReturnService {
         invoice.setReceipt(receipt);
         invoice.setCustomer(receipt.getCustomer());
         invoice.setReturnDatetime(request.returnDatetime());
-        invoice.setTotalRent(receipt.getTotalRent());
+        // Net of any coupon discount — the customer never paid the gross figure, so the
+        // invoice must not quote it. Existing receipts all have discountAmount = 0, so
+        // this is numerically a no-op for every row created before this change.
+        invoice.setTotalRent(receipt.getTotalRent() - receipt.getDiscountAmount());
         invoice.setTotalDepositCollected(receipt.getTotalDeposit());
         invoice.setPaymentMethod(parsePaymentMethod(request.paymentMethod()));
         invoice.setDamageNotes(request.damageNotes());
@@ -199,6 +202,10 @@ public class ReturnService {
         }
     }
 
+    // couponCode/discountAmount are read live from the receipt rather than snapshotted onto
+    // Invoice: a receipt's coupon fields are set once at checkout and there is no edit path
+    // that could change them afterward, so the FK already loaded on invoice.receipt is as
+    // stable as a copy would be, without a migration.
     public InvoiceResponse toInvoiceResponse(Invoice invoice) {
         List<InvoiceLineItemResponse> lineItems = invoice.getLineItems().stream()
                 .map(this::toLineItemResponse)
@@ -215,6 +222,8 @@ public class ReturnService {
                 invoice.getCustomer().getPhone(),
                 invoice.getReturnDatetime(),
                 invoice.getTotalRent(),
+                invoice.getReceipt().getCouponCode(),
+                invoice.getReceipt().getDiscountAmount(),
                 invoice.getTotalDepositCollected(),
                 invoice.getTotalLateFee(),
                 invoice.getTotalDamageCost(),

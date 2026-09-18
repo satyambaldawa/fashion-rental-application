@@ -94,6 +94,7 @@ class AdHocCheckoutIT extends AbstractIntegrationTest {
                 finalCustomer.getId(), start, end,
                 List.of(new CheckoutLineItem(finalSoldOut.getId(), 1)),
                 List.of(new AdHocLineItem("Orphan Lehenga", "M", 500, 1000, 1)),
+                null,
                 null
         ))).isInstanceOf(ConflictException.class);
 

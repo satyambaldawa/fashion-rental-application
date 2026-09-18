@@ -5,6 +5,8 @@ import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.common.util.ShareTokenService;
+import com.fashionrental.configuration.Coupon;
+import com.fashionrental.configuration.CouponRepository;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.customer.CustomerRepository;
 import com.fashionrental.inventory.AvailabilityService;
@@ -39,6 +41,8 @@ public class CheckoutService {
     private final ShareTokenService shareTokenService;
     private final DateTimeUtil dateTimeUtil;
     private final ReceiptMapper receiptMapper;
+    private final CouponDiscountResolver couponDiscountResolver;
+    private final CouponRepository couponRepository;
 
     public CheckoutService(
             ItemRepository itemRepository,
@@ -49,7 +53,9 @@ public class CheckoutService {
             ReceiptNumberService receiptNumberService,
             ShareTokenService shareTokenService,
             DateTimeUtil dateTimeUtil,
-            ReceiptMapper receiptMapper
+            ReceiptMapper receiptMapper,
+            CouponDiscountResolver couponDiscountResolver,
+            CouponRepository couponRepository
     ) {
         this.itemRepository = itemRepository;
         this.customerRepository = customerRepository;
@@ -60,6 +66,8 @@ public class CheckoutService {
         this.shareTokenService = shareTokenService;
         this.dateTimeUtil = dateTimeUtil;
         this.receiptMapper = receiptMapper;
+        this.couponDiscountResolver = couponDiscountResolver;
+        this.couponRepository = couponRepository;
     }
 
     @Transactional(readOnly = true)
@@ -120,13 +128,18 @@ public class CheckoutService {
 
         int totalRent = lineItems.stream().mapToInt(PreviewLineItem::lineRent).sum();
         int totalDeposit = lineItems.stream().mapToInt(PreviewLineItem::lineDeposit).sum();
-        int grandTotal = totalRent + totalDeposit;
+
+        AppliedDiscount discount = couponDiscountResolver.resolve(
+                request.couponCode(), discountableSubtotals(totalRent));
+        int grandTotal = totalRent - discount.amount() + totalDeposit;
 
         return new CheckoutPreviewResponse(
                 unavailableItems.isEmpty(),
                 lineItems,
                 rentalDays,
                 totalRent,
+                discount.code(),
+                discount.amount(),
                 totalDeposit,
                 grandTotal,
                 unavailableItems
@@ -202,14 +215,51 @@ public class CheckoutService {
             totalDeposit += line.getLineDeposit();
         }
 
+        AppliedDiscount discount = couponDiscountResolver.resolve(
+                request.couponCode(), discountableSubtotals(totalRent));
+        if (discount.isApplied()) {
+            claimCouponUsage(discount.coupon());
+        }
+
         receipt.setTotalRent(totalRent);
         receipt.setTotalDeposit(totalDeposit);
-        receipt.setGrandTotal(totalRent + totalDeposit);
+        receipt.setCouponCode(discount.code());
+        receipt.setDiscountAmount(discount.amount());
+        receipt.setGrandTotal(totalRent - discount.amount() + totalDeposit);
         receipt.setReceiptNumber(receiptNumberService.generateReceiptNumber());
         receipt.getLineItems().addAll(lineItems);
 
         Receipt saved = receiptRepository.save(receipt);
         return receiptMapper.toReceiptResponse(saved);
+    }
+
+    // Only the rent subtotal is discountable today. When #57 lands, the hardcoded 0
+    // becomes the sale subtotal — that is the entire change; CouponDiscountResolver is
+    // untouched.
+    private DiscountableSubtotals discountableSubtotals(int totalRent) {
+        return new DiscountableSubtotals(totalRent, 0);
+    }
+
+    // incrementTimesUsed's conditional UPDATE re-checks both isActive and usageLimit at
+    // claim time, so a zero-row result is ambiguous: the owner may have deactivated the
+    // coupon after resolve()'s read-time check passed, or a concurrent checkout may have
+    // consumed the last usage slot. Re-read the flag to report the real cause instead of
+    // assuming usage-limit exhaustion.
+    //
+    // findIsActiveById rather than findById is load-bearing: resolve() loaded this Coupon
+    // earlier in the same transaction, so an entity lookup returns the persistence
+    // context's copy — whose isActive is necessarily the read-time `true`, making the
+    // deactivation branch unreachable. The scalar projection cannot be cached.
+    private void claimCouponUsage(Coupon coupon) {
+        int claimed = couponRepository.incrementTimesUsed(coupon.getId());
+        if (claimed > 0) {
+            return;
+        }
+        Boolean stillActive = couponRepository.findIsActiveById(coupon.getId()).orElse(null);
+        if (!Boolean.TRUE.equals(stillActive)) {
+            throw new ConflictException("Coupon '" + coupon.getCode() + "' is no longer active.");
+        }
+        throw new ConflictException("Coupon '" + coupon.getCode() + "' has reached its usage limit.");
     }
 
     private ReceiptLineItem buildLineItem(Receipt receipt, Item item, int qty, int rate, int deposit, int rentalDays) {

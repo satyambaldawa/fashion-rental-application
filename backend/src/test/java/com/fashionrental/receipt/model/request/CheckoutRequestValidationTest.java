@@ -35,7 +35,7 @@ class CheckoutRequestValidationTest {
     }
 
     private static CheckoutRequest withOnlyAdHoc(AdHocLineItem line) {
-        return new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), List.of(line), null);
+        return new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), List.of(line), null, null);
     }
 
     @Test
@@ -48,7 +48,7 @@ class CheckoutRequestValidationTest {
 
     @Test
     void should_reject_request_when_both_item_lists_are_empty() {
-        CheckoutRequest request = new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), List.of(), null);
+        CheckoutRequest request = new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), List.of(), null, null);
 
         Set<ConstraintViolation<CheckoutRequest>> violations = validator.validate(request);
 
@@ -87,7 +87,7 @@ class CheckoutRequestValidationTest {
 
     @Test
     void should_treat_missing_ad_hoc_list_as_empty() {
-        CheckoutRequest request = new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), null, null);
+        CheckoutRequest request = new CheckoutRequest(UUID.randomUUID(), START, END, List.of(), null, null, null);
 
         Set<ConstraintViolation<CheckoutRequest>> violations = validator.validate(request);
 
@@ -100,7 +100,7 @@ class CheckoutRequestValidationTest {
     void should_treat_missing_items_list_as_empty() {
         CheckoutRequest request = new CheckoutRequest(
                 UUID.randomUUID(), START, END,
-                null, List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)), null);
+                null, List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)), null, null);
 
         assertThat(validator.validate(request)).isEmpty();
     }
@@ -113,6 +113,26 @@ class CheckoutRequestValidationTest {
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
                 .containsExactly("adHocItems[0].flatPrice");
+    }
+
+    @Test
+    void should_reject_coupon_code_longer_than_the_column_width() {
+        CheckoutRequest request = new CheckoutRequest(
+                UUID.randomUUID(), START, END,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), List.of(), null, "X".repeat(33));
+
+        assertThat(validator.validate(request))
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("couponCode");
+    }
+
+    @Test
+    void should_accept_a_coupon_code_at_the_column_width() {
+        CheckoutRequest request = new CheckoutRequest(
+                UUID.randomUUID(), START, END,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), List.of(), null, "X".repeat(32));
+
+        assertThat(validator.validate(request)).isEmpty();
     }
 
     @Test

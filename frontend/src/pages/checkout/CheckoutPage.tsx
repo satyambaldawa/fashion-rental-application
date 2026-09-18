@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
@@ -11,6 +11,7 @@ import {
   Divider,
   Input,
   InputNumber,
+  message,
   Modal,
   Pagination,
   Row,
@@ -40,7 +41,13 @@ import CustomerSearch from '../../components/common/CustomerSearch'
 import { customersApi } from '../../api/customers'
 import type { CustomerSummary } from '../../types/customer'
 import type { ItemSummary } from '../../types/inventory'
-import type { CartItem, CatalogueCartItem, AdHocCartItem, CheckoutRequest } from '../../types/receipt'
+import type {
+  CartItem,
+  CatalogueCartItem,
+  AdHocCartItem,
+  CheckoutPreviewRequest,
+  CheckoutRequest,
+} from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
@@ -49,13 +56,18 @@ import { useAuth } from '../../hooks/useAuth'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
+const LARGE_DISCOUNT_WARNING_RATIO = 0.9
+
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
   const isMobile = !screens.lg
   const { isOwner } = useAuth()
-  const { cart, createCart, addItem, removeItem, updateQuantity, clearCart } = useCart()
+  const {
+    cart, createCart, addItem, removeItem, updateQuantity, applyCoupon, removeCoupon, clearCart,
+    droppedCouponCode,
+  } = useCart()
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
@@ -101,6 +113,41 @@ export default function CheckoutPage() {
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
 
+  // Coupon
+  const [couponInput, setCouponInput] = useState('')
+  const [couponError, setCouponError] = useState<string | null>(null)
+
+  // useCart's mutators silently null out cart.appliedCoupon on any cart edit (the discount
+  // is a function of the subtotal, so a stale one must never be trusted) — but that alone
+  // leaves the coupon code still sitting in the (now-collapsed) input, which reads as
+  // "still applied" even though buildRequest will now send couponCode: null. Surface it.
+  // The check against the previously-applied code (not just "went to null") is what tells
+  // this apart from an explicit Remove click: handleRemoveCoupon clears couponInput in the
+  // same batch as removeCoupon(), so by the time this effect runs the input no longer
+  // matches, and the warning is correctly suppressed for a deliberate removal.
+  const lastAppliedCouponCode = useRef<string | null>(null)
+  useEffect(() => {
+    const current = cart?.appliedCoupon?.couponCode ?? null
+    const previous = lastAppliedCouponCode.current
+    if (previous && !current && couponInput === previous) {
+      message.warning(`Coupon ${previous} was removed because the cart changed — please re-apply it.`)
+      setCouponInput('')
+    }
+    lastAppliedCouponCode.current = current
+  }, [cart?.appliedCoupon?.couponCode, couponInput])
+
+  // Covers the gap the effect above cannot: CheckoutPage fully unmounts on navigation to
+  // /customers/register (a separate route, not a screen within this component), so a coupon
+  // dropped by useCart's rehydration guard on the return trip has no "previous" render to
+  // compare against — only useCart itself, which ran loadCart() before this component's
+  // effects ever existed, knows a coupon just vanished. Surfaced once per mount.
+  useEffect(() => {
+    if (droppedCouponCode) {
+      message.warning(`Coupon ${droppedCouponCode} was not carried over — please re-apply it.`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- droppedCouponCode is fixed for this mount; fire once
+  }, [])
+
   // Items query — only runs when cart exists and we're browsing/previewing
   const { data: itemsPage, isLoading: itemsLoading } = useQuery({
     queryKey: ['items-for-cart', search, category, itemSize, itemType, browsePage, cart?.startDatetime, cart?.endDatetime],
@@ -141,6 +188,62 @@ export default function CheckoutPage() {
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }
       setConflictError(apiErr?.response?.data?.error ?? 'Failed to create receipt. Please try again.')
+    },
+  })
+
+  // The server's preview endpoint is the only place the discount is computed — this UI
+  // never reimplements the percent/floor rule, so it can't drift from what createReceipt
+  // actually charges.
+  //
+  // The cart is not locked while this request is in flight — quantities can change, lines
+  // can be added or removed — so the response is only trustworthy if the cart it was priced
+  // against is still the cart on screen. mutationFn captures a signature of the cart at
+  // dispatch time; onSuccess discards a response computed against a cart that has since
+  // changed, rather than writing stale totals onto the current one.
+  const previewMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const signature = cartSignature() // captured before the request, not after
+      const preview = await receiptsApi.preview(buildPreviewRequest(code))
+      return { preview, signature }
+    },
+    onSuccess: ({ preview, signature }) => {
+      if (signature !== cartSignature()) {
+        setCouponError('The cart changed while applying this coupon — please apply it again.')
+        return
+      }
+      if (!preview.couponCode) return
+      const applyIt = () => {
+        applyCoupon({
+          couponCode: preview.couponCode!,
+          discountAmount: preview.discountAmount,
+          totalRent: preview.totalRent,
+          totalDeposit: preview.totalDeposit,
+          grandTotal: preview.grandTotal,
+        })
+        setCouponInput(preview.couponCode!)
+        setCouponError(null)
+      }
+      // CouponDiscountResolver clamps the discount to the subtotal, so this ratio can reach
+      // 1.0 but never exceed it — a typo'd FIXED value (e.g. "5000" meant to be "50") still
+      // clamps to the full rent, which is exactly the case this exists to catch. A
+      // legitimate 100%-off promotion also crosses this threshold; that's an acceptable
+      // false positive; there's no backend hard cap to lean on instead, since a large
+      // package subtotal shouldn't be artificially capped.
+      if (preview.totalRent > 0
+          && preview.discountAmount / preview.totalRent > LARGE_DISCOUNT_WARNING_RATIO) {
+        Modal.confirm({
+          title: 'Large discount',
+          content: `This coupon discounts ${formatCurrency(preview.discountAmount)} off a ${formatCurrency(preview.totalRent)} rent subtotal. Apply it?`,
+          okText: 'Apply anyway',
+          onOk: applyIt,
+        })
+      } else {
+        applyIt()
+      }
+    },
+    onError: (err: unknown) => {
+      const apiErr = err as { response?: { data?: { error?: string } } }
+      setCouponError(apiErr?.response?.data?.error ?? 'Failed to apply coupon. Please try again.')
     },
   })
 
@@ -194,6 +297,33 @@ export default function CheckoutPage() {
 
   // --- Preview ---
 
+  // Cheap fingerprint of "what was priced" — items, quantities, and dates. Used only to
+  // detect whether the cart changed between dispatching a coupon preview request and its
+  // response landing; never persisted or sent to the server.
+  function cartSignature(): string {
+    return JSON.stringify({ start: cart!.startDatetime, end: cart!.endDatetime, items: cart!.items })
+  }
+
+  function buildPreviewRequest(couponCode?: string): CheckoutPreviewRequest {
+    return {
+      startDatetime: cart!.startDatetime,
+      endDatetime: cart!.endDatetime,
+      items: cart!.items
+        .filter((i): i is CatalogueCartItem => i.kind === 'CATALOGUE')
+        .map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+      adHocItems: cart!.items
+        .filter((i): i is AdHocCartItem => i.kind === 'ADHOC')
+        .map(i => ({
+          name: i.itemName,
+          size: i.size,
+          flatPrice: i.flatPrice,
+          deposit: i.deposit,
+          quantity: i.quantity,
+        })),
+      couponCode,
+    }
+  }
+
   function buildRequest(customerId: string): CheckoutRequest {
     return {
       customerId,
@@ -211,7 +341,20 @@ export default function CheckoutPage() {
           deposit: i.deposit,
           quantity: i.quantity,
         })),
+      couponCode: cart!.appliedCoupon?.couponCode ?? null,
     }
+  }
+
+  function handleApplyCoupon() {
+    if (!couponInput.trim()) return
+    setCouponError(null)
+    previewMutation.mutate(couponInput.trim())
+  }
+
+  function handleRemoveCoupon() {
+    removeCoupon()
+    setCouponInput('')
+    setCouponError(null)
   }
 
   // Known, accepted gap: a non-owner submitting a cart with inherited ad-hoc lines (e.g. the
@@ -635,9 +778,15 @@ export default function CheckoutPage() {
       },
     ]
 
-    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
-    const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
-    const grandTotal = totalRent + totalDeposit
+    const localTotalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
+    const localTotalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
+    const appliedCoupon = cart!.appliedCoupon ?? null
+    // Once a coupon is applied, every total on this screen renders from the server's
+    // preview response rather than local math — otherwise a rate change between the
+    // preview call and now would make this screen and the server disagree.
+    const totalRent = appliedCoupon?.totalRent ?? localTotalRent
+    const totalDeposit = appliedCoupon?.totalDeposit ?? localTotalDeposit
+    const grandTotal = appliedCoupon?.grandTotal ?? (localTotalRent + localTotalDeposit)
 
     return (
       <div style={{ maxWidth: 920, width: '100%' }}>
@@ -663,11 +812,44 @@ export default function CheckoutPage() {
         <Card size="small" style={{ maxWidth: 360, marginBottom: 24 }}>
           <Descriptions column={1} size="small">
             <Descriptions.Item label="Total Rent">{formatCurrency(totalRent)}</Descriptions.Item>
+            {appliedCoupon && (
+              <Descriptions.Item label={`Discount (${appliedCoupon.couponCode})`}>
+                <span style={{ color: '#52c41a' }}>−{formatCurrency(appliedCoupon.discountAmount)}</span>
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Total Deposit">{formatCurrency(totalDeposit)}</Descriptions.Item>
             <Descriptions.Item label={<strong>Grand Total</strong>}>
               <strong>{formatCurrency(grandTotal)}</strong>
             </Descriptions.Item>
           </Descriptions>
+
+          <Divider style={{ margin: '12px 0' }} />
+
+          {appliedCoupon ? (
+            <Space>
+              <Tag color="green">{appliedCoupon.couponCode}</Tag>
+              <Button size="small" type="link" style={{ padding: 0 }} onClick={handleRemoveCoupon}>
+                Remove coupon
+              </Button>
+            </Space>
+          ) : (
+            <>
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder="Have a coupon?"
+                  value={couponInput}
+                  onChange={e => setCouponInput(e.target.value)}
+                  onPressEnter={handleApplyCoupon}
+                />
+                <Button loading={previewMutation.isPending} onClick={handleApplyCoupon}>
+                  Apply
+                </Button>
+              </Space.Compact>
+              {couponError && (
+                <Alert type="error" message={couponError} showIcon style={{ marginTop: 8 }} />
+              )}
+            </>
+          )}
         </Card>
 
         <Space wrap>
@@ -696,8 +878,15 @@ export default function CheckoutPage() {
 
   // ---- CUSTOMER SELECTION ----
   if (screen === 'customer') {
-    const totalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
-    const totalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
+    const localTotalRent = cart!.items.reduce((s, i) => s + lineRentOf(i, cart!.rentalDays), 0)
+    const localTotalDeposit = cart!.items.reduce((s, i) => s + i.deposit * i.quantity, 0)
+    const appliedCoupon = cart!.appliedCoupon ?? null
+    // Renders from the same stored preview result as the preview screen — never
+    // recomputed independently here, so the two screens can't show different totals for
+    // an applied coupon.
+    const totalRent = appliedCoupon?.totalRent ?? localTotalRent
+    const totalDeposit = appliedCoupon?.totalDeposit ?? localTotalDeposit
+    const grandTotal = appliedCoupon?.grandTotal ?? (localTotalRent + localTotalDeposit)
 
     return (
       <div style={{ maxWidth: 560 }}>
@@ -726,9 +915,14 @@ export default function CheckoutPage() {
         <Descriptions column={1} size="small" style={{ marginBottom: 24 }}>
           <Descriptions.Item label="Items">{cartCount}</Descriptions.Item>
           <Descriptions.Item label="Total Rent">{formatCurrency(totalRent)}</Descriptions.Item>
+          {appliedCoupon && (
+            <Descriptions.Item label={`Discount (${appliedCoupon.couponCode})`}>
+              <span style={{ color: '#52c41a' }}>−{formatCurrency(appliedCoupon.discountAmount)}</span>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label="Total Deposit">{formatCurrency(totalDeposit)}</Descriptions.Item>
           <Descriptions.Item label={<strong>Grand Total</strong>}>
-            <strong>{formatCurrency(totalRent + totalDeposit)}</strong>
+            <strong>{formatCurrency(grandTotal)}</strong>
           </Descriptions.Item>
         </Descriptions>
 

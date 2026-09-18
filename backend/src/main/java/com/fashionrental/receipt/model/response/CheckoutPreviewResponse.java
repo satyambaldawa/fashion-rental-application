@@ -7,6 +7,8 @@ public record CheckoutPreviewResponse(
         List<PreviewLineItem> lineItems,
         int rentalDays,
         int totalRent,
+        String couponCode,
+        int discountAmount,
         int totalDeposit,
         int grandTotal,
         List<String> unavailableItems

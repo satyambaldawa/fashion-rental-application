@@ -80,7 +80,8 @@ class RentalFlowIT extends AbstractIntegrationTest {
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
                 List.of(),
-                "handle with care"
+                "handle with care",
+                null
         ));
 
         assertThat(receipt.id()).isNotNull();
@@ -124,6 +125,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
                 customer.getId(), start, end,
                 List.of(),
                 List.of(new AdHocLineItem("Walk-in Lehenga", "Free size", 500, 1000, 1)),
+                null,
                 null
         ));
 

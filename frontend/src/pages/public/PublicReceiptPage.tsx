@@ -154,6 +154,11 @@ export default function PublicReceiptPage() {
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <Descriptions bordered column={1} size="small" style={{ flex: '1 1 260px' }}>
           <Descriptions.Item label="Total Rent">{formatCurrency(receipt.totalRent)}</Descriptions.Item>
+          {receipt.couponCode && (
+            <Descriptions.Item label={`Discount (${receipt.couponCode})`}>
+              <span style={{ color: '#52c41a' }}>−{formatCurrency(receipt.discountAmount)}</span>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label="Total Deposit">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
           <Descriptions.Item label={<strong>Grand Total Paid</strong>}>
             <strong>{formatCurrency(receipt.grandTotal)}</strong>

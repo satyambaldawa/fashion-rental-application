@@ -16,6 +16,7 @@ export interface CheckoutPreviewRequest {
   endDatetime: string
   items: CheckoutLineItem[]
   adHocItems: AdHocLineItem[]
+  couponCode?: string | null
 }
 
 export interface CheckoutRequest {
@@ -25,6 +26,7 @@ export interface CheckoutRequest {
   items: CheckoutLineItem[]
   adHocItems: AdHocLineItem[]
   notes?: string
+  couponCode?: string | null
 }
 
 export interface PreviewLineItem {
@@ -44,6 +46,8 @@ export interface CheckoutPreview {
   lineItems: PreviewLineItem[]
   rentalDays: number
   totalRent: number
+  couponCode: string | null
+  discountAmount: number
   totalDeposit: number
   grandTotal: number
   unavailableItems: string[]
@@ -76,6 +80,8 @@ export interface Receipt {
   endDatetime: string
   rentalDays: number
   totalRent: number
+  couponCode: string | null
+  discountAmount: number
   totalDeposit: number
   grandTotal: number
   status: 'GIVEN' | 'RETURNED'
@@ -94,6 +100,8 @@ export interface ReceiptSummary {
   endDatetime: string
   rentalDays: number
   totalRent: number
+  couponCode: string | null
+  discountAmount: number
   totalDeposit: number
   grandTotal: number
   status: 'GIVEN' | 'RETURNED'
@@ -127,9 +135,22 @@ export interface AdHocCartItem extends CartItemBase {
 
 export type CartItem = CatalogueCartItem | AdHocCartItem
 
+// The full preview response for an applied coupon, not just the discount amount — both the
+// preview screen and the customer-confirmation screen render totalRent/totalDeposit/grandTotal
+// from this single stored result rather than recomputing locally, so the two screens can never
+// show different numbers for the same cart while a coupon is applied.
+export interface AppliedCouponPreview {
+  couponCode: string
+  discountAmount: number
+  totalRent: number
+  totalDeposit: number
+  grandTotal: number
+}
+
 export interface Cart {
   startDatetime: string   // ISO 8601 with IST offset
   endDatetime: string     // ISO 8601 with IST offset
   rentalDays: number
   items: CartItem[]
+  appliedCoupon?: AppliedCouponPreview | null
 }

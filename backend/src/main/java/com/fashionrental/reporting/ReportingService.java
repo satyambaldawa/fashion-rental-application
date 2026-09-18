@@ -1,12 +1,15 @@
 package com.fashionrental.reporting;
 
+import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.invoice.Invoice;
 import com.fashionrental.invoice.InvoiceRepository;
 import com.fashionrental.receipt.Receipt;
 import com.fashionrental.receipt.ReceiptRepository;
+import com.fashionrental.reporting.model.response.CouponDiscountSummary;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueSummary;
+import com.fashionrental.reporting.model.response.DiscountsGivenResponse;
 import com.fashionrental.reporting.model.response.MonthlyRevenueResponse;
 import com.fashionrental.reporting.model.response.OutstandingDepositItem;
 import com.fashionrental.reporting.model.response.OutstandingDepositsResponse;
@@ -21,6 +24,8 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -50,6 +55,7 @@ public class ReportingService {
         List<Receipt> receiptsCreated = receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(dayStart, dayEnd);
         int rentCollected     = receiptsCreated.stream().mapToInt(Receipt::getTotalRent).sum();
         int depositsCollected = receiptsCreated.stream().mapToInt(Receipt::getTotalDeposit).sum();
+        int discountsGiven    = receiptsCreated.stream().mapToInt(Receipt::getDiscountAmount).sum();
 
         List<Invoice> invoicesSettled = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(dayStart, dayEnd);
         int depositsRefunded = invoicesSettled.stream()
@@ -61,13 +67,15 @@ public class ReportingService {
         int lateFeeIncome  = invoicesSettled.stream().mapToInt(Invoice::getTotalLateFee).sum();
         int damageIncome   = invoicesSettled.stream().mapToInt(Invoice::getTotalDamageCost).sum();
 
-        int netFlow = rentCollected + depositsCollected + collectedFromCustomers - depositsRefunded;
+        // rentCollected stays gross so the label stays truthful; discountsGiven is netted
+        // out separately so netFlow reflects cash actually received.
+        int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers - depositsRefunded;
 
         return new DailyRevenueResponse(
                 date,
                 rentCollected, depositsCollected, depositsRefunded,
                 collectedFromCustomers, lateFeeIncome, damageIncome,
-                netFlow,
+                discountsGiven, netFlow,
                 receiptsCreated.size(), invoicesSettled.size()
         );
     }
@@ -115,6 +123,7 @@ public class ReportingService {
 
             int rentCollected     = dayReceipts.stream().mapToInt(Receipt::getTotalRent).sum();
             int depositsCollected = dayReceipts.stream().mapToInt(Receipt::getTotalDeposit).sum();
+            int discountsGiven    = dayReceipts.stream().mapToInt(Receipt::getDiscountAmount).sum();
             int depositsRefunded  = dayInvoices.stream()
                     .filter(i -> i.getTransactionType() == Invoice.TransactionType.REFUND)
                     .mapToInt(Invoice::getFinalAmount).sum();
@@ -123,18 +132,19 @@ public class ReportingService {
                     .mapToInt(Invoice::getFinalAmount).sum();
             int lateFeeIncome = dayInvoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
             int damageIncome  = dayInvoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
-            int netFlow = rentCollected + depositsCollected + collectedFromCustomers - depositsRefunded;
+            int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers - depositsRefunded;
 
             dailyBreakdown.add(new DailyRevenueSummary(
                     date, rentCollected, depositsCollected,
                     depositsRefunded, collectedFromCustomers,
-                    lateFeeIncome, damageIncome, netFlow
+                    lateFeeIncome, damageIncome, discountsGiven, netFlow
             ));
         }
 
         // Monthly totals
         int totalRentCollected         = receipts.stream().mapToInt(Receipt::getTotalRent).sum();
         int totalDepositsCollected     = receipts.stream().mapToInt(Receipt::getTotalDeposit).sum();
+        int totalDiscountsGiven        = receipts.stream().mapToInt(Receipt::getDiscountAmount).sum();
         int totalDepositsRefunded      = invoices.stream()
                 .filter(i -> i.getTransactionType() == Invoice.TransactionType.REFUND)
                 .mapToInt(Invoice::getFinalAmount).sum();
@@ -143,14 +153,53 @@ public class ReportingService {
                 .mapToInt(Invoice::getFinalAmount).sum();
         int totalLateFeeIncome = invoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
         int totalDamageIncome  = invoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
-        int totalNetFlow = totalRentCollected + totalDepositsCollected + totalCollectedFromCustomers - totalDepositsRefunded;
+        int totalNetFlow = totalRentCollected - totalDiscountsGiven + totalDepositsCollected
+                + totalCollectedFromCustomers - totalDepositsRefunded;
 
         return new MonthlyRevenueResponse(
                 year, month,
                 totalRentCollected, totalDepositsCollected, totalDepositsRefunded,
                 totalCollectedFromCustomers, totalLateFeeIncome, totalDamageIncome,
-                totalNetFlow, dailyBreakdown
+                totalDiscountsGiven, totalNetFlow, dailyBreakdown
         );
+    }
+
+    public DiscountsGivenResponse getDiscountsGiven(LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) {
+            throw new ValidationException("'to' must not be before 'from'.");
+        }
+
+        OffsetDateTime rangeStart = from.atStartOfDay(IST).toOffsetDateTime();
+        OffsetDateTime rangeEnd   = to.plusDays(1).atStartOfDay(IST).toOffsetDateTime();
+
+        // Unlike the fixed daily/monthly reports (where the inclusive BETWEEN's double-count
+        // at midnight is accepted — see plan §10), this endpoint takes a user-chosen range:
+        // querying 1-30 Jun and then 1-31 Jul with an inclusive upper bound would double-count
+        // a receipt created at exactly 2026-07-01T00:00:00+05:30 in both totals. The exclusive
+        // variant closes that.
+        List<Receipt> receipts = receiptRepository
+                .findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(rangeStart, rangeEnd);
+
+        // couponCode != null, not discountAmount > 0: a coupon that floored to a ₹0
+        // discount was still applied and belongs in the counts, contributing 0 to the sums.
+        List<Receipt> withCoupon = receipts.stream()
+                .filter(r -> r.getCouponCode() != null)
+                .toList();
+
+        int totalDiscountGiven = withCoupon.stream().mapToInt(Receipt::getDiscountAmount).sum();
+
+        Map<String, List<Receipt>> byCode = withCoupon.stream()
+                .collect(Collectors.groupingBy(Receipt::getCouponCode, LinkedHashMap::new, Collectors.toList()));
+
+        List<CouponDiscountSummary> byCoupon = byCode.entrySet().stream()
+                .map(e -> new CouponDiscountSummary(
+                        e.getKey(),
+                        e.getValue().size(),
+                        e.getValue().stream().mapToInt(Receipt::getDiscountAmount).sum()))
+                .sorted(Comparator.comparingInt(CouponDiscountSummary::totalDiscount).reversed())
+                .toList();
+
+        return new DiscountsGivenResponse(from, to, totalDiscountGiven, withCoupon.size(), byCoupon);
     }
 
     public OverdueRentalsResponse getOverdueRentals() {

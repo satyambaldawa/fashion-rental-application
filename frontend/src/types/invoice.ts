@@ -61,6 +61,8 @@ export interface Invoice {
   customerPhone: string
   returnDatetime: string
   totalRent: number
+  couponCode: string | null
+  discountAmount: number
   totalDepositCollected: number
   totalLateFee: number
   totalDamageCost: number

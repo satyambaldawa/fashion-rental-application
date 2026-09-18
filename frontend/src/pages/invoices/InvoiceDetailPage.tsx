@@ -71,6 +71,10 @@ export default function InvoiceDetailPage() {
   if (isError || !invoice) return <Typography.Text type="danger">Invoice not found.</Typography.Text>
 
   const isRefund = invoice.transactionType === 'REFUND'
+  // invoice.totalRent is stored net of any coupon discount (the customer never paid the
+  // gross figure), so "Rent Charged" here is derived back to gross to match the same
+  // gross-then-discount-row layout used on the receipt this invoice was created from.
+  const grossRent = invoice.totalRent + invoice.discountAmount
 
   const lineColumns = [
     {
@@ -208,21 +212,41 @@ export default function InvoiceDetailPage() {
           {/* Financial summary */}
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
             {/* Breakdown */}
-            <Descriptions bordered column={1} size="small" style={{ flex: '1 1 300px' }}>
-              <Descriptions.Item label="Rent Charged">{formatCurrency(invoice.totalRent)}</Descriptions.Item>
-              <Descriptions.Item label="Deposit Collected">{formatCurrency(invoice.totalDepositCollected)}</Descriptions.Item>
-              {invoice.totalLateFee > 0 && (
-                <Descriptions.Item label="Late Fee">
-                  <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalLateFee)}</span>
-                </Descriptions.Item>
-              )}
-              {invoice.totalDamageCost > 0 && (
-                <Descriptions.Item label="Damage Cost">
-                  <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalDamageCost)}</span>
-                </Descriptions.Item>
-              )}
-              <Descriptions.Item label="Deposit Returned">{formatCurrency(invoice.depositToReturn)}</Descriptions.Item>
-            </Descriptions>
+            <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Rent — charged at checkout, not part of this return
+                </Typography.Text>
+                <Descriptions bordered column={1} size="small" style={{ marginTop: 4 }}>
+                  <Descriptions.Item label="Rent Charged">{formatCurrency(grossRent)}</Descriptions.Item>
+                  {invoice.couponCode && (
+                    <Descriptions.Item label={`Discount (${invoice.couponCode})`}>
+                      <span style={{ color: '#52c41a' }}>−{formatCurrency(invoice.discountAmount)}</span>
+                    </Descriptions.Item>
+                  )}
+                </Descriptions>
+              </div>
+
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Return settlement
+                </Typography.Text>
+                <Descriptions bordered column={1} size="small" style={{ marginTop: 4 }}>
+                  <Descriptions.Item label="Deposit Collected">{formatCurrency(invoice.totalDepositCollected)}</Descriptions.Item>
+                  {invoice.totalLateFee > 0 && (
+                    <Descriptions.Item label="Late Fee">
+                      <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalLateFee)}</span>
+                    </Descriptions.Item>
+                  )}
+                  {invoice.totalDamageCost > 0 && (
+                    <Descriptions.Item label="Damage Cost">
+                      <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalDamageCost)}</span>
+                    </Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="Deposit Returned">{formatCurrency(invoice.depositToReturn)}</Descriptions.Item>
+                </Descriptions>
+              </div>
+            </div>
 
             {/* Final amount callout */}
             <div style={{

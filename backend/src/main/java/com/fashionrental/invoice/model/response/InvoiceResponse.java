@@ -15,6 +15,8 @@ public record InvoiceResponse(
         String customerPhone,
         OffsetDateTime returnDatetime,
         int totalRent,
+        String couponCode,
+        int discountAmount,
         int totalDepositCollected,
         int totalLateFee,
         int totalDamageCost,
