@@ -6,7 +6,6 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
-import PageHeader from '../../components/common/PageHeader'
 import { couponsApi } from '../../api/coupons'
 import { formatCurrency } from '../../utils/currency'
 import { toApiDatetime } from '../../utils/datetime'
@@ -180,22 +179,17 @@ export default function CouponsPage() {
 
   return (
     <div>
-      <PageHeader
-        label="Settings"
-        title="Coupon"
-        accent="Codes"
-        action={
-          <Space>
-            <Space size={6}>
-              <Text type="secondary" style={{ fontSize: 13 }}>Show inactive</Text>
-              <Switch size="small" checked={includeInactive} onChange={setIncludeInactive} />
-            </Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-              Create Coupon
-            </Button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Space>
+          <Space size={6}>
+            <Text type="secondary" style={{ fontSize: 13 }}>Show inactive</Text>
+            <Switch size="small" checked={includeInactive} onChange={setIncludeInactive} />
           </Space>
-        }
-      />
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
+            Create Coupon
+          </Button>
+        </Space>
+      </div>
 
       <Table
         columns={columns}

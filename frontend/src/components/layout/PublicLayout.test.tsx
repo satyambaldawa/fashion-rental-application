@@ -35,9 +35,9 @@ describe('PublicLayout', () => {
       renderGalleryRoute()
       await flush()
 
-      expect(screen.getByRole('menuitem', { name: 'Gallery' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Login' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'New Rental' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New Rental' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /logout/i })).not.toBeInTheDocument()
     })
 
@@ -48,7 +48,7 @@ describe('PublicLayout', () => {
       renderGalleryRoute()
       await flush()
 
-      await user.click(screen.getByRole('menuitem', { name: 'Login' }))
+      await user.click(screen.getByRole('button', { name: 'Login' }))
 
       expect(await screen.findByText('Login Page')).toBeInTheDocument()
     })
@@ -60,7 +60,7 @@ describe('PublicLayout', () => {
       renderGalleryRoute()
       await flush()
 
-      await user.click(screen.getByRole('menuitem', { name: 'New Rental' }))
+      await user.click(screen.getByRole('button', { name: 'New Rental' }))
 
       expect(await screen.findByText('Login Page')).toBeInTheDocument()
     })
@@ -83,11 +83,11 @@ describe('PublicLayout', () => {
       renderGalleryRoute()
       await flush()
 
-      expect(screen.getByRole('menuitem', { name: 'New Rental' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Active Rentals' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Gallery' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New Rental' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Active Rentals' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
-      expect(screen.queryByRole('menuitem', { name: 'Login' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Login' })).not.toBeInTheDocument()
     })
   })
 })
