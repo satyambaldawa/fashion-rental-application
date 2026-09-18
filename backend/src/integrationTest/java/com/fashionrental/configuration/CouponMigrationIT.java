@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -89,7 +90,11 @@ class CouponMigrationIT extends AbstractIntegrationTest {
 
         Receipt receipt = new Receipt();
         receipt.setReceiptNumber("R-TEST-" + System.nanoTime());
-        receipt.setShareToken(String.valueOf(System.nanoTime()).substring(0, 12));
+        // UUID hex (32 chars, no dashes) is always long enough to truncate safely — unlike
+        // System.nanoTime(), whose digit count isn't guaranteed and can be short enough to
+        // throw StringIndexOutOfBoundsException on a container with a freshly-reset monotonic
+        // clock (observed intermittently on GitHub Actions runners).
+        receipt.setShareToken(UUID.randomUUID().toString().replace("-", "").substring(0, 12));
         receipt.setCustomer(customer);
         receipt.setStartDatetime(start);
         receipt.setEndDatetime(start.plusDays(3));
