@@ -61,6 +61,10 @@ const TOP_NAV_STYLE = `
   .top-nav.ant-menu-horizontal::after {
     display: none !important;
   }
+  .mobile-nav-pill:focus-visible {
+    outline: 2px solid #EAB9CF;
+    outline-offset: 2px;
+  }
 `
 
 function injectTopNavStylesOnce() {
@@ -91,15 +95,17 @@ function MobileNavPills({
   onSelect: (key: string) => void
 }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 16px' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '10px 16px' }}>
       {items.map(item => {
         const isActive = item.key === selectedKey
         return (
           <button
             key={item.key}
+            className="mobile-nav-pill"
             onClick={() => onSelect(item.key)}
             style={{
-              padding: '6px 14px',
+              minHeight: 44,
+              padding: '6px 16px',
               borderRadius: 999,
               border: `1px solid ${isActive ? '#EAB9CF' : 'rgba(255,255,255,0.3)'}`,
               background: isActive ? '#EAB9CF' : 'transparent',
