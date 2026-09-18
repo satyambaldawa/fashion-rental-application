@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T16:24:59Z",
+  "title": "Design System: Manisha's Drapery",
+  "extensions": {
+    "colorMeta": {
+      "rani-rose":      { "role": "primary",   "displayName": "Rani Rose",     "canonical": "#A81259", "tonalRamp": ["#450725", "#730C3D", "#A11155", "#CF166E", "#E93087", "#EE5EA2", "#F5A3CA", "#FDE8F2"] },
+      "wine-maroon":     { "role": "secondary", "displayName": "Wine Maroon",   "canonical": "#6E0B37", "tonalRamp": ["#460723", "#740C3A", "#A21051", "#D11568", "#EA2E82", "#EF5D9E", "#F6A2C7", "#FDE8F1"] },
+      "petal-pink":      { "role": "secondary", "displayName": "Petal Pink",    "canonical": "#EAB9CF", "tonalRamp": ["#3B1224", "#621D3C", "#892954", "#B1356C", "#CA4E86", "#D676A1", "#E7B1C9", "#F9EBF2"] },
+      "vivid-magenta":   { "role": "tertiary",  "displayName": "Vivid Magenta", "canonical": "#C2185B", "tonalRamp": ["#440820", "#710E35", "#9F144B", "#CC1960", "#E63379", "#EB6097", "#F4A4C4", "#FCE8F0"] },
+      "blush-mist":      { "role": "neutral",   "displayName": "Blush Mist",    "canonical": "#FBF1F5", "tonalRamp": ["#3B1122", "#631C39", "#8B284F", "#B23366", "#CC4D80", "#D7749C", "#E8B0C6", "#F9EBF1"] },
+      "dusty-petal":     { "role": "neutral",   "displayName": "Dusty Petal",   "canonical": "#eed6e0", "tonalRamp": ["#361624", "#5A253B", "#7E3453", "#A2436B", "#BC5D84", "#CB81A0", "#E1B7C8", "#F8EDF1"] },
+      "muted-mauve":     { "role": "neutral",   "displayName": "Muted Mauve",   "canonical": "#7a5361", "tonalRamp": ["#2E1F24", "#4C343C", "#6A4854", "#895D6D", "#A27686", "#B795A1", "#D6C2C9", "#F5F0F2"] },
+      "deep-plum":       { "role": "neutral",   "displayName": "Deep Plum",     "canonical": "#33101F", "tonalRamp": ["#3A1223", "#611E3B", "#882B53", "#AF376A", "#C85084", "#D4779F", "#E7B1C8", "#F9ECF1"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page headings only — one italic accent word in Rani Rose per heading." },
+      "label":   { "displayName": "Label",    "purpose": "Small uppercase eyebrow text above a page heading, and other uppercase metadata." },
+      "nav":     { "displayName": "Nav",      "purpose": "Navigation items and pill/chip labels, desktop and mobile." },
+      "body":    { "displayName": "Body",     "purpose": "Default UI text — antd's base font size for everything else." }
+    },
+    "shadows": [
+      { "name": "sticky-bar", "value": "0 2px 8px rgba(110,11,55,0.25)", "purpose": "Grounds the sticky header/nav bar against scrolled content beneath it." },
+      { "name": "lifted-card", "value": "0 10px 30px -18px rgba(110,11,55,0.4)", "purpose": "Soft, wide, low-opacity lift on hoverable cards (item cards, the login card)." }
+    ],
+    "motion": [
+      { "name": "quick-lift", "value": "transform 0.15s ease, box-shadow 0.15s ease", "purpose": "Card hover lift — quick and subtle, never dramatic." },
+      { "name": "chip-transition", "value": "all 0.15s ease", "purpose": "Chip/pill active-state transition." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "992px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default primary action button — antd's colorPrimary token.",
+      "html": "<button class=\"ds-btn-primary\">Checkout</button>",
+      "css": ".ds-btn-primary { background: #A81259; color: #fff; padding: 4px 15px; border-radius: 8px; border: none; font-family: Mulish, system-ui, sans-serif; font-weight: 500; font-size: 14px; cursor: pointer; transition: background 0.15s ease; } .ds-btn-primary:hover { background: #C2185B; } .ds-btn-primary:focus-visible { outline: 2px solid #EAB9CF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Filter Chip (light surface)",
+      "kind": "chip",
+      "refersTo": "chip-active",
+      "description": "Category/type filter pill on a white/light background — checkout and gallery filters.",
+      "html": "<div class=\"ds-chip-row\"><button class=\"ds-chip ds-chip-active\">All</button><button class=\"ds-chip\">Costume</button></div>",
+      "css": ".ds-chip-row { display: flex; gap: 8px; flex-wrap: wrap; } .ds-chip { padding: 5px 16px; border-radius: 999px; border: 1px solid #eed6e0; background: #fff; color: #7a5361; font-family: Jost, system-ui, sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.01em; line-height: 22px; cursor: pointer; transition: all 0.15s ease; } .ds-chip-active { border-color: #A81259; background: #6E0B37; color: #fff; } .ds-chip:focus-visible { outline: 2px solid #A81259; outline-offset: 2px; }"
+    },
+    {
+      "name": "Mobile Nav Pill (dark surface)",
+      "kind": "nav",
+      "refersTo": "nav-pill-active",
+      "description": "Signature component: the wrapping mobile navigation — every item visible at once on the Wine Maroon header, 44px touch targets, no scroll gesture required.",
+      "html": "<nav class=\"ds-mobile-nav\"><button class=\"ds-nav-pill ds-nav-pill-active\">New Rental</button><button class=\"ds-nav-pill\">Active Rentals</button><button class=\"ds-nav-pill\">Customers</button></nav>",
+      "css": ".ds-mobile-nav { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 16px; background: #6E0B37; } .ds-nav-pill { min-height: 44px; padding: 6px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.85); font-family: Jost, system-ui, sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.02em; white-space: nowrap; cursor: pointer; } .ds-nav-pill-active { border-color: #EAB9CF; background: #EAB9CF; color: #6E0B37; } .ds-nav-pill:focus-visible { outline: 2px solid #EAB9CF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Item Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Hoverable inventory/checkout item card — the lifted-card shadow on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Royal Sherwani</div><div class=\"ds-card-meta\">₹300/day · Deposit ₹1,000</div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #eed6e0; border-radius: 14px; overflow: hidden; transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: pointer; padding: 16px; } .ds-card:hover { box-shadow: 0 10px 30px -18px rgba(110,11,55,0.4); transform: translateY(-2px); } .ds-card-title { font-family: Mulish, system-ui, sans-serif; font-weight: 600; font-size: 15px; color: #33101F; } .ds-card-meta { font-family: Mulish, system-ui, sans-serif; font-size: 13px; color: #7a5361; margin-top: 4px; }"
+    },
+    {
+      "name": "Page Heading",
+      "kind": "custom",
+      "refersTo": "display",
+      "description": "The eyebrow + serif-accented heading pattern used at the top of every page.",
+      "html": "<div class=\"ds-page-header\"><p class=\"ds-eyebrow\">NEW RENTAL</p><h1 class=\"ds-heading\">Browse <em>Items</em></h1></div>",
+      "css": ".ds-eyebrow { font-family: Jost, system-ui, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #A81259; margin: 0 0 4px; } .ds-heading { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 36px; line-height: 1.1; color: #33101F; margin: 0; } .ds-heading em { color: #A81259; font-style: italic; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Festive Ledger",
+    "overview": "This is an operational tool wearing exactly one ornament: a rich, warm heritage palette (wine maroon, rani rose, petal pink) lifted from the traditional-wear domain it serves, paired with a single serif italic flourish (Cormorant Garamond) on page headings. Everything else in the system is composed and restrained — Mulish for body text, generous whitespace, one accent color used sparingly, fully-rounded tactile controls sized for a shared in-store tablet. The metaphor is a shopkeeper's ledger dressed for a festival: warm and personal at a glance, disciplined and fast the moment you actually use it.\n\nConfirmed mood: warm & festive, composed & restrained, editorial (never corporate-SaaS, never garish or ornamental beyond the one serif accent).",
+    "keyCharacteristics": [
+      "One warm heritage palette, used with restraint — rani rose is the only color that means \"active\" or \"action.\"",
+      "A single serif italic accent word per page heading; everything else is a clean sans.",
+      "Fully-rounded, tactile controls (pills, buttons) sized for a tablet, not a mouse.",
+      "Shadows are soft, tinted from the maroon hue, and used sparingly — never neutral black."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Rani Rose is the only color that means \"active\" on a light surface. It is not used decoratively — if something is rose, it is either selected, actionable, or the one italic word in a heading.", "section": "colors" },
+      { "name": "The One Serif Rule", "body": "Cormorant Garamond appears only in page-heading display type. It never appears in body copy, labels, navigation, or data — the moment it shows up twice on a screen, the flourish stops reading as intentional.", "section": "typography" },
+      { "name": "The Tinted Shadow Rule", "body": "Every shadow in the system is tinted from wine maroon (rgba(110,11,55,…)). A neutral black/gray shadow anywhere in this system is a bug, not a style choice.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Rani Rose as the only \"this is active/actionable\" signal on light surfaces; introducing a second color for the same meaning dilutes it.",
+      "Do tint every shadow from wine maroon (rgba(110,11,55,…)) — never a neutral gray/black shadow.",
+      "Do use the dark-surface pill treatment (Petal Pink active, translucent-white inactive, 44px min-height) for anything placed on the Wine Maroon header; the light-surface treatment loses contrast there.",
+      "Do keep the serif (Cormorant Garamond) confined to the display heading's single italic accent word — it is a flourish, not a body voice."
+    ],
+    "donts": [
+      "Don't add a second accent color for \"active\" state on light surfaces — Rani Rose already owns that meaning.",
+      "Don't use Vivid Magenta (#C2185B) more than once per screen — it exists for rare, singular emphasis, not as a general accent.",
+      "Don't give any pill/chip/nav-item a touch target under 44px on the mobile surface — the tablet is tapped constantly and mis-taps between wrapped rows are a real, confirmed failure mode here.",
+      "Don't introduce a sharp (0px) or heavily rounded (>14px, short of full pill) corner — the system's entire radius vocabulary is 8 / 14 / full, nothing else."
+    ]
+  }
+}
