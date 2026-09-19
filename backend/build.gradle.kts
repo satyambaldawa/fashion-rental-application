@@ -54,11 +54,9 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    // TEMP DIAGNOSTIC: Gradle hides test stdout and truncates exception messages by
-    // default, which hid the actual cause of a CI-only ConfigControllerTest failure.
-    // Show everything until that's understood, then dial back down.
+    // Full exception messages (not just class+line) in the console report — cheap and
+    // saves a round trip to the HTML report whenever a test fails in CI.
     testLogging {
-        showStandardStreams = true
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }
