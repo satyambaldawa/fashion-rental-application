@@ -43,10 +43,14 @@ export default defineConfig({
         'src/types/**',
       ],
       reporter: ['text-summary', 'text', 'html', 'json-summary'],
-      lines: 72,
-      statements: 72,
-      branches: 60,
-      functions: 72,
+      // Nested under `thresholds` per Vitest 1.x — flat keys here are silently ignored
+      // and were never actually enforcing a gate on `pnpm test:coverage`.
+      thresholds: {
+        lines: 80,
+        statements: 80,
+        branches: 75,
+        functions: 55,
+      },
     },
   }
 })

@@ -123,10 +123,10 @@ tasks.register("checkCoverageThreshold") {
         println("  Lines missed: $totalLineMissed")
         println("  Total lines: $totalLines")
         println("  Coverage: $lineCoveragePercent%")
-        println("  Threshold: 80%")
+        println("  Threshold: 85%")
 
-        if (lineCoveragePercent < 80) {
-            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 80%")
+        if (lineCoveragePercent < 85) {
+            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 85%")
         }
 
         println("✓ Backend coverage check passed!")

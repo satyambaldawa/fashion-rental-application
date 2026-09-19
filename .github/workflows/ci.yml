@@ -27,8 +27,8 @@ jobs:
       - name: Run integration tests (Testcontainers → PostgreSQL)
         run: cd backend && ./gradlew integrationTest
 
-      # Verify coverage meets threshold (fails if line coverage < 80%)
-      - name: Verify backend coverage (80% threshold)
+      # Verify coverage meets threshold (fails if line coverage < 85%)
+      - name: Verify backend coverage (85% threshold)
         run: cd backend && ./gradlew checkCoverageThreshold
 
       - name: Generate and publish backend coverage report
@@ -76,8 +76,8 @@ jobs:
       - name: Unit tests + coverage
         run: cd frontend && pnpm test:coverage
 
-      # Verify coverage meets threshold (fails if line coverage < 75%)
-      - name: Verify frontend coverage (75% threshold)
+      # Verify coverage meets threshold (fails if line coverage < 80%)
+      - name: Verify frontend coverage (80% threshold)
         run: cd frontend && pnpm verify-coverage
 
       - name: Publish frontend coverage summary

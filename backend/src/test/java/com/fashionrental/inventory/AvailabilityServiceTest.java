@@ -328,4 +328,164 @@ class AvailabilityServiceTest {
 
         assertThat(available).isEqualTo(1); // bottlenecked by comp-B
     }
+
+    // ── batchGetAvailableQuantities ─────────────────────────────────────────
+
+    @Test
+    void should_return_empty_map_for_empty_item_list() {
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(), null, null);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void should_batch_compute_availability_for_simple_items_using_date_range() {
+        UUID itemId1 = UUID.randomUUID();
+        UUID itemId2 = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item item1 = activeItemWithId(itemId1, 3, Item.ItemType.INDIVIDUAL);
+        Item item2 = activeItemWithId(itemId2, 5, Item.ItemType.INDIVIDUAL);
+
+        when(itemRepository.batchCountBookedUnits(List.of(itemId1, itemId2), start, end)).thenReturn(List.of(
+                new Object[]{itemId1, 1},
+                new Object[]{itemId2, 0}
+        ));
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(item1, item2), start, end);
+
+        assertThat(result.get(itemId1)).isEqualTo(2);
+        assertThat(result.get(itemId2)).isEqualTo(5);
+    }
+
+    @Test
+    void should_batch_use_current_bookings_when_no_date_range_given() {
+        UUID itemId = UUID.randomUUID();
+        Item item = activeItemWithId(itemId, 4, Item.ItemType.INDIVIDUAL);
+
+        when(itemRepository.batchCountCurrentlyBookedUnits(List.of(itemId))).thenReturn(List.<Object[]>of(
+                new Object[]{itemId, 4}
+        ));
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(item), null, null);
+
+        assertThat(result.get(itemId)).isZero();
+    }
+
+    @Test
+    void should_batch_return_zero_for_inactive_items_without_querying_bookings() {
+        UUID itemId = UUID.randomUUID();
+        Item item = activeItemWithId(itemId, 5, Item.ItemType.INDIVIDUAL);
+        item.setIsActive(false);
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        when(itemRepository.batchCountBookedUnits(List.of(itemId), start, end)).thenReturn(List.of());
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(item), start, end);
+
+        assertThat(result.get(itemId)).isZero();
+    }
+
+    @Test
+    void should_batch_default_to_zero_booked_when_item_missing_from_query_rows() {
+        UUID itemId = UUID.randomUUID();
+        Item item = activeItemWithId(itemId, 3, Item.ItemType.INDIVIDUAL);
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        when(itemRepository.batchCountBookedUnits(List.of(itemId), start, end)).thenReturn(List.of());
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(item), start, end);
+
+        assertThat(result.get(itemId)).isEqualTo(3);
+    }
+
+    @Test
+    void should_batch_constrain_package_by_its_components_availability() {
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item componentItem = activeItemWithId(componentId, 4, Item.ItemType.INDIVIDUAL);
+        Item packageItem = activeItemWithId(packageId, 3, Item.ItemType.PACKAGE);
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(2); // needs 2 units of component per set
+        packageItem.getPackageComponents().add(comp);
+
+        when(itemRepository.batchCountBookedUnits(List.of(packageId, componentId), start, end)).thenReturn(List.of(
+                new Object[]{packageId, 0},
+                new Object[]{componentId, 0}
+        ));
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(packageItem), start, end);
+
+        // package stock=3, component floor(4/2)=2 sets → bottlenecked to 2
+        assertThat(result.get(packageId)).isEqualTo(2);
+    }
+
+    @Test
+    void should_batch_return_zero_for_package_when_a_component_is_inactive() {
+        UUID packageId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item componentItem = activeItemWithId(componentId, 4, Item.ItemType.INDIVIDUAL);
+        componentItem.setIsActive(false);
+        Item packageItem = activeItemWithId(packageId, 3, Item.ItemType.PACKAGE);
+        PackageComponent comp = new PackageComponent();
+        comp.setComponentItem(componentItem);
+        comp.setQuantity(1);
+        packageItem.getPackageComponents().add(comp);
+
+        when(itemRepository.batchCountBookedUnits(List.of(packageId, componentId), start, end)).thenReturn(List.<Object[]>of(
+                new Object[]{packageId, 0}
+        ));
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(List.of(packageItem), start, end);
+
+        assertThat(result.get(packageId)).isZero();
+    }
+
+    @Test
+    void should_batch_deduplicate_shared_component_ids_across_multiple_packages() {
+        UUID packageAId = UUID.randomUUID();
+        UUID packageBId = UUID.randomUUID();
+        UUID sharedComponentId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now();
+        OffsetDateTime end = start.plusDays(1);
+
+        Item sharedComponent = activeItemWithId(sharedComponentId, 5, Item.ItemType.INDIVIDUAL);
+        Item packageA = activeItemWithId(packageAId, 2, Item.ItemType.PACKAGE);
+        Item packageB = activeItemWithId(packageBId, 2, Item.ItemType.PACKAGE);
+
+        PackageComponent compA = new PackageComponent();
+        compA.setComponentItem(sharedComponent);
+        compA.setQuantity(1);
+        packageA.getPackageComponents().add(compA);
+
+        PackageComponent compB = new PackageComponent();
+        compB.setComponentItem(sharedComponent);
+        compB.setQuantity(1);
+        packageB.getPackageComponents().add(compB);
+
+        when(itemRepository.batchCountBookedUnits(
+                List.of(packageAId, sharedComponentId, packageBId), start, end
+        )).thenReturn(List.of(
+                new Object[]{packageAId, 0},
+                new Object[]{packageBId, 0},
+                new Object[]{sharedComponentId, 1}
+        ));
+
+        Map<UUID, Integer> result = availabilityService.batchGetAvailableQuantities(
+                List.of(packageA, packageB), start, end
+        );
+
+        assertThat(result.get(packageAId)).isEqualTo(2);
+        assertThat(result.get(packageBId)).isEqualTo(2);
+    }
 }

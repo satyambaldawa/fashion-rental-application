@@ -16,7 +16,7 @@ interface CoverageSummary {
   };
 }
 
-const COVERAGE_THRESHOLD = 72; // lines must be >= this percentage
+const COVERAGE_THRESHOLD = 80; // lines must be >= this percentage
 
 async function verifyCoverage(): Promise<void> {
   const coverageFile = path.join(process.cwd(), 'coverage', 'coverage-summary.json');
