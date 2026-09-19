@@ -55,7 +55,7 @@ class ConfigServiceTest {
 
     @Test
     void should_return_five_default_rules_ordered_by_sort_order() {
-        when(lateFeeRuleRepository.findAllByOrderBySortOrderAsc()).thenReturn(defaultRules());
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(defaultRules());
 
         List<LateFeeRuleResponse> result = configService.getLateFeeRules();
 
@@ -65,8 +65,18 @@ class ConfigServiceTest {
     }
 
     @Test
+    void should_exclude_deactivated_rules_from_get() {
+        LateFeeRule active = ruleWithHours(0, 3, new BigDecimal("0.50"), 1);
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of(active));
+
+        List<LateFeeRuleResponse> result = configService.getLateFeeRules();
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
     void should_compute_correct_labels_for_default_rules() {
-        when(lateFeeRuleRepository.findAllByOrderBySortOrderAsc()).thenReturn(defaultRules());
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(defaultRules());
 
         List<LateFeeRuleResponse> result = configService.getLateFeeRules();
 

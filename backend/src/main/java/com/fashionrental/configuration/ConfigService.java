@@ -23,7 +23,7 @@ public class ConfigService {
 
     @Transactional(readOnly = true)
     public List<LateFeeRuleResponse> getLateFeeRules() {
-        return lateFeeRuleRepository.findAllByOrderBySortOrderAsc()
+        return lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()
                 .stream()
                 .map(this::toResponse)
                 .toList();
