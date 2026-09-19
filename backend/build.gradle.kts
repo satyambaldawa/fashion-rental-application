@@ -54,6 +54,13 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // TEMP DIAGNOSTIC: Gradle hides test stdout and truncates exception messages by
+    // default, which hid the actual cause of a CI-only ConfigControllerTest failure.
+    // Show everything until that's understood, then dial back down.
+    testLogging {
+        showStandardStreams = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 val integrationTest = tasks.register<Test>("integrationTest") {

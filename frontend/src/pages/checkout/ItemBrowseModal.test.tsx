@@ -49,6 +49,7 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
+    await screen.findByText('₹300')
     expect(document.querySelector('img')).not.toBeInTheDocument()
   })
 
@@ -61,7 +62,7 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('₹300')).toBeInTheDocument()
+    expect(await screen.findByText('₹300')).toBeInTheDocument()
     expect(screen.getByText('₹1,000')).toBeInTheDocument()
     expect(screen.getByText('3 available')).toBeInTheDocument()
     expect(screen.getByText('Individual')).toBeInTheDocument()
@@ -77,7 +78,7 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(await screen.findByText('Unavailable')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
   })
 
@@ -92,7 +93,7 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: /add to cart/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /add to cart/i }))
 
     expect(onAddToCart).toHaveBeenCalledWith(individualSummary)
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -107,8 +108,8 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
+    expect(await screen.findByText('in cart')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
-    expect(screen.getByText('in cart')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
   })
 
@@ -121,6 +122,7 @@ describe('ItemBrowseModal', () => {
         onUpdateQty={onUpdateQty} inCartQty={2} inCartLineKey="item-1" maxQty={5} />,
     )
     await flush()
+    await screen.findByText('in cart')
 
     const plusButton = container.ownerDocument.querySelector('.anticon-plus')!.closest('button')!
     await userEvent.click(plusButton)
@@ -136,6 +138,7 @@ describe('ItemBrowseModal', () => {
         onUpdateQty={noop} inCartQty={5} inCartLineKey="item-1" maxQty={5} />,
     )
     await flush()
+    await screen.findByText('in cart')
 
     const plusButton = container.ownerDocument.querySelector('.anticon-plus')!.closest('button')!
     expect(plusButton).toBeDisabled()
@@ -151,6 +154,7 @@ describe('ItemBrowseModal', () => {
         onUpdateQty={onUpdateQty} inCartQty={1} inCartLineKey="item-1" maxQty={5} />,
     )
     await flush()
+    await screen.findByText('in cart')
 
     const minusButton = container.ownerDocument.querySelector('.anticon-minus')!.closest('button')!
     await userEvent.click(minusButton)
@@ -168,6 +172,7 @@ describe('ItemBrowseModal', () => {
         onUpdateQty={onUpdateQty} inCartQty={3} inCartLineKey="item-1" maxQty={5} />,
     )
     await flush()
+    await screen.findByText('in cart')
 
     const minusButton = container.ownerDocument.querySelector('.anticon-minus')!.closest('button')!
     await userEvent.click(minusButton)
@@ -186,8 +191,8 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
+    expect(await screen.findByText('Includes (1 item)')).toBeInTheDocument()
     expect(screen.getByText('Combo')).toBeInTheDocument()
-    expect(screen.getByText('Includes (1 item)')).toBeInTheDocument()
     expect(screen.getAllByText('Golden Sherwani').length).toBeGreaterThan(0)
     expect(screen.getByText('Richly embroidered')).toBeInTheDocument()
     expect(screen.getByText('×1 per set')).toBeInTheDocument()
@@ -205,7 +210,7 @@ describe('ItemBrowseModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('Golden Sherwani')).toBeInTheDocument()
+    expect(await screen.findByText('Golden Sherwani')).toBeInTheDocument()
     expect(screen.queryByAltText('Golden Sherwani')).not.toBeInTheDocument()
   })
 
@@ -222,7 +227,7 @@ describe('ItemBrowseModal', () => {
     await flush()
 
     // 2 slides total: 1 package photo + 1 component photo
-    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
     expect(screen.getByText('Groom Wedding Set (combo)')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /right/i }))
@@ -264,7 +269,7 @@ describe('ItemBrowseModal', () => {
 
     const { rerender } = render(wrap(packageSummary))
     await flush()
-    await userEvent.click(screen.getByRole('button', { name: /right/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /right/i }))
     expect(screen.getByText('2 / 2')).toBeInTheDocument()
 
     rerender(wrap(individualSummary))

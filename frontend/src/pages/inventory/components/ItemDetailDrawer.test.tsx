@@ -33,7 +33,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={noop} />)
     await flush()
 
-    expect(screen.getByText('₹300')).toBeInTheDocument()
+    expect(await screen.findByText('₹300')).toBeInTheDocument()
     expect(screen.getByText('₹1,000')).toBeInTheDocument()
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('A fine sherwani')).toBeInTheDocument()
@@ -53,7 +53,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="pkg-1" onClose={noop} />)
     await flush()
 
-    expect(screen.getByText('Package')).toBeInTheDocument()
+    expect(await screen.findByText('Package')).toBeInTheDocument()
     expect(screen.getByText('Includes')).toBeInTheDocument()
     expect(screen.getByText('Golden Sherwani')).toBeInTheDocument()
     expect(screen.getByText('×2')).toBeInTheDocument()
@@ -65,6 +65,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={noop} />)
     await flush()
 
+    await screen.findByText('₹300')
     expect(screen.queryByText('Includes')).not.toBeInTheDocument()
   })
 
@@ -78,7 +79,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={onClose} />)
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: /clone/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /clone/i }))
     await flush()
 
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -102,7 +103,7 @@ describe('ItemDetailDrawer', () => {
     )
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit Item' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit Item' }))
 
     expect(screen.getByText('Edit Item Page')).toBeInTheDocument()
   })
@@ -117,7 +118,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={onClose} />)
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /delete/i }))
     await screen.findAllByText('Delete Item')
     expect(screen.getByText(/cannot be undone/)).toBeInTheDocument()
 
@@ -135,7 +136,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={onClose} />)
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /delete/i }))
     await screen.findAllByText('Delete Item')
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -154,7 +155,7 @@ describe('ItemDetailDrawer', () => {
     renderWithProviders(<ItemDetailDrawer itemId="item-1" onClose={onClose} />)
     await flush()
 
-    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /delete/i }))
     await screen.findAllByText('Delete Item')
     const confirmButtons = document.querySelector('.ant-modal-confirm-btns') as HTMLElement
     await userEvent.click(within(confirmButtons).getByRole('button', { name: 'Delete' }))

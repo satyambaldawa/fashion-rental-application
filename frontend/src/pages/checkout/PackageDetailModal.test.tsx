@@ -42,10 +42,10 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
+    expect(await screen.findByText('Includes (1 item)')).toBeInTheDocument()
     expect(screen.getByText('Groom Wedding Set')).toBeInTheDocument()
     expect(screen.getByText('₹300')).toBeInTheDocument()
     expect(screen.getByText(/Deposit: ₹1,000/)).toBeInTheDocument()
-    expect(screen.getByText('Includes (1 item)')).toBeInTheDocument()
     expect(screen.getByText('Golden Sherwani')).toBeInTheDocument()
     expect(screen.getByText('Richly embroidered sherwani')).toBeInTheDocument()
   })
@@ -58,7 +58,7 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('2 sets available')).toBeInTheDocument()
+    expect(await screen.findByText('2 sets available')).toBeInTheDocument()
   })
 
   it('shows unavailable tag and hides add-to-cart button when out of stock', async () => {
@@ -70,7 +70,7 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(await screen.findByText('Unavailable')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
   })
 
@@ -82,7 +82,7 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
-    expect(screen.getByText('In cart ×2')).toBeInTheDocument()
+    expect(await screen.findByText('In cart ×2')).toBeInTheDocument()
   })
 
   it('calls onAddToCart and onClose when Add to Cart is clicked', async () => {
@@ -96,7 +96,7 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
-    await user.click(screen.getByRole('button', { name: /add to cart/i }))
+    await user.click(await screen.findByRole('button', { name: /add to cart/i }))
 
     expect(onAddToCart).toHaveBeenCalledWith(packageSummary)
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -125,8 +125,8 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
+    expect(await screen.findByText('Golden Sherwani')).toBeInTheDocument()
     expect(container.querySelector('img')).not.toBeInTheDocument()
-    expect(screen.getByText('Golden Sherwani')).toBeInTheDocument()
   })
 
   it('renders a single component photo directly without a carousel', async () => {
@@ -141,7 +141,7 @@ describe('PackageDetailModal', () => {
     )
     await flush()
 
-    const img = screen.getByAltText('Golden Sherwani')
+    const img = await screen.findByAltText('Golden Sherwani')
     expect(img).toHaveAttribute('src', 'https://cdn.example.com/comp.jpg')
   })
 })
