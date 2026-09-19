@@ -37,6 +37,15 @@ async function checkPhone(phone = '9811122233') {
   return user
 }
 
+/** checkPhone() plus waiting for the async phone-check mutation to land on the
+ * registration phase — a fixed flush() alone is not reliably enough time under
+ * CI's coverage-instrumented, multi-file-parallel load. */
+async function checkPhoneAndReachRegistrationForm(phone = '9811122233') {
+  const user = await checkPhone(phone)
+  await screen.findByPlaceholderText('Full name')
+  return user
+}
+
 describe('RegisterCustomerPage', () => {
   it('rejects a phone number that fails the 10-digit Indian mobile pattern', async () => {
     const user = userEvent.setup()
@@ -52,7 +61,7 @@ describe('RegisterCustomerPage', () => {
     server.use(http.get('*/api/customers', () => ok([])))
     renderPage()
 
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
 
     expect(screen.getByText('Register New Customer')).toBeInTheDocument()
     expect(screen.getByDisplayValue('9811122233')).toBeInTheDocument()
@@ -84,9 +93,8 @@ describe('RegisterCustomerPage', () => {
 
   it('requires organization name only when customer type is Student or Professional', async () => {
     server.use(http.get('*/api/customers', () => ok([])))
-    const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    const user = await checkPhoneAndReachRegistrationForm()
 
     expect(screen.queryByLabelText('School Name')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Organization Name')).not.toBeInTheDocument()
@@ -112,7 +120,7 @@ describe('RegisterCustomerPage', () => {
     )
     const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
 
     await user.type(screen.getByPlaceholderText('Full name'), 'Meera Joshi')
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
@@ -129,13 +137,13 @@ describe('RegisterCustomerPage', () => {
     )
     const user = userEvent.setup()
     renderPage('/customers/register?returnTo=checkout')
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
 
     await user.type(screen.getByPlaceholderText('Full name'), 'Meera Joshi')
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
     await flush()
 
-    expect(screen.getByText('Checkout Page')).toBeInTheDocument()
+    expect(await screen.findByText('Checkout Page')).toBeInTheDocument()
   })
 
   it('shows an error alert when registration fails', async () => {
@@ -145,7 +153,7 @@ describe('RegisterCustomerPage', () => {
     )
     const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
 
     await user.type(screen.getByPlaceholderText('Full name'), 'Meera Joshi')
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
@@ -158,7 +166,7 @@ describe('RegisterCustomerPage', () => {
     server.use(http.get('*/api/customers', () => ok([])))
     const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
     await user.type(screen.getByPlaceholderText('Full name'), 'Partial Name')
 
     await user.click(screen.getByRole('button', { name: 'Start Over' }))
@@ -174,7 +182,7 @@ describe('RegisterCustomerPage', () => {
     )
     const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
     await user.type(screen.getByPlaceholderText('Full name'), 'Meera Joshi')
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
     await flush()
@@ -191,7 +199,7 @@ describe('RegisterCustomerPage', () => {
     )
     const user = userEvent.setup()
     renderPage()
-    await checkPhone()
+    await checkPhoneAndReachRegistrationForm()
     await user.type(screen.getByPlaceholderText('Full name'), 'Meera Joshi')
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
     await flush()
