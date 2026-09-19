@@ -10,7 +10,8 @@ import {
   Typography,
   Alert,
 } from 'antd'
-import { UserOutlined } from '@ant-design/icons'
+import { UserOutlined, CheckCircleFilled } from '@ant-design/icons'
+import PageHeader from '../../components/common/PageHeader'
 import { customersApi } from '../../api/customers'
 import type { CreateCustomerRequest, CustomerType, Customer } from '../../types/customer'
 
@@ -93,12 +94,27 @@ export default function RegisterCustomerPage() {
   if (phase === 'success' && registeredCustomer) {
     return (
       <div style={{ maxWidth: 500 }}>
-        <Typography.Title level={4}>Customer Registered</Typography.Title>
-        <Alert
-          type="success"
-          message={`${registeredCustomer.name} has been registered successfully.`}
-          style={{ marginBottom: 24 }}
-        />
+        <PageHeader label="Customers" title="Customer" accent="Registered" />
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+          background: '#FBF1F5',
+          border: '1px solid #eed6e0',
+          borderRadius: 14,
+          padding: 20,
+          marginBottom: 24,
+        }}>
+          <CheckCircleFilled style={{ color: '#A81259', fontSize: 20, marginTop: 2 }} />
+          <div>
+            <Typography.Text strong style={{ display: 'block', color: '#33101F' }}>
+              {registeredCustomer.name}
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              has been registered successfully.
+            </Typography.Text>
+          </div>
+        </div>
         <Space>
           <Button type="primary" onClick={handleStartOver}>
             Register Another
@@ -114,7 +130,10 @@ export default function RegisterCustomerPage() {
   if (phase === 'registration') {
     return (
       <div style={{ maxWidth: 500 }}>
-        <Typography.Title level={4}>Register New Customer</Typography.Title>
+        <PageHeader label="Customers" title="Register" accent="Customer" />
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
+          Phone verified: {phone}
+        </Typography.Text>
 
         <Form
           form={regForm}
@@ -173,6 +192,7 @@ export default function RegisterCustomerPage() {
           {registerMutation.isError && (
             <Alert
               type="error"
+              showIcon
               message="Registration failed. Please try again."
               style={{ marginBottom: 16 }}
             />
@@ -193,7 +213,7 @@ export default function RegisterCustomerPage() {
 
   return (
     <div style={{ maxWidth: 500 }}>
-      <Typography.Title level={4}>Register New Customer</Typography.Title>
+      <PageHeader label="Customers" title="Register" accent="Customer" />
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
         Enter the customer's phone number to check if they are already registered.
       </Typography.Text>
@@ -220,6 +240,7 @@ export default function RegisterCustomerPage() {
         {existingCustomerName && (
           <Alert
             type="warning"
+            showIcon
             message={`Customer already exists: ${existingCustomerName}`}
             description={
               <Button
@@ -237,6 +258,7 @@ export default function RegisterCustomerPage() {
         {checkPhoneMutation.isError && (
           <Alert
             type="error"
+            showIcon
             message="Failed to check phone. Please try again."
             style={{ marginBottom: 16 }}
           />

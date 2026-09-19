@@ -7,7 +7,6 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { galleryAdminApi } from '../../api/gallery'
 import { CATEGORY_OPTIONS, CATEGORY_LABELS } from '../../constants/categories'
-import PageHeader from '../../components/common/PageHeader'
 import type { GalleryImage } from '../../types/gallery'
 import type { ItemCategory } from '../../types/inventory'
 
@@ -137,8 +136,6 @@ export default function GalleryManagePage() {
 
   return (
     <div>
-      <PageHeader label="Gallery" title="Manage" accent="Images" />
-
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 24 }}>
         <Select<ItemCategory>
           value={category}
