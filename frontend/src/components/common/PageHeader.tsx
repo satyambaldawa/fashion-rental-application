@@ -11,7 +11,7 @@ interface Props {
 export default function PageHeader({ label, title, accent, count, action }: Props) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div>
           <p style={{
             fontFamily: '"Jost", system-ui, sans-serif',

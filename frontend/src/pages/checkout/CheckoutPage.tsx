@@ -14,6 +14,7 @@ import {
   message,
   Modal,
   Pagination,
+  Popover,
   Row,
   Space,
   Grid,
@@ -58,7 +59,25 @@ type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
 const LARGE_DISCOUNT_WARNING_RATIO = 0.9
 
+const CHIP_FOCUS_STYLE = `
+  .checkout-chip:focus-visible {
+    outline: 2px solid #A81259;
+    outline-offset: 2px;
+  }
+`
+
+function injectChipFocusStyleOnce() {
+  if (typeof document !== 'undefined' && !document.getElementById('checkout-chip-focus-style')) {
+    const style = document.createElement('style')
+    style.id = 'checkout-chip-focus-style'
+    style.textContent = CHIP_FOCUS_STYLE
+    document.head.appendChild(style)
+  }
+}
+
 export default function CheckoutPage() {
+  injectChipFocusStyleOnce()
+
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
@@ -378,8 +397,17 @@ export default function CheckoutPage() {
   if (screen === 'home') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80, gap: 16 }}>
-        <ShoppingCartOutlined style={{ fontSize: 64, color: '#bbb' }} />
-        <Typography.Title level={4} style={{ margin: 0 }}>New Rental</Typography.Title>
+        <ShoppingCartOutlined style={{ fontSize: 64, color: '#7a5361' }} />
+        <h1 style={{
+          fontFamily: '"Cormorant Garamond", Georgia, serif',
+          fontWeight: 500,
+          fontSize: 36,
+          lineHeight: 1.1,
+          color: '#33101F',
+          margin: 0,
+        }}>
+          New <em style={{ color: '#A81259', fontStyle: 'italic' }}>Rental</em>
+        </h1>
         <Typography.Text type="secondary">Start by creating a cart with the rental period.</Typography.Text>
         <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleOpenCreateModal}>
           Create New Cart
@@ -445,6 +473,8 @@ export default function CheckoutPage() {
               return (
                 <button
                   key={opt.label}
+                  className="checkout-chip"
+                  aria-pressed={isActive}
                   onClick={() => { setCategory(opt.value); setBrowsePage(0); }}
                   style={{
                     padding: '5px 16px',
@@ -493,6 +523,8 @@ export default function CheckoutPage() {
               return (
                 <button
                   key={opt.label}
+                  className="checkout-chip"
+                  aria-pressed={isActive}
                   onClick={() => { setItemType(opt.value); setBrowsePage(0); }}
                   style={{
                     padding: '5px 16px',
@@ -542,10 +574,10 @@ export default function CheckoutPage() {
                       <img
                         src={item.thumbnailUrl}
                         alt={item.name}
-                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover' }}
+                        style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover' }}
                       />
                     ) : (
-                      <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden' }}>
+                      <div style={{ width: '100%', aspectRatio: '3/4', overflow: 'hidden' }}>
                         <ItemPhotoPlaceholder />
                       </div>
                     )
@@ -630,17 +662,43 @@ export default function CheckoutPage() {
         {/* Sticky bottom bar */}
         <div style={{
           position: 'fixed', bottom: 0, left: isMobile ? 0 : 220, right: 0,
-          background: '#fff', borderTop: '1px solid #f0f0f0',
+          background: '#fff', borderTop: '1px solid #eed6e0',
+          boxShadow: '0 -2px 8px rgba(110,11,55,0.15)',
           padding: isMobile ? '8px 12px' : '12px 24px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 100,
         }}>
-          <Space>
-            <ShoppingCartOutlined style={{ fontSize: 20 }} />
-            <Typography.Text strong>
-              {cartCount} item{cartCount !== 1 ? 's' : ''} · {formatCurrency(cartTotal)}
-            </Typography.Text>
-          </Space>
+          <Popover
+            trigger="click"
+            placement="topLeft"
+            title="Cart"
+            content={
+              <div style={{ maxWidth: 320, maxHeight: 320, overflowY: 'auto' }}>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  {cart!.items.map(item => (
+                    <div
+                      key={item.lineKey}
+                      style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}
+                    >
+                      <Typography.Text style={{ flex: 1 }}>
+                        {item.itemName} ×{item.quantity}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        {formatCurrency(lineRentOf(item, cart!.rentalDays))}
+                      </Typography.Text>
+                    </div>
+                  ))}
+                </Space>
+              </div>
+            }
+          >
+            <Space style={{ cursor: 'pointer' }}>
+              <ShoppingCartOutlined style={{ fontSize: 20 }} />
+              <Typography.Text strong>
+                {cartCount} item{cartCount !== 1 ? 's' : ''} · {formatCurrency(cartTotal)}
+              </Typography.Text>
+            </Space>
+          </Popover>
           <Space>
             <Button danger onClick={handleDeleteCart}>Delete Cart</Button>
             <Button
@@ -790,7 +848,7 @@ export default function CheckoutPage() {
 
     return (
       <div style={{ maxWidth: 920, width: '100%' }}>
-        <Typography.Title level={4}>Order Preview</Typography.Title>
+        <PageHeader label="New Rental" title="Order" accent="Preview" />
 
         <Descriptions size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Start">{dayjs(cart!.startDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
@@ -890,7 +948,7 @@ export default function CheckoutPage() {
 
     return (
       <div style={{ maxWidth: 560 }}>
-        <Typography.Title level={4}>Select Customer</Typography.Title>
+        <PageHeader label="New Rental" title="Select" accent="Customer" />
 
         <Typography.Paragraph type="secondary">
           Search by phone number or name. If the customer is new, register them first.

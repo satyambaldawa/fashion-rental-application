@@ -5,6 +5,7 @@ import {
   Descriptions,
   Divider,
   Space,
+  Spin,
   Table,
   Tag,
   Typography,
@@ -15,6 +16,7 @@ import { invoicesApi } from '../../api/invoices'
 import type { InvoiceLineItem } from '../../types/invoice'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
+import PageHeader from '../../components/common/PageHeader'
 
 const PRINT_STYLES = `
 @media print {
@@ -67,8 +69,24 @@ export default function InvoiceDetailPage() {
     enabled: !!id,
   })
 
-  if (isLoading) return <Typography.Text>Loading…</Typography.Text>
-  if (isError || !invoice) return <Typography.Text type="danger">Invoice not found.</Typography.Text>
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (isError || !invoice) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '80px 0' }}>
+        <Typography.Text type="danger">Invoice not found.</Typography.Text>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/receipts')}>
+          Back to Active Rentals
+        </Button>
+      </div>
+    )
+  }
 
   const isRefund = invoice.transactionType === 'REFUND'
   // invoice.totalRent is stored net of any coupon discount (the customer never paid the
@@ -144,20 +162,22 @@ export default function InvoiceDetailPage() {
 
       <div style={{ maxWidth: 900 }}>
         {/* Controls — hidden on print */}
-        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <Button
             type="link"
+            size="large"
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate('/receipts')}
             style={{ padding: 0 }}
           >
             Back to Active Rentals
           </Button>
-          <Space>
-            <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+          <Space wrap>
+            <Button size="large" icon={<PrinterOutlined />} onClick={() => window.print()}>
               Print / Share
             </Button>
             <Button
+              size="large"
               icon={<WhatsAppOutlined />}
               style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#fff' }}
               href={buildInvoiceWhatsAppUrl(invoice)}
@@ -173,12 +193,28 @@ export default function InvoiceDetailPage() {
         <div className="invoice-print-area">
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {invoice.invoiceNumber}
-            </Typography.Title>
-            <Tag>{invoice.receiptNumber}</Tag>
-          </div>
+          <PageHeader
+            label="Invoice"
+            title="Return"
+            accent="Summary"
+            action={
+              <Space>
+                <Typography.Text strong style={{ fontSize: 16 }}>
+                  {invoice.invoiceNumber}
+                </Typography.Text>
+                <Tag
+                  style={{
+                    borderRadius: 999,
+                    background: '#fff',
+                    color: '#7a5361',
+                    border: '1px solid #eed6e0',
+                  }}
+                >
+                  {invoice.receiptNumber}
+                </Tag>
+              </Space>
+            }
+          />
 
           {/* Customer & return details */}
           <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 20 }}>
@@ -199,15 +235,16 @@ export default function InvoiceDetailPage() {
 
           {/* Line items */}
           <Typography.Title level={5} style={{ marginBottom: 10 }}>Items Returned</Typography.Title>
-          <Table<InvoiceLineItem>
-            dataSource={invoice.lineItems}
-            columns={lineColumns}
-            rowKey="id"
-            pagination={false}
-            size="small"
-            scroll={{ x: 'max-content' }}
-            style={{ marginBottom: 20 }}
-          />
+          <div style={{ border: '1px solid #eed6e0', borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+            <Table<InvoiceLineItem>
+              dataSource={invoice.lineItems}
+              columns={lineColumns}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              scroll={{ x: 'max-content' }}
+            />
+          </div>
 
           {/* Financial summary */}
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
