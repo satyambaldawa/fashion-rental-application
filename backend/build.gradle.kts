@@ -54,6 +54,11 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Full exception messages (not just class+line) in the console report — cheap and
+    // saves a round trip to the HTML report whenever a test fails in CI.
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 val integrationTest = tasks.register<Test>("integrationTest") {
@@ -123,10 +128,10 @@ tasks.register("checkCoverageThreshold") {
         println("  Lines missed: $totalLineMissed")
         println("  Total lines: $totalLines")
         println("  Coverage: $lineCoveragePercent%")
-        println("  Threshold: 80%")
+        println("  Threshold: 85%")
 
-        if (lineCoveragePercent < 80) {
-            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 80%")
+        if (lineCoveragePercent < 85) {
+            throw GradleException("Backend line coverage $lineCoveragePercent% is below threshold of 85%")
         }
 
         println("✓ Backend coverage check passed!")

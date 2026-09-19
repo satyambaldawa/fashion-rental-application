@@ -135,7 +135,12 @@ export default function RegisterCustomerPage() {
           Phone verified: {phone}
         </Typography.Text>
 
+        {/* Keyed so React never reuses the phone-check phase's Form instance: both
+            phases render the same element shapes in the same positions, and without a
+            distinct key antd would skip mounting this form — leaving initialValues
+            unapplied and every submit failing on "Customer type is required". */}
         <Form
+          key="registration"
           form={regForm}
           layout="vertical"
           onFinish={handleRegistration}
@@ -218,7 +223,7 @@ export default function RegisterCustomerPage() {
         Enter the customer's phone number to check if they are already registered.
       </Typography.Text>
 
-      <Form form={phoneForm} layout="vertical" onFinish={handlePhoneCheck}>
+      <Form key="phone-check" form={phoneForm} layout="vertical" onFinish={handlePhoneCheck}>
         <Form.Item
           name="phone"
           label="Phone Number"

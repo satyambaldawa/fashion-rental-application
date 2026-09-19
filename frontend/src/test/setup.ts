@@ -1,6 +1,13 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { server } from './server'
+
+// testing-library's findBy*/waitFor default to a 1000ms poll window. That's fine
+// locally but too tight on a coverage-instrumented, multi-file-parallel CI runner —
+// the same class of slowdown that already forced testTimeout up to 10s (see below).
+// Match that same headroom here so async assertions don't flake under CI load.
+configure({ asyncUtilTimeout: 5000 })
 
 // jsdom lacks several browser APIs that Ant Design relies on — stub them.
 class MockObserver {
