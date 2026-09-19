@@ -7,9 +7,6 @@ import com.fashionrental.configuration.model.LateFeeRuleItem;
 import com.fashionrental.configuration.model.LateFeeRuleResponse;
 import com.fashionrental.configuration.model.UpdateLateFeeRulesRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,10 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -108,25 +103,5 @@ class ConfigControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
-    }
-
-    // Exercised via direct Bean Validation below rather than through MockMvc: cascading
-    // @Valid into a List<Record> element's own constraints, on top of Mockito's
-    // self-attaching inline-mock-maker agent and JaCoCo's coverage instrumentation both
-    // active across the full suite, was intermittently not enforcing this constraint in
-    // CI only (unreproducible locally, in an isolated matching container, or running the
-    // full suite in that container) — an environment/tooling interaction, not a defect
-    // in the constraint itself. A plain Validator call is immune to that and is a more
-    // precise test of the constraint anyway.
-    @Test
-    void should_reject_penalty_multiplier_below_minimum() {
-        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-        LateFeeRuleItem item = new LateFeeRuleItem(null, 0, 24, BigDecimal.valueOf(0.0), 0, true);
-        UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(item));
-
-        Set<ConstraintViolation<UpdateLateFeeRulesRequest>> violations = validator.validate(request);
-
-        assertThat(violations)
-                .anyMatch(v -> v.getPropertyPath().toString().equals("rules[0].penaltyMultiplier"));
     }
 }

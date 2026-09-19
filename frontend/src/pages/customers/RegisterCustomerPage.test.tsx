@@ -63,8 +63,12 @@ describe('RegisterCustomerPage', () => {
 
     await checkPhoneAndReachRegistrationForm()
 
-    expect(screen.getByText('Register New Customer')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Register Customer' })).toBeInTheDocument()
+    expect(screen.getByText('Phone verified: 9811122233')).toBeInTheDocument()
     expect(screen.getByDisplayValue('9811122233')).toBeInTheDocument()
+    // The form's initialValues must actually reach the store — otherwise submitting
+    // fails on "Customer type is required" without the user ever touching the radios.
+    expect(screen.getByLabelText('Misc')).toBeChecked()
   })
 
   it('warns and offers a profile link when the phone number already belongs to a customer', async () => {
@@ -126,8 +130,9 @@ describe('RegisterCustomerPage', () => {
     await user.click(screen.getByRole('button', { name: 'Register Customer' }))
     await flush()
 
-    expect(await screen.findByText('Customer Registered')).toBeInTheDocument()
-    expect(screen.getByText('Meera Joshi has been registered successfully.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Customer Registered' })).toBeInTheDocument()
+    expect(screen.getByText('Meera Joshi')).toBeInTheDocument()
+    expect(screen.getByText('has been registered successfully.')).toBeInTheDocument()
   })
 
   it('redirects straight to checkout with the new customer id when returnTo=checkout', async () => {
