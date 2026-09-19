@@ -9,6 +9,7 @@ import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import { authApi } from '../api/auth'
 import CouponsPage from './coupons/CouponsPage'
+import GalleryManagePage from './gallery/GalleryManagePage'
 import type { LateFeeRuleItem } from '../types/config'
 import type { CreateUserRequest, UpdateUserRequest, UserRecord } from '../types/auth'
 
@@ -157,10 +158,10 @@ export default function SettingsPage() {
       dataIndex: 'penaltyMultiplier',
       width: 130,
       render: (val: number, row: EditableRule) => (
-        <InputNumber min={0.1} step={0.25} precision={2} value={val}
+        <InputNumber min={0} step={0.25} precision={2} value={val}
           formatter={(v) => `${v}x`}
           parser={(v) => parseFloat((v ?? '').replace('x', ''))}
-          onChange={(v) => updateRow(row.key, 'penaltyMultiplier', v ?? 0.1)}
+          onChange={(v) => updateRow(row.key, 'penaltyMultiplier', v ?? 0)}
           style={{ width: '100%' }} />
       ),
     },
@@ -318,6 +319,7 @@ export default function SettingsPage() {
           { key: 'late-fees', label: 'Late Fees', children: lateFeesTab },
           { key: 'users', label: 'Manage Users', children: manageUsersTab },
           { key: 'coupons', label: 'Coupons', children: <CouponsPage /> },
+          { key: 'gallery', label: 'Gallery', children: <GalleryManagePage /> },
         ]}
       />
 

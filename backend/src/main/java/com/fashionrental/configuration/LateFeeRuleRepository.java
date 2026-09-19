@@ -9,8 +9,6 @@ import java.util.UUID;
 
 public interface LateFeeRuleRepository extends JpaRepository<LateFeeRule, UUID> {
 
-    List<LateFeeRule> findAllByOrderBySortOrderAsc();
-
     List<LateFeeRule> findByIsActiveTrueOrderBySortOrderAsc();
 
     @Modifying(clearAutomatically = true)

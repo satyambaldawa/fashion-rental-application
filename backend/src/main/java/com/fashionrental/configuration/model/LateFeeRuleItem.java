@@ -11,7 +11,7 @@ public record LateFeeRuleItem(
     UUID id,
     @NotNull @Min(0) Integer durationFromHours,
     Integer durationToHours,
-    @NotNull @DecimalMin("0.1") BigDecimal penaltyMultiplier,
+    @NotNull @DecimalMin("0.0") BigDecimal penaltyMultiplier,
     @NotNull Integer sortOrder,
     boolean isActive
 ) {}
