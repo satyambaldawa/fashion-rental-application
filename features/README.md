@@ -73,6 +73,12 @@ Each file contains everything a developer needs to implement the feature end-to-
 |------|-------|----------|--------|
 | `US-701-703-reports.md` | Daily revenue, outstanding deposits, overdue rentals | P0 | ✅ |
 
+### 07 — Customer Reviews
+
+| File | Story | Priority | Status |
+|------|-------|----------|--------|
+| `US-801-803-customer-reviews.md` | Public review submission form, public review browsing (sort + pagination), owner moderation queue | P1 | ⏳ |
+
 ---
 
 ## Key Technical Decisions (Quick Reference)
@@ -87,6 +93,8 @@ Each file contains everything a developer needs to implement the feature end-to-
 | PO persistence | **Not persisted.** Preview is stateless (`POST /api/checkout/preview`). Receipt created atomically |
 | Customer PK | UUID (not phone). Phone is `UNIQUE NOT NULL` with index |
 | Receipt/Invoice | **Two separate entities.** Receipt = rental agreement. Invoice = return settlement |
+| Review visibility | Reviews land as `PENDING` and are invisible until the owner approves. Public API never returns the reviewer's phone |
+| Review rate limiting | Database count queries on `submitter_ip` / `phone`, not an in-memory bucket. Survives restarts and multiple instances |
 | Datetime fields | All `TIMESTAMP WITH TIME ZONE`. API accepts/returns ISO 8601 with timezone offset |
 
 ---
@@ -102,3 +110,6 @@ Each file contains everything a developer needs to implement the feature end-to-
 7. `06-reporting` (US-701 → US-703) — read-only, build last
 
 P1 stories (US-105, US-106, US-203, US-204) can be done after the P0 set is deployed and working.
+
+`07-reviews` (US-801 → US-803) is independent of the rental flow and can be built at any point
+after the image storage from US-107 exists.
