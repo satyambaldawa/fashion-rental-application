@@ -617,8 +617,9 @@ Both sit beside the existing `/gallery` route, before the `/*` protected catch-a
 - `should_delete_stored_objects_before_deleting_the_review`
 
 `ReviewMapperTest`
-- `should_omit_phone_from_public_response` — asserts on the record components, so the test fails
-  at compile time if a `phone` field is ever added to `PublicReviewResponse`
+- `should_omit_phone_from_public_response` — reflects over `PublicReviewResponse`'s record
+  components and asserts none is named `phone`. This fails when the suite runs, not at compile
+  time, but it states the invariant in one unmissable line
 - `should_include_phone_in_admin_response`
 
 `SubmitReviewRequestValidationTest`
