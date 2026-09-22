@@ -13,7 +13,25 @@ import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
 @Table(name = "receipts")
+@NamedEntityGraph(
+        name = Receipt.SUMMARY_ENTITY_GRAPH,
+        attributeNodes = {
+                @NamedAttributeNode("customer"),
+                @NamedAttributeNode(value = "lineItems", subgraph = "lineItems.item")
+        },
+        subgraphs = @NamedSubgraph(
+                name = "lineItems.item",
+                attributeNodes = @NamedAttributeNode("item")
+        )
+)
 public class Receipt {
+
+    /**
+     * Fetches the customer, line items, and each line item's item alongside the receipt in
+     * one query. Used by the finders behind the Active Rentals summary — the database round
+     * trip is cross-region in production, so per-row lazy loading there costs seconds.
+     */
+    public static final String SUMMARY_ENTITY_GRAPH = "Receipt.summary";
 
     public enum Status {
         GIVEN, RETURNED

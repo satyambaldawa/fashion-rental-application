@@ -11,15 +11,10 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     long countByReceiptNumberStartingWith(String prefix);
 
-    /**
-     * The Active Rentals summary reads each receipt's customer, its line items, and each
-     * line item's item. Loading them lazily costs a round trip per receipt, and production
-     * runs the database in a different region — so these are fetched with the receipts.
-     */
-    @EntityGraph(attributePaths = {"customer", "lineItems", "lineItems.item"})
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusOrderByEndDatetimeAsc(Receipt.Status status);
 
-    @EntityGraph(attributePaths = {"customer", "lineItems", "lineItems.item"})
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status status, OffsetDateTime now);
 
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);

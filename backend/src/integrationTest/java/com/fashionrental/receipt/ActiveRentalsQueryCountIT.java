@@ -8,6 +8,7 @@ import com.fashionrental.inventory.ItemRepository;
 import com.fashionrental.invoice.InvoiceRepository;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -21,14 +22,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The Active Rentals screen calls listReceipts on every load. Production runs the database
- * in a different region from the application, so every extra round trip costs ~150ms of
- * wall clock — a per-receipt query pattern is what turns this screen into a multi-second
- * load. This pins the cost to the size of the result set, not the number of rows in it.
+ * The Active Rentals screen calls listReceipts on every load, in both its default (active)
+ * and overdue-filtered forms. Production runs the database in a different region from the
+ * application, so every extra round trip costs ~150ms of wall clock — a per-receipt query
+ * pattern is what turns this screen into a multi-second load. This pins the cost of each
+ * form to the size of its result set, not the number of rows in it.
  *
  * <p>Deliberately NOT @Transactional: a test-managed transaction would keep one persistence
  * context open across both measurements, so lazy associations loaded while building the
@@ -73,13 +76,13 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
     void should_not_issue_more_queries_as_active_rentals_grow() {
         Item item = persistItem();
 
-        createReceipt(persistCustomer("Priya", "9700011122"), item);
-        long queriesForOneReceipt = countStatementsListingActiveRentals();
+        createReceipt(persistCustomer("Priya", "9700011122"), item, START, END);
+        long queriesForOneReceipt = countStatementsFor(this::listActiveRentals);
 
-        createReceipt(persistCustomer("Anita", "9700011133"), item);
-        createReceipt(persistCustomer("Meera", "9700011144"), item);
-        createReceipt(persistCustomer("Kavya", "9700011155"), item);
-        long queriesForFourReceipts = countStatementsListingActiveRentals();
+        createReceipt(persistCustomer("Anita", "9700011133"), item, START, END);
+        createReceipt(persistCustomer("Meera", "9700011144"), item, START, END);
+        createReceipt(persistCustomer("Kavya", "9700011155"), item, START, END);
+        long queriesForFourReceipts = countStatementsFor(this::listActiveRentals);
 
         assertThat(queriesForFourReceipts)
                 .as("listing 4 active rentals must not cost more queries than listing 1; "
@@ -87,9 +90,36 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
                 .isEqualTo(queriesForOneReceipt);
     }
 
-    private long countStatementsListingActiveRentals() {
+    @Test
+    void should_not_issue_more_queries_as_overdue_rentals_grow() {
+        Item item = persistItem();
+        OffsetDateTime overdueStart = OffsetDateTime.now().minusDays(3);
+        OffsetDateTime overdueEnd = OffsetDateTime.now().minusDays(1);
+
+        createReceipt(persistCustomer("Divya", "9700011166"), item, overdueStart, overdueEnd);
+        long queriesForOneReceipt = countStatementsFor(this::listOverdueRentals);
+
+        createReceipt(persistCustomer("Farah", "9700011177"), item, overdueStart, overdueEnd);
+        createReceipt(persistCustomer("Ishita", "9700011188"), item, overdueStart, overdueEnd);
+        long queriesForThreeReceipts = countStatementsFor(this::listOverdueRentals);
+
+        assertThat(queriesForThreeReceipts)
+                .as("listing 3 overdue rentals must not cost more queries than listing 1; "
+                        + "the overdue finder needs the same entity graph as the active-rentals one")
+                .isEqualTo(queriesForOneReceipt);
+    }
+
+    private List<ReceiptSummaryResponse> listActiveRentals() {
+        return receiptService.listReceipts(Receipt.Status.GIVEN, null);
+    }
+
+    private List<ReceiptSummaryResponse> listOverdueRentals() {
+        return receiptService.listReceipts(null, true);
+    }
+
+    private long countStatementsFor(Supplier<List<ReceiptSummaryResponse>> listingCall) {
         statistics.clear();
-        List<?> listed = receiptService.listReceipts(Receipt.Status.GIVEN, null);
+        List<ReceiptSummaryResponse> listed = listingCall.get();
         assertThat(listed).isNotEmpty();
         return statistics.getPrepareStatementCount();
     }
@@ -115,9 +145,9 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
         return itemRepository.save(item);
     }
 
-    private void createReceipt(Customer customer, Item item) {
+    private void createReceipt(Customer customer, Item item, OffsetDateTime start, OffsetDateTime end) {
         checkoutService.createReceipt(new CheckoutRequest(
-                customer.getId(), START, END,
+                customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
                 List.of(),
                 null,
