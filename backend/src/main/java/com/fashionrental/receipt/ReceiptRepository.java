@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.OffsetDateTime;
@@ -10,8 +11,10 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     long countByReceiptNumberStartingWith(String prefix);
 
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusOrderByEndDatetimeAsc(Receipt.Status status);
 
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status status, OffsetDateTime now);
 
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);
