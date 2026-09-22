@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.OffsetDateTime;
@@ -10,8 +11,15 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     long countByReceiptNumberStartingWith(String prefix);
 
+    /**
+     * The Active Rentals summary reads each receipt's customer, its line items, and each
+     * line item's item. Loading them lazily costs a round trip per receipt, and production
+     * runs the database in a different region — so these are fetched with the receipts.
+     */
+    @EntityGraph(attributePaths = {"customer", "lineItems", "lineItems.item"})
     List<Receipt> findByStatusOrderByEndDatetimeAsc(Receipt.Status status);
 
+    @EntityGraph(attributePaths = {"customer", "lineItems", "lineItems.item"})
     List<Receipt> findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status status, OffsetDateTime now);
 
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);
