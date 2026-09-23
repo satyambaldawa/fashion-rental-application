@@ -24,7 +24,7 @@ function groupByCategory(images: GalleryImage[]): [ItemCategory, GalleryImage[]]
 function GalleryTile({ image }: { image: GalleryImage }) {
   return (
     <div>
-      <div style={{ width: '100%', aspectRatio: '1', overflow: 'hidden', borderRadius: 8 }}>
+      <div style={{ width: '100%', aspectRatio: '3/4', overflow: 'hidden', borderRadius: 8 }}>
         <Image
           src={image.thumbnailUrl}
           preview={{ src: image.imageUrl }}
