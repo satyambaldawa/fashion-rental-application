@@ -54,10 +54,16 @@ import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
 import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
+import { CATEGORY_OPTIONS } from '../../constants/categories'
 
 type Screen = 'home' | 'browse' | 'preview' | 'customer'
 
 const LARGE_DISCOUNT_WARNING_RATIO = 0.9
+
+const CATEGORY_CHIP_OPTIONS: { label: string; value: string | undefined }[] = [
+  { label: 'All', value: undefined },
+  ...CATEGORY_OPTIONS,
+]
 
 const CHIP_FOCUS_STYLE = `
   .checkout-chip:focus-visible {
@@ -454,21 +460,7 @@ export default function CheckoutPage() {
         <div style={{ marginBottom: 16 }}>
           {/* Category chips */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {([
-              { label: 'All', value: undefined },
-              { label: 'Costume', value: 'COSTUME' },
-              { label: 'Accessories', value: 'ACCESSORIES' },
-              { label: 'Pagdi', value: 'PAGDI' },
-              { label: 'Dress', value: 'DRESS' },
-              { label: 'Ornaments', value: 'ORNAMENTS' },
-              { label: 'Traditional', value: 'TRADITIONAL' },
-              { label: 'Mythological', value: 'MYTHOLOGICAL' },
-              { label: 'Freedom Fighter', value: 'FREEDOM_FIGHTER' },
-              { label: 'Professions', value: 'PROFESSIONS' },
-              { label: 'Fancy Dress', value: 'FANCY_DRESS' },
-              { label: 'Seasonal', value: 'SEASONAL' },
-              { label: 'Other', value: 'OTHER' },
-            ] as { label: string; value: string | undefined }[]).map(opt => {
+            {CATEGORY_CHIP_OPTIONS.map(opt => {
               const isActive = (opt.value ?? undefined) === category
               return (
                 <button

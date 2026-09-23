@@ -1,7 +1,7 @@
 export type ItemCategory =
   | 'COSTUME' | 'ACCESSORIES' | 'PAGDI' | 'DRESS' | 'ORNAMENTS'
   | 'TRADITIONAL' | 'MYTHOLOGICAL' | 'FREEDOM_FIGHTER' | 'PROFESSIONS'
-  | 'FANCY_DRESS' | 'SEASONAL' | 'OTHER'
+  | 'FANCY_DRESS' | 'SEASONAL' | 'NAVRATRI_COLLECTION' | 'OTHER'
 export type ItemType = 'INDIVIDUAL' | 'PACKAGE'
 
 export interface ItemPhoto {

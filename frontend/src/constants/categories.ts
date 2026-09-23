@@ -14,6 +14,7 @@ export const CATEGORY_OPTIONS: { label: string; value: ItemCategory }[] = [
   { label: 'Professions', value: 'PROFESSIONS' },
   { label: 'Fancy Dress', value: 'FANCY_DRESS' },
   { label: 'Seasonal', value: 'SEASONAL' },
+  { label: 'Navratri Collection', value: 'NAVRATRI_COLLECTION' },
   { label: 'Other', value: 'OTHER' },
 ]
 

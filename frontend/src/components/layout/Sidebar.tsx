@@ -17,8 +17,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/customers', label: 'Customers',       roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },
   { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
-  { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
   { key: '/gallery',   label: 'Gallery',         roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
 ]
 
 // Public (unauthenticated) nav — same visual language as the staff top-nav,
