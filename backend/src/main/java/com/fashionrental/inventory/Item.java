@@ -15,7 +15,7 @@ public class Item {
     public enum Category {
         COSTUME, ACCESSORIES, PAGDI, DRESS, ORNAMENTS,
         TRADITIONAL, MYTHOLOGICAL, FREEDOM_FIGHTER, PROFESSIONS,
-        FANCY_DRESS, SEASONAL, OTHER
+        FANCY_DRESS, SEASONAL, NAVRATRI_COLLECTION, OTHER
     }
 
     public enum ItemType {

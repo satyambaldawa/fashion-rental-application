@@ -9,21 +9,11 @@ import type { ItemCategory } from '../../types/inventory'
 import ItemCard from './components/ItemCard'
 import ItemDetailDrawer from './components/ItemDetailDrawer'
 import PageHeader from '../../components/common/PageHeader'
+import { CATEGORY_OPTIONS } from '../../constants/categories'
 
-const CATEGORY_OPTIONS: { label: string; value: ItemCategory | 'ALL' }[] = [
+const CATEGORY_FILTER_OPTIONS: { label: string; value: ItemCategory | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
-  { label: 'Costume', value: 'COSTUME' },
-  { label: 'Accessories', value: 'ACCESSORIES' },
-  { label: 'Pagdi', value: 'PAGDI' },
-  { label: 'Dress', value: 'DRESS' },
-  { label: 'Ornaments', value: 'ORNAMENTS' },
-  { label: 'Traditional', value: 'TRADITIONAL' },
-  { label: 'Mythological', value: 'MYTHOLOGICAL' },
-  { label: 'Freedom Fighter', value: 'FREEDOM_FIGHTER' },
-  { label: 'Professions', value: 'PROFESSIONS' },
-  { label: 'Fancy Dress', value: 'FANCY_DRESS' },
-  { label: 'Seasonal', value: 'SEASONAL' },
-  { label: 'Other', value: 'OTHER' },
+  ...CATEGORY_OPTIONS,
 ]
 
 export default function InventoryPage() {
@@ -94,7 +84,7 @@ export default function InventoryPage() {
       <div style={{ marginBottom: 24 }}>
         {/* Category chips */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-          {CATEGORY_OPTIONS.map(opt => {
+          {CATEGORY_FILTER_OPTIONS.map(opt => {
             const isActive = opt.value === activeCategory
             return (
               <button
