@@ -43,7 +43,7 @@ function ImageCard({ image }: { image: GalleryImage }) {
       size="small"
       styles={{ body: { padding: 12 } }}
       cover={
-        <div style={{ aspectRatio: '1', overflow: 'hidden', background: '#f5f5f5' }}>
+        <div style={{ aspectRatio: '3/4', overflow: 'hidden', background: '#f5f5f5' }}>
           <Image
             src={image.thumbnailUrl}
             preview={{ src: image.imageUrl }}
