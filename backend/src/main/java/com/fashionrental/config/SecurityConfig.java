@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/reports/**").hasRole("OWNER")
                         .requestMatchers("/api/config/**").hasRole("OWNER")
                         .requestMatchers("/api/gallery", "/api/gallery/**").hasRole("OWNER")
+                        .requestMatchers("/api/reviews", "/api/reviews/**").hasRole("OWNER")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )
