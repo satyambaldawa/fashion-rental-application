@@ -20,6 +20,18 @@ class DestructivePolicyTest(unittest.TestCase):
         result = destructive.check("Bash", "rm -f package-lock.json", {})
         self.assertIsNone(result)
 
+    def test_allows_rm_force_only_when_path_contains_r_and_f_substrings(self):
+        # Regression: "-report" and "-rental-application" previously matched the
+        # recursive-flag regex as a path substring, even with no real -r flag.
+        result = destructive.check("Bash", "rm -f build/old-report.log", {})
+        self.assertIsNone(result)
+        result = destructive.check(
+            "Bash",
+            "rm -f /private/tmp/-Users-satyambaldawa-satyam-fashion-rental-application/scratch/file.txt",
+            {},
+        )
+        self.assertIsNone(result)
+
     def test_denies_git_push_force(self):
         result = destructive.check("Bash", "git push --force origin main", {})
         self.assertEqual(result[0], "deny")

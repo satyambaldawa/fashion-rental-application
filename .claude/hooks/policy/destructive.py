@@ -20,14 +20,30 @@ _SIMPLE_PATTERNS = [
 ]
 
 _RM_SEGMENT_RE = re.compile(r"\brm\s+[^\n;&|]*")
-_RECURSIVE_FLAG_RE = re.compile(r"(-[a-zA-Z]*r[a-zA-Z]*\b|--recursive\b)")
-_FORCE_FLAG_RE = re.compile(r"(-[a-zA-Z]*f[a-zA-Z]*\b|--force\b)")
+# Matches only whitespace-delimited flag tokens ("-rf", "--force"), never a
+# "-r"/"-f"-shaped substring inside a path argument (e.g. "old-report.log",
+# "fashion-rental-application") — those aren't flags and mustn't count as one.
+_FLAG_TOKEN_RE = re.compile(r"(?:^|\s)(--recursive|--force|-[a-zA-Z]+)(?=\s|$)")
+
+
+def _rm_flag_letters(segment):
+    short_letters = set()
+    long_flags = set()
+    for match in _FLAG_TOKEN_RE.finditer(segment):
+        token = match.group(1)
+        if token.startswith("--"):
+            long_flags.add(token)
+        else:
+            short_letters.update(token[1:])
+    return short_letters, long_flags
 
 
 def _has_rm_rf(text):
     for match in _RM_SEGMENT_RE.finditer(text):
-        segment = match.group(0)
-        if _RECURSIVE_FLAG_RE.search(segment) and _FORCE_FLAG_RE.search(segment):
+        short_letters, long_flags = _rm_flag_letters(match.group(0))
+        has_recursive = "r" in short_letters or "--recursive" in long_flags
+        has_force = "f" in short_letters or "--force" in long_flags
+        if has_recursive and has_force:
             return True
     return False
 
