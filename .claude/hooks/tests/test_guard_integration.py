@@ -7,12 +7,11 @@ import unittest
 GUARD_PATH = os.path.join(os.path.dirname(__file__), "..", "guard.py")
 
 
-def run_guard(tool_name, tool_input, raw_stdin=None):
-    stdin_text = (
-        raw_stdin
-        if raw_stdin is not None
-        else json.dumps({"tool_name": tool_name, "tool_input": tool_input})
-    )
+def run_guard(tool_name, tool_input, raw_stdin=None, agent_type=None):
+    payload = {"tool_name": tool_name, "tool_input": tool_input}
+    if agent_type:
+        payload["agent_type"] = agent_type
+    stdin_text = raw_stdin if raw_stdin is not None else json.dumps(payload)
     result = subprocess.run(
         [sys.executable, GUARD_PATH],
         input=stdin_text,
@@ -20,7 +19,7 @@ def run_guard(tool_name, tool_input, raw_stdin=None):
         text=True,
         timeout=10,
     )
-    return result, json.loads(result.stdout)
+    return result, json.loads(result.stdout) if result.stdout.strip() else {}
 
 
 class GuardIntegrationTest(unittest.TestCase):
@@ -62,9 +61,51 @@ class GuardIntegrationTest(unittest.TestCase):
         _, output = run_guard("Bash", {"command": "gh workflow run ci.yml"})
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
 
-    def test_defers_unrelated_command(self):
+    def test_allows_unrelated_command_by_default(self):
+        # default-allow-except-denied: an unmatched Bash command is no longer
+        # deferred to settings.json's allow-list (which a background subagent
+        # can never satisfy without an unanswerable prompt) — the checkers
+        # above are the real gate, so nothing objecting means allow.
         _, output = run_guard("Bash", {"command": "pnpm test"})
-        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "defer")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_allows_destructive_looking_text_inside_a_heredoc_body(self):
+        # Regression: only pr_review.py used to strip heredoc bodies before
+        # matching, so a script/doc merely *containing* a dangerous-looking
+        # command as data (not an invoked command) tripped other policies too.
+        dangerous_looking_line = "this mentions " + "rm -rf" + " /important/stuff as an example"
+        _, output = run_guard(
+            "Bash",
+            {
+                "command": "cat <<'EOF' > /tmp/notes.txt\n"
+                + dangerous_looking_line
+                + "\nEOF\necho done"
+            },
+        )
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_asks_on_git_checkout(self):
+        _, output = run_guard("Bash", {"command": "git checkout feature/other"})
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+
+    def test_asks_on_git_commit(self):
+        # add/commit/push require an explicit ask from git_write.py now that
+        # guard.py's Bash fallback is allow-by-default — leaving them
+        # unmatched would have silently allowed them instead of gating them.
+        _, output = run_guard("Bash", {"command": 'git commit -m "message"'})
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+
+    def test_deny_still_wins_over_ask(self):
+        # git reset --hard is both destructive.py's hard deny and git_write's
+        # ask (plain "reset" matches git_write too) — deny must still win.
+        _, output = run_guard("Bash", {"command": "git reset --hard HEAD~3"})
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_ask_wins_over_allow_on_chained_command(self):
+        # An allow-listed gh command chained with a git-write command must
+        # not launder the ask past guard.py, for the same reason deny wins.
+        _, output = run_guard("Bash", {"command": "gh pr view 82 && git merge main"})
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
 
     def test_secrets_checked_before_destructive_on_conflicting_command(self):
         # A command that is both a secret leak AND references rm -rf should
@@ -81,10 +122,34 @@ class GuardIntegrationTest(unittest.TestCase):
         decision = output["hookSpecificOutput"]["permissionDecision"]
         self.assertIn(decision, ("ask", "deny"))
 
-    def test_fails_closed_on_empty_stdin(self):
+    def test_emits_no_decision_on_empty_stdin(self):
         result, output = run_guard(None, None, raw_stdin="")
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "defer")
+        self.assertEqual(output, {})
+
+    def test_emits_no_decision_for_ordinary_write(self):
+        # Regression: emitting "defer" paused the call for an external host,
+        # which silently killed subagents on every Edit/Write.
+        result, output = run_guard(
+            "Write", {"file_path": "backend/src/main/java/Foo.java", "content": "x"}
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(output, {})
+
+    def test_subagent_ask_becomes_deny(self):
+        _, output = run_guard(
+            "Bash", {"command": "git checkout main"}, agent_type="general-purpose"
+        )
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_main_session_ask_stays_ask(self):
+        _, output = run_guard("Bash", {"command": "git checkout main"})
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+
+    def test_subagent_allow_is_unaffected(self):
+        _, output = run_guard("Bash", {"command": "pnpm test"}, agent_type="general-purpose")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
 
     def test_main_session_is_enforced_without_a_funnel(self):
         # Skills carry know-how but no identity; the hook enforces on command text
