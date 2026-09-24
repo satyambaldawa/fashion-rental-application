@@ -73,6 +73,15 @@ Each file contains everything a developer needs to implement the feature end-to-
 |------|-------|----------|--------|
 | `US-701-703-reports.md` | Daily revenue, outstanding deposits, overdue rentals | P0 | ✅ |
 
+### 07 — Reviews
+
+| File | Story | Priority | Status |
+|------|-------|----------|--------|
+| `US-801-803-customer-reviews.md` | Submit, browse, and moderate customer reviews | P1 | 🚧 |
+
+Backend end-to-end (schema, service, endpoints, tests — issue #131) is done. Public submit form
+and browse page (#132) and the owner moderation UI (#133) are still pending.
+
 ---
 
 ## Key Technical Decisions (Quick Reference)
@@ -100,5 +109,7 @@ Each file contains everything a developer needs to implement the feature end-to-
 5. `03-checkout-and-receipt` (US-301 → US-304) — depends on 01 + 02
 6. `04-return-and-invoice` (US-401) — depends on 03 + 05
 7. `06-reporting` (US-701 → US-703) — read-only, build last
+8. `07-reviews` (US-801 → US-803) — P1, independent of the rental flow; backend first (#131), then
+   the two public pages (#132) and moderation UI (#133)
 
 P1 stories (US-105, US-106, US-203, US-204) can be done after the P0 set is deployed and working.

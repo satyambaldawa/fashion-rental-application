@@ -89,6 +89,7 @@ com.fashionrental/
   invoice/       ← Invoice, InvoiceLineItem (created during return flow)
   reporting/     ← Read-only report queries
   gallery/       ← Gallery, GalleryImage, public + admin endpoints, ImageStorageService
+  review/        ← Review, ReviewImage, rate-limited public submission, OWNER-only moderation
 ```
 
 **Cross-cutting patterns:**
