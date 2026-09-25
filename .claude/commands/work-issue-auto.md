@@ -119,12 +119,25 @@ Dispatch **fullstack-craftsman [sonnet]** to implement the approved plan exactly
 repo conventions, no unrequested scope. **No post-build persona re-review in auto mode.**
 
 ### 5. Test
-Run both suites. If red: **Diagnose [sonnet]** → **Fix [opus]** — **one attempt only**.
+Run both suites again (`cd backend && ./gradlew test`, `cd frontend && pnpm test` —
+the same two commands as Stage 1, never `check`/`build`/`integrationTest`).
+If red: **Diagnose [sonnet]** → **Fix [opus]** — **one attempt only**.
 Re-run. If still red → **HALT (build tests)**. A fix must never weaken a test to go green.
 
 ### 6. Coverage
 Dispatch **Coverage [sonnet]**: critical paths (billing, availability, transactions) get
-100%. Add meaningful missing tests; re-run to confirm green. No tautological tests.
+100%. Add meaningful missing tests; re-run with `./gradlew test` (backend) and
+`pnpm test` (frontend) to confirm green. No tautological tests.
+
+Never run `./gradlew check`, `./gradlew build`, `./gradlew integrationTest`,
+`./gradlew jacocoTestReport`, or `./gradlew checkCoverageThreshold` in this stage (or
+anywhere else in this pipeline). `backend/build.gradle.kts` wires `check` to depend on
+`integrationTest`, and `jacocoTestReport`'s `executionData(...)` references both `test`
+and `integrationTest` as task inputs — either one transitively triggers
+Testcontainers-backed integration tests, which need a Docker daemon this cloud
+environment doesn't provide. `./gradlew test` alone never triggers `integrationTest`
+(no dependency between them) — that's the only backend test command this pipeline ever
+runs, in every stage.
 
 ### 7. Docs
 Dispatch **Docs [haiku]** only if the change requires it (README env/run steps, ADRs,
