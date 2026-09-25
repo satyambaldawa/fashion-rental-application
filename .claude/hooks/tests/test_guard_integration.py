@@ -238,19 +238,21 @@ class GuardCloudSessionInvocationTest(unittest.TestCase):
 
 
 class GuardCloudPipelineGitExemptionTest(unittest.TestCase):
-    """Regression coverage for #96: a simulated cloud session (HOME under
-    /home/, CLAUDE_PROJECT_DIR unset) must get add/checkout/commit/push
-    auto-allowed by git_write.py — but critically, github.py's separate deny
-    for pushing to main must still win, end to end through guard.py's own
-    dispatch (deny beats allow), not just in git_write.py's own unit tests."""
+    """Regression coverage for #96: a simulated cloud session (HOME=/root --
+    the confirmed real shape, verified against a live routine run's own
+    shell-snapshot path -- CLAUDE_PROJECT_DIR unset) must get
+    add/checkout/commit/push auto-allowed by git_write.py -- but critically,
+    github.py's separate deny for pushing to main must still win, end to end
+    through guard.py's own dispatch (deny beats allow), not just in
+    git_write.py's own unit tests."""
 
-    def _run_in_simulated_cloud(self, command):
+    def _run_in_simulated_cloud(self, command, home="/root"):
         env = {
             key: value
             for key, value in os.environ.items()
             if key not in ("CLAUDE_PROJECT_DIR",)
         }
-        env["HOME"] = "/home/testuser"
+        env["HOME"] = home
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
         result = subprocess.run(
             [sys.executable, GUARD_PATH],
@@ -261,6 +263,14 @@ class GuardCloudPipelineGitExemptionTest(unittest.TestCase):
             env=env,
         )
         return json.loads(result.stdout) if result.stdout.strip() else {}
+
+    def test_allows_checkout_when_home_is_root(self):
+        output = self._run_in_simulated_cloud("git checkout -b feat/issue-99-example", home="/root")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_allows_checkout_when_home_is_home_user(self):
+        output = self._run_in_simulated_cloud("git checkout -b feat/issue-99-example", home="/home/user")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
 
     def test_allows_feature_branch_push_in_simulated_cloud_session(self):
         output = self._run_in_simulated_cloud("git push -u origin feat/issue-99-example")
