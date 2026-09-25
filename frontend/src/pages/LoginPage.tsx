@@ -29,7 +29,7 @@ export default function LoginPage() {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      minHeight: '100vh',
+      minHeight: 'calc(100vh - 64px)',
       background: '#FBF1F5',
       padding: '16px',
     }}>

@@ -17,7 +17,6 @@ import ReceiptDetailPage from '../../pages/receipts/ReceiptDetailPage'
 import ProcessReturnPage from '../../pages/receipts/ProcessReturnPage'
 import InvoiceDetailPage from '../../pages/invoices/InvoiceDetailPage'
 import ReportsPage from '../../pages/reports/ReportsPage'
-import ReviewModerationPage from '../../pages/reviews/ReviewModerationPage'
 import UnauthorizedPage from '../../pages/UnauthorizedPage'
 
 const { Content } = Layout
@@ -57,8 +56,8 @@ export default function AppLayout() {
             <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="/reports" element={<OwnerRoute><ReportsPage /></OwnerRoute>} />
             <Route path="/settings" element={<OwnerRoute><SettingsPage /></OwnerRoute>} />
-            <Route path="/reviews/manage" element={<OwnerRoute><ReviewModerationPage /></OwnerRoute>} />
             <Route path="/gallery/manage" element={<Navigate to="/settings" replace />} />
+            <Route path="/reviews/manage" element={<Navigate to="/settings" replace />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="*" element={<Navigate to="/checkout" replace />} />
           </Routes>

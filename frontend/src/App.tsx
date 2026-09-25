@@ -47,7 +47,7 @@ export default function App() {
       >
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login" element={<PublicLayout><LoginPage /></PublicLayout>} />
             <Route path="/public/receipts/:shareToken" element={<PublicReceiptPage />} />
             <Route path="/public/invoices/:shareToken" element={<PublicInvoicePage />} />
             <Route path="/gallery" element={<PublicLayout><GalleryPage /></PublicLayout>} />
