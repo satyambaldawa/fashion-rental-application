@@ -47,12 +47,23 @@ def _mutating_verb(segment):
 # branch, and open a PR for that issue without further approval. That text
 # change alone doesn't reach this hook, though — an unattended cloud session
 # (no human present to answer an "ask") still stalled on every checkout/
-# add/commit/push. This exempts exactly those four verbs, and only when BOTH
-# cloud-session signals agree: home directory under /home/ (every observed
-# cloud/routine run; local sessions are always under /Users/...) AND
-# CLAUDE_PROJECT_DIR unset (the #91/#92 signal). Requiring both, rather than
-# either alone, means an uncertain or wrong read of either signal fails
-# toward "still ask" — never toward "silently allow" — on a local session.
+# add/commit/push. This exempts exactly those four verbs, gated on a single
+# signal now: home directory is /root or under /home/ (local interactive
+# sessions are always under /Users/...).
+#
+# This dropped a second, AND-ed signal (CLAUDE_PROJECT_DIR unset) that three
+# straight live-run failures traced back to: #91/#92 established that ad-hoc
+# `claude --cloud` sessions leave CLAUDE_PROJECT_DIR unset, and that got
+# generalized here to "cloud sessions leave it unset" — but a live routine
+# run's own embedded diagnostic (added specifically to settle this without a
+# fourth guess) showed CLAUDE_PROJECT_DIR *set*, to the repo path, in a real
+# routine session. The generalization was simply wrong for routines
+# specifically; ad-hoc and routine cloud sessions are not the same
+# environment. HOME has been independently confirmed as /root four separate
+# ways (a shell-snapshot path, the egress proxy's CA bundle path, a direct
+# `echo $HOME` a human ran interactively, and this hook's own diagnostic) and
+# never once been wrong — it's the one signal actually worth keying on.
+#
 # Every other mutating verb (reset, clean, merge, rebase, stash, rm, tag,
 # remote, ...) still asks unconditionally, in every session. Pushing to or
 # merging main stays hard-denied regardless of this allow — github.py's deny
@@ -62,20 +73,15 @@ _PIPELINE_SAFE_VERBS = {"add", "checkout", "commit", "push"}
 
 
 def _cloud_session_signals():
-    """Returns (is_cloud, debug_str). Split out from the boolean so the ask
-    path below can report exactly what this check saw when it does NOT
-    recognize a session as cloud -- two attempts at guessing the right
-    home-directory pattern from inference alone (cwd, then the confirmed
-    /root case) both still left real runs stalled on this same prompt, so
-    the ask reason now always carries the live values instead of asking for
-    a fourth guess."""
+    """Returns (is_cloud, debug_str). Kept as a pair (not just a bool) so the
+    ask path can still report what this check saw — cheap insurance after
+    three straight wrong guesses about what actually distinguishes a cloud
+    session here."""
     home = os.path.expanduser("~")
     normalized = home.rstrip("/") or "/"
-    home_is_cloud_shaped = normalized == "/root" or normalized.startswith("/home/")
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-    project_dir_unset = not project_dir
-    debug = f"HOME={home!r} normalized={normalized!r} CLAUDE_PROJECT_DIR={project_dir!r}"
-    return (home_is_cloud_shaped and project_dir_unset), debug
+    is_cloud = normalized == "/root" or normalized.startswith("/home/")
+    debug = f"HOME={home!r} normalized={normalized!r}"
+    return is_cloud, debug
 
 
 def check(tool_name, text, tool_input):

@@ -238,21 +238,21 @@ class GuardCloudSessionInvocationTest(unittest.TestCase):
 
 
 class GuardCloudPipelineGitExemptionTest(unittest.TestCase):
-    """Regression coverage for #96: a simulated cloud session (HOME=/root --
-    the confirmed real shape, verified against a live routine run's own
-    shell-snapshot path -- CLAUDE_PROJECT_DIR unset) must get
-    add/checkout/commit/push auto-allowed by git_write.py -- but critically,
-    github.py's separate deny for pushing to main must still win, end to end
-    through guard.py's own dispatch (deny beats allow), not just in
-    git_write.py's own unit tests."""
+    """Regression coverage for #96: a real cloud session (HOME=/root -- the
+    confirmed real shape) must get add/checkout/commit/push auto-allowed by
+    git_write.py -- but critically, github.py's separate deny for pushing to
+    main must still win, end to end through guard.py's own dispatch (deny
+    beats allow), not just in git_write.py's own unit tests."""
 
-    def _run_in_simulated_cloud(self, command, home="/root"):
+    def _run_in_simulated_cloud(self, command, home="/root", claude_project_dir=None):
         env = {
             key: value
             for key, value in os.environ.items()
             if key not in ("CLAUDE_PROJECT_DIR",)
         }
         env["HOME"] = home
+        if claude_project_dir is not None:
+            env["CLAUDE_PROJECT_DIR"] = claude_project_dir
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
         result = subprocess.run(
             [sys.executable, GUARD_PATH],
@@ -266,6 +266,20 @@ class GuardCloudPipelineGitExemptionTest(unittest.TestCase):
 
     def test_allows_checkout_when_home_is_root(self):
         output = self._run_in_simulated_cloud("git checkout -b feat/issue-99-example", home="/root")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_allows_checkout_when_claude_project_dir_is_also_set(self):
+        # The exact real-world shape a live routine run's own embedded
+        # diagnostic revealed: HOME=/root AND CLAUDE_PROJECT_DIR set (to the
+        # repo path), not unset as an earlier version of this check required.
+        # That mismatch is what actually caused three straight real-run
+        # failures -- verified here end to end through guard.py's real
+        # dispatch, not just git_write.py's own check() function.
+        output = self._run_in_simulated_cloud(
+            "git checkout -b feat/issue-99-example",
+            home="/root",
+            claude_project_dir="/home/user/fashion-rental-application",
+        )
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
 
     def test_allows_checkout_when_home_is_home_user(self):
