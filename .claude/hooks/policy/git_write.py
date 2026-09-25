@@ -1,3 +1,4 @@
+import os
 import re
 
 # Every git subcommand that mutates the working tree, history, staging area,
@@ -41,15 +42,48 @@ def _mutating_verb(segment):
     return match.group(1)
 
 
+# #96's CLAUDE.md carve-out: applying `ready-for-deployment` to an issue is
+# advance, scoped authorization for /work-issue-auto to commit, push a feature
+# branch, and open a PR for that issue without further approval. That text
+# change alone doesn't reach this hook, though — an unattended cloud session
+# (no human present to answer an "ask") still stalled on every checkout/
+# add/commit/push. This exempts exactly those four verbs, and only when BOTH
+# cloud-session signals agree: home directory under /home/ (every observed
+# cloud/routine run; local sessions are always under /Users/...) AND
+# CLAUDE_PROJECT_DIR unset (the #91/#92 signal). Requiring both, rather than
+# either alone, means an uncertain or wrong read of either signal fails
+# toward "still ask" — never toward "silently allow" — on a local session.
+# Every other mutating verb (reset, clean, merge, rebase, stash, rm, tag,
+# remote, ...) still asks unconditionally, in every session. Pushing to or
+# merging main stays hard-denied regardless of this allow — github.py's deny
+# patterns for that run as a separate checker, and deny always wins over
+# allow in guard.py's dispatch order (see guard.py's decide()).
+_PIPELINE_SAFE_VERBS = {"add", "checkout", "commit", "push"}
+
+
+def _is_cloud_session():
+    home_is_cloud_shaped = os.path.expanduser("~").startswith("/home/")
+    project_dir_unset = not os.environ.get("CLAUDE_PROJECT_DIR")
+    return home_is_cloud_shaped and project_dir_unset
+
+
 def check(tool_name, text, tool_input):
     if not text:
         return None
     # Judge each chained segment on its own, so `git tag --list && git push`
     # can't hide the push behind a read-only first segment.
     verbs = [_mutating_verb(segment) for segment in re.split(r"&&|\|\||;|\||\n", text)]
-    verb = next((v for v in verbs if v), None)
-    if not verb:
+    matched = [v for v in verbs if v]
+    if not matched:
         return None
+    if _is_cloud_session() and all(v in _PIPELINE_SAFE_VERBS for v in matched):
+        return (
+            "allow",
+            "Cloud session performing only add/checkout/commit/push — exempted per "
+            "#96's automated-pipeline carve-out. Pushing to or merging main is still "
+            "hard-denied by github.py regardless of this allow.",
+        )
+    verb = matched[0]
     return (
         "ask",
         f"git {verb} can mutate the working tree, history, staging area, or a "

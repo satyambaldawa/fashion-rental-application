@@ -237,5 +237,62 @@ class GuardCloudSessionInvocationTest(unittest.TestCase):
         self.assertNotIn("No such file or directory", result.stderr)
 
 
+class GuardCloudPipelineGitExemptionTest(unittest.TestCase):
+    """Regression coverage for #96: a simulated cloud session (HOME under
+    /home/, CLAUDE_PROJECT_DIR unset) must get add/checkout/commit/push
+    auto-allowed by git_write.py — but critically, github.py's separate deny
+    for pushing to main must still win, end to end through guard.py's own
+    dispatch (deny beats allow), not just in git_write.py's own unit tests."""
+
+    def _run_in_simulated_cloud(self, command):
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in ("CLAUDE_PROJECT_DIR",)
+        }
+        env["HOME"] = "/home/testuser"
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        result = subprocess.run(
+            [sys.executable, GUARD_PATH],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        return json.loads(result.stdout) if result.stdout.strip() else {}
+
+    def test_allows_feature_branch_push_in_simulated_cloud_session(self):
+        output = self._run_in_simulated_cloud("git push -u origin feat/issue-99-example")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_still_denies_push_to_main_in_simulated_cloud_session(self):
+        output = self._run_in_simulated_cloud("git push origin main")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_still_denies_bare_push_in_simulated_cloud_session(self):
+        output = self._run_in_simulated_cloud("git push")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_still_denies_reset_hard_in_simulated_cloud_session(self):
+        output = self._run_in_simulated_cloud("git reset --hard HEAD~3")
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_still_asks_on_git_write_in_simulated_local_environment(self):
+        # Explicitly force a local-shaped HOME rather than trusting the test
+        # runner's own environment -- on a Linux dev machine or CI runner,
+        # ambient HOME is also under /home/, which would silently flip this
+        # assertion if left implicit.
+        env = {key: value for key, value in os.environ.items() if key != "CLAUDE_PROJECT_DIR"}
+        env["HOME"] = "/Users/testuser"
+        env["CLAUDE_PROJECT_DIR"] = "/Users/testuser/some-repo"
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git checkout -b feat/x"}})
+        result = subprocess.run(
+            [sys.executable, GUARD_PATH], input=payload, capture_output=True, text=True, timeout=10, env=env,
+        )
+        output = json.loads(result.stdout) if result.stdout.strip() else {}
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+
+
 if __name__ == "__main__":
     unittest.main()
