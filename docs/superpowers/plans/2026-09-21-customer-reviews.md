@@ -3165,3 +3165,59 @@ original text above silently wrong on points a reader might rely on.
 Full review verdicts and the amendments file used to drive the build are not preserved beyond this
 summary; treat points 1–8 above as authoritative over the conflicting text earlier in this
 document.
+
+---
+
+## Post-Review Amendments (applied during #132's build)
+
+Tasks 9–11 (frontend types/API/msw plumbing, `ReviewsPage`, `SubmitReviewPage`) went through the
+same three-persona review, once against the plan and once against the built code diff. The plan
+review found two blockers before a line was written; the code review then found one real gap.
+Recorded here for the same reason as #131's amendments above — so this document reflects what
+actually shipped.
+
+1. **A real multipart `FormData` `POST` through msw+jsdom hangs the test runner (blocker, caught
+   at plan review).** This repo had already hit this exact trap twice (`src/api/api.test.ts`,
+   `GalleryManagePage.test.tsx`) before this plan was written, and the plan's own tests for the
+   submit page's success/429 paths would have hit it a third time. Built with those two tests
+   spying on `reviewsApi.submit` instead of routing through a live msw handler, plus one real
+   wire-shape test in `api/api.test.ts` (FormData part names, JSON `Blob` content type, header) —
+   that test is the only one that actually proves the multipart Content-Type bug (issue callout
+   #1) can't regress.
+
+2. **A duplicate `createdAt` in the seeded test fixture (blocker, caught at plan review).** The
+   default two-review msw fixture didn't give the second review its own `createdAt`, so both cards
+   rendered the same formatted date and a `getByText(exactDate)` assertion threw "found multiple
+   elements." Fixed by giving each seeded review a distinct date.
+
+3. **`beforeUpload` returns `Upload.LIST_IGNORE` on rejection, not `false` for every branch**,
+   despite the issue's literal wording. Confirmed against antd 5's actual behavior:
+   `beforeUpload → false` alone still adds the file to a controlled `fileList` (`onChange` fires
+   regardless); only `LIST_IGNORE` keeps a rejected file out. `false` is still returned for
+   accepted files, so the "don't auto-upload" half of the callout holds.
+
+4. **The submit form's double-submit guard uses a synchronous `useRef`, not
+   `submission.isPending` (found at code review).** `isPending` only reflects the last render;
+   AntD's async `validateFields` plus one render tick left a real window where Enter or a fast
+   double-click could fire `mutate()` twice, charging the backend's per-phone daily rate limit
+   twice for one accidental double-tap.
+
+5. **The staff (authenticated) top nav gained a plain "Reviews" entry (found at code review).**
+   The build initially added `/reviews` only to the logged-out public nav; the story's own
+   Navigation section calls for a separate staff-nav link (distinct from "Manage Reviews", which is
+   correctly deferred to #133's moderation route). Without it, a logged-in owner/staff member had
+   no way to reach the customer-facing reviews page except typing the URL directly.
+
+6. **Content-Type header uses this repo's existing `'multipart/form-data'` literal**, not the
+   `Content-Type: undefined` this plan originally showed — matching `gallery.ts`/`items.ts`'s
+   established upload convention rather than introducing a second one.
+
+7. **Admin/moderation types and API functions (`AdminReview`, `listForModeration`, `updateStatus`,
+   `remove`) were not built in #132**, despite appearing in this plan's Task 9. They would be
+   untested dead code with no caller until #133 exists — moved there instead.
+
+A "rejects a fourth image" test (named in the spec's test list) was deliberately not added: the
+real UI already enforces the limit two ways (the "+ Add photo" trigger disappears at 3 files, and
+antd's own `maxCount` truncates internally — confirmed by reading `antd`'s `Upload.js` source), and
+writing an automated test for it hit a jsdom/antd timing quirk in sequential `Upload` state updates
+unrelated to the app's real behavior — not worth a fragile test to chase a named checkbox.
