@@ -18,15 +18,15 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },
   { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
   { key: '/gallery',   label: 'Gallery',         roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/reviews',   label: 'Reviews',         roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
 ]
 
-// Public (unauthenticated) nav — same visual language as the staff top-nav,
-// but Login and New Rental both just point an anonymous visitor at /login.
+// Public (unauthenticated) nav — same visual language as the staff top-nav.
+// Login lives in the header's right-hand corner (LoginButton), not in this menu.
 const PUBLIC_NAV_ITEMS: { key: string; label: string; target: string }[] = [
   { key: '/gallery',   label: 'Gallery',     target: '/gallery' },
-  { key: 'login',      label: 'Login',       target: '/login' },
-  { key: 'new-rental', label: 'New Rental',  target: '/login' },
+  { key: '/reviews',   label: 'Reviews',     target: '/reviews' },
 ]
 
 // Active-tab underline indicator using petal color
@@ -168,8 +168,8 @@ export function TopNav() {
 }
 
 // Unauthenticated equivalent of TopNav — shown on public pages (e.g. /gallery)
-// when there is no logged-in user. "Login" and "New Rental" both route an
-// anonymous visitor to /login; only Gallery is a real public destination.
+// when there is no logged-in user. Gallery and Reviews are the real public
+// destinations; Login sits separately in the header's right corner (LoginButton).
 export function PublicNav() {
   const navigate = useNavigate()
   const location = useLocation()

@@ -8,6 +8,7 @@ import { flush } from '../../test/render'
 import { useAuthStore } from '../../store/authStore'
 import PublicLayout from './PublicLayout'
 import GalleryPage from '../../pages/public/GalleryPage'
+import LoginPage from '../../pages/LoginPage'
 
 // Mounts the real /login route alongside /gallery so a test can confirm a nav
 // click actually navigates there, rather than just not-crashing.
@@ -27,17 +28,33 @@ const renderGalleryRoute = () => {
   )
 }
 
+const renderLoginRoute = () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider>
+        <MemoryRouter initialEntries={['/login']}>
+          <Routes>
+            <Route path="/login" element={<PublicLayout><LoginPage /></PublicLayout>} />
+          </Routes>
+        </MemoryRouter>
+      </ConfigProvider>
+    </QueryClientProvider>,
+  )
+}
+
 describe('PublicLayout', () => {
   describe('logged out', () => {
-    it('shows exactly Gallery, Login, and New Rental in the nav, with no Logout control', async () => {
+    it('shows exactly Gallery and Reviews in the nav, plus a Login button in the corner, with no Logout control', async () => {
       useAuthStore.setState({ token: null, role: null })
 
       renderGalleryRoute()
       await flush()
 
       expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'New Rental' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Reviews' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'New Rental' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /logout/i })).not.toBeInTheDocument()
     })
 
@@ -48,19 +65,7 @@ describe('PublicLayout', () => {
       renderGalleryRoute()
       await flush()
 
-      await user.click(screen.getByRole('button', { name: 'Login' }))
-
-      expect(await screen.findByText('Login Page')).toBeInTheDocument()
-    })
-
-    it('navigates to /login when New Rental is clicked', async () => {
-      useAuthStore.setState({ token: null, role: null })
-      const user = userEvent.setup()
-
-      renderGalleryRoute()
-      await flush()
-
-      await user.click(screen.getByRole('button', { name: 'New Rental' }))
+      await user.click(screen.getByRole('button', { name: /login/i }))
 
       expect(await screen.findByText('Login Page')).toBeInTheDocument()
     })
@@ -73,6 +78,21 @@ describe('PublicLayout', () => {
 
       expect(screen.getByText('Royal Sherwani')).toBeInTheDocument()
       expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
+    })
+
+    // A visitor lands on /login either by navigating there directly or after
+    // clicking Logout — either way they should still be able to reach the
+    // public pages (or sign back in) without hitting a dead end.
+    it('still shows the public nav on the login page itself', async () => {
+      useAuthStore.setState({ token: null, role: null })
+
+      renderLoginRoute()
+      await flush()
+
+      expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Reviews' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument()
     })
   })
 
@@ -87,7 +107,7 @@ describe('PublicLayout', () => {
       expect(screen.getByRole('button', { name: 'Active Rentals' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Login' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument()
     })
   })
 })

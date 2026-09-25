@@ -7,6 +7,8 @@ import PublicLayout from './components/layout/PublicLayout'
 import PublicReceiptPage from './pages/public/PublicReceiptPage'
 import PublicInvoicePage from './pages/public/PublicInvoicePage'
 import GalleryPage from './pages/public/GalleryPage'
+import ReviewsPage from './pages/public/ReviewsPage'
+import SubmitReviewPage from './pages/public/SubmitReviewPage'
 import { useAuthStore } from './store/authStore'
 
 const queryClient = new QueryClient({
@@ -45,10 +47,12 @@ export default function App() {
       >
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login" element={<PublicLayout><LoginPage /></PublicLayout>} />
             <Route path="/public/receipts/:shareToken" element={<PublicReceiptPage />} />
             <Route path="/public/invoices/:shareToken" element={<PublicInvoicePage />} />
             <Route path="/gallery" element={<PublicLayout><GalleryPage /></PublicLayout>} />
+            <Route path="/reviews" element={<PublicLayout><ReviewsPage /></PublicLayout>} />
+            <Route path="/review" element={<PublicLayout><SubmitReviewPage /></PublicLayout>} />
             <Route path="/*" element={
               <ProtectedRoute>
                 <AppLayout />

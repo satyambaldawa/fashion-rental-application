@@ -89,6 +89,7 @@ com.fashionrental/
   invoice/       ← Invoice, InvoiceLineItem (created during return flow)
   reporting/     ← Read-only report queries
   gallery/       ← Gallery, GalleryImage, public + admin endpoints, ImageStorageService
+  review/        ← Review, ReviewImage, rate-limited public submission, OWNER-only moderation
 ```
 
 **Cross-cutting patterns:**
@@ -138,9 +139,9 @@ src/
 ```
 
 **Routing:**
-- `App.tsx`: `<BrowserRouter>` with public routes (`/login`, `/gallery`) + `/*` wrapped in `<ProtectedRoute>` (checks `authStore.token`).
-- `PublicLayout`: wrapper for public pages with auth-aware nav — logged-out visitors see Gallery/Login/New Rental nav; logged-in staff see the normal staff nav with Gallery tab.
-- `AppLayout.tsx`: nested `<Routes>` for all authenticated pages. `<OwnerRoute>` guards inventory write pages, reports, settings, and the gallery management page (`/gallery/manage`) — redirects to `/unauthorized` if role is not OWNER.
+- `App.tsx`: `<BrowserRouter>` with public routes (`/login`, `/gallery`, `/reviews`, `/review`) + `/*` wrapped in `<ProtectedRoute>` (checks `authStore.token`).
+- `PublicLayout`: wrapper for public pages with auth-aware nav, including `/login` — logged-out visitors see Gallery/Reviews in the nav plus a Login button in the header's right corner, on every public page (so it's still visible right after logging out); logged-in staff see the normal staff nav with Gallery/Reviews tabs plus Logout in the same corner.
+- `AppLayout.tsx`: nested `<Routes>` for all authenticated pages. `<OwnerRoute>` guards inventory write pages, reports, and settings — redirects to `/unauthorized` if role is not OWNER. Gallery management and review moderation are both tabs inside Settings, not standalone routes (`/gallery/manage` and `/reviews/manage` both redirect to `/settings`).
 - Default route `/` redirects to `/checkout`.
 
 **API call pattern:** every `src/api/*.ts` function calls `client` (the shared Axios instance), destructures `res.data.data` from the `ApiResponse<T>` envelope, and throws on `success: false`.

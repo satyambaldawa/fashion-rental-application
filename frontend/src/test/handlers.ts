@@ -102,4 +102,35 @@ export const handlers = [
     return ok(f.aGalleryImage({ id: params.id as string, ...body }))
   }),
   http.delete('*/api/gallery/:id', () => ok(null)),
+
+  // public reviews
+  http.get('*/api/public/reviews', () => ok({
+    content: [
+      f.aPublicReview(),
+      f.aPublicReview({
+        id: 'review-2', reviewerName: 'Anil K', rating: 4, itemDescription: 'Maroon sherwani',
+        reviewText: 'Great fit and friendly staff.', images: [],
+        createdAt: '2026-09-18T11:00:00+05:30',
+      }),
+    ],
+    totalElements: 2, totalPages: 1, number: 0, size: 10,
+  })),
+  http.post('*/api/public/reviews', () =>
+    HttpResponse.json(
+      { success: true, data: { id: 'review-3', status: 'PENDING' }, error: null },
+      { status: 201 },
+    ),
+  ),
+
+  // admin reviews (owner) — /api/reviews, distinct from /api/public/reviews above
+  http.get('*/api/reviews', ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')
+    const reviews = [f.anAdminReview()]
+    return ok(page(status ? reviews.filter(r => r.status === status) : reviews))
+  }),
+  http.patch('*/api/reviews/:id/status', async ({ request, params }) => {
+    const body = (await request.json()) as { status?: 'PENDING' | 'APPROVED' | 'REJECTED' }
+    return ok(f.anAdminReview({ id: params.id as string, status: body.status }))
+  }),
+  http.delete('*/api/reviews/:id', () => ok(null)),
 ]
