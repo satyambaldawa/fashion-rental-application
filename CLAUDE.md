@@ -18,6 +18,13 @@ Examples:
 - ✅ "Should I push this branch to GitHub?" → wait for confirmation
 - ✅ "I'm ready to create a PR with this title. Approve?" → wait for approval
 
+**Exception — automated pipeline.** `/work-issue-auto`, triggered only by a human applying the
+`ready-for-deployment` label to a specific issue, may commit, push a feature branch, and open a
+PR for that issue without an additional in-chat approval — the label is the advance, scoped
+authorization. It must still never push to `main` and never merge; halting instead of opening a
+PR is always the default on any test failure or persona Blocker. This exception applies to no
+other command and to no other trigger.
+
 ---
 
 ## ⚠️ Security: No Secrets in Committed Files
