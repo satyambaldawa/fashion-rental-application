@@ -58,6 +58,34 @@ class GithubPolicyTest(unittest.TestCase):
         )
         self.assertEqual(result[0], "deny")
 
+    def test_allows_issue_label_removal(self):
+        result = github.check(
+            "Bash", "gh api repos/o/r/issues/143/labels/scratch-test -X DELETE", {}
+        )
+        self.assertEqual(result[0], "allow")
+
+    def test_allows_issue_label_removal_with_method_flag(self):
+        result = github.check(
+            "Bash",
+            "gh api repos/o/r/issues/143/labels/scratch-test --method DELETE",
+            {},
+        )
+        self.assertEqual(result[0], "allow")
+
+    def test_denies_issue_delete_via_api(self):
+        # Deleting the issue itself (not a label on it) must still hit the
+        # blanket DELETE rule — only the /labels/<name> shape is exempted.
+        result = github.check("Bash", "gh api repos/o/r/issues/143 -X DELETE", {})
+        self.assertEqual(result[0], "deny")
+
+    def test_denies_labels_collection_delete_without_name(self):
+        # DELETE against the labels collection itself (no specific label name)
+        # is not the exempted shape either.
+        result = github.check(
+            "Bash", "gh api repos/o/r/issues/143/labels -X DELETE", {}
+        )
+        self.assertEqual(result[0], "deny")
+
     def test_allows_issue_comment(self):
         result = github.check("Bash", 'gh issue comment 7 --body "update"', {})
         self.assertEqual(result[0], "allow")

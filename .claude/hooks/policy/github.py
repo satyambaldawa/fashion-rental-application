@@ -43,10 +43,22 @@ _ALLOW_PATTERNS = [
     re.compile(r"\bgh\s+workflow\s+(list|view)\b"),
 ]
 
+# Removing a label via the REST API (`gh api .../issues/<n>/labels/<name> -X DELETE`)
+# is a mundane, frequently-needed operation — e.g. #90/#93's auto-deployment
+# pipeline dropping `ready-for-deployment` once it claims an issue — that the
+# blanket "any gh api DELETE" rule below would otherwise catch. Exempt only this
+# exact shape: deleting the repo or branch protection still matches the blanket
+# rule untouched, since neither path looks like this.
+_SAFE_LABEL_DELETE_RE = re.compile(
+    r"\bgh\s+api\b[^\n]*/issues/\d+/labels/[^/\s]+\b[^\n]*(-X\s*DELETE|--method\s+DELETE)"
+)
+
 
 def check(tool_name, text, tool_input):
     if not text:
         return None
+    if _SAFE_LABEL_DELETE_RE.search(text):
+        return ("allow", "Removing a label via the REST API is on the GitHub allow-list.")
     for pattern, why in _DENY_PATTERNS:
         if pattern.search(text):
             return ("deny", f"Blocked by GitHub policy: this command {why}.")
