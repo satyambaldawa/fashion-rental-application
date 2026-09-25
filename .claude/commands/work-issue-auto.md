@@ -102,9 +102,24 @@ not improvise a way forward.
 6. Create the branch: `git checkout main && git pull && git checkout -b <type>/issue-$1-<slug>`.
 
 ### 1. Baseline
-Run `cd backend && ./gradlew test` and `cd frontend && pnpm test`.
-If red: dispatch **Diagnose [sonnet]**, then **Fix [opus]** — **one attempt only**.
-Re-run. If still red → **HALT (baseline)**.
+`cd frontend && pnpm install` first, unconditionally — every cloud run starts from a
+fresh clone with no `node_modules` (it's gitignored), so `pnpm test` fails immediately
+on a bare checkout every single time. Installing up front avoids the
+fails-then-installs-then-retries round trip.
+
+Then run `cd backend && ./gradlew test` and `cd frontend && pnpm test`.
+
+Backend dependency resolution has hit Maven Central 429s (rate limiting) from this
+cloud environment's egress proxy on every real run so far — `backend/gradle.properties`
+now configures Gradle to retry transient repository failures with backoff
+automatically, so this shouldn't surface as a build failure at all going forward. If a
+429 (or similar transient repository error) still reaches this stage despite that,
+retry `./gradlew test` once more before treating it as a real failure — this is
+infrastructure flakiness, not a code problem, and doesn't consume the one
+Diagnose+Fix attempt below.
+
+If genuinely red (a real test/compile failure): dispatch **Diagnose [sonnet]**, then
+**Fix [opus]** — **one attempt only**. Re-run. If still red → **HALT (baseline)**.
 
 ### 2. Plan
 Dispatch a **planning subagent [opus]** for a plan + scope of changes: what will change, in
