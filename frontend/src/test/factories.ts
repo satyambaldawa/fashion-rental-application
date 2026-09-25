@@ -9,6 +9,7 @@ import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals,
 import type { LateFeeRule } from '../types/config'
 import type { UserRecord, LoginResponse } from '../types/auth'
 import type { Coupon } from '../types/coupons'
+import type { PublicReview } from '../types/review'
 
 type Partialize<T> = (overrides?: Partial<T>) => T
 
@@ -154,4 +155,14 @@ export const aUserRecord: Partialize<UserRecord> = (o = {}) => ({
 
 export const aLoginResponse: Partialize<LoginResponse> = (o = {}) => ({
   token: 'test-jwt-token', role: 'OWNER', ...o,
+})
+
+export const aPublicReview: Partialize<PublicReview> = (o = {}) => ({
+  id: 'review-1', reviewerName: 'Priya S', itemDescription: 'Red bridal lehenga', rating: 5,
+  reviewText: 'Beautiful outfit, fit perfectly.', createdAt: '2026-09-20T14:30:00+05:30',
+  images: [{
+    id: 'review-image-1',
+    url: 'https://cdn.example.com/review-1.jpg',
+    thumbnailUrl: 'https://cdn.example.com/review-1-thumb.jpg',
+  }], ...o,
 })

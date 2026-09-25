@@ -37,6 +37,11 @@ Object.defineProperty(window, 'matchMedia', {
 })
 window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
 
+// jsdom has no createObjectURL — Ant Design's Upload calls it to generate a
+// picture-card thumbnail preview for any accepted file.
+window.URL.createObjectURL = vi.fn(() => 'blob:mock')
+window.URL.revokeObjectURL = vi.fn()
+
 // The 401 interceptor sets window.location.href to redirect to /login. jsdom cannot
 // navigate and logs a noisy "Not implemented" error; swallow href assignments while
 // leaving reads (origin, pathname) intact for URL resolution.

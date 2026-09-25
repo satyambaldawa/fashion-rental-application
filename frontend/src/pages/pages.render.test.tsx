@@ -22,6 +22,8 @@ import CheckoutPage from './checkout/CheckoutPage'
 import PublicReceiptPage from './public/PublicReceiptPage'
 import PublicInvoicePage from './public/PublicInvoicePage'
 import GalleryPage from './public/GalleryPage'
+import ReviewsPage from './public/ReviewsPage'
+import SubmitReviewPage from './public/SubmitReviewPage'
 
 // Owner token so isOwner-gated pages render their full content.
 beforeEach(() => useAuthStore.setState({ token: 'test-token', role: 'OWNER' }))
@@ -162,6 +164,18 @@ describe('page smoke renders', () => {
     await flush()
     expect(container.firstChild).toBeTruthy()
   })
+
+  it('ReviewsPage renders', async () => {
+    const { container } = renderWithProviders(<ReviewsPage />, { route: '/reviews' })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+
+  it('SubmitReviewPage renders', async () => {
+    const { container } = renderWithProviders(<SubmitReviewPage />, { route: '/review' })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
 })
 
 describe('GalleryPage unauthenticated access', () => {
@@ -187,6 +201,28 @@ describe('GalleryPage unauthenticated access', () => {
     // The authenticated client (client.ts) clears the token and redirects on 401.
     // publicClient has no such interceptor — a 401 here must be a no-op for auth state.
     expect(useAuthStore.getState().token).toBe('existing-owner-token')
+    expect(window.location.pathname).not.toBe('/login')
+  })
+})
+
+describe('Reviews pages unauthenticated access', () => {
+  it('ReviewsPage renders approved reviews with no auth token and never redirects to login', async () => {
+    useAuthStore.setState({ token: null, role: null })
+
+    const { getByText } = renderWithProviders(<ReviewsPage />, { route: '/reviews' })
+    await flush()
+
+    expect(getByText('Priya S')).toBeInTheDocument()
+    expect(window.location.pathname).not.toBe('/login')
+  })
+
+  it('SubmitReviewPage renders its form with no auth token', async () => {
+    useAuthStore.setState({ token: null, role: null })
+
+    const { getByLabelText } = renderWithProviders(<SubmitReviewPage />, { route: '/review' })
+    await flush()
+
+    expect(getByLabelText('Your name')).toBeInTheDocument()
     expect(window.location.pathname).not.toBe('/login')
   })
 })

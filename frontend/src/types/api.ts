@@ -3,3 +3,11 @@ export interface ApiResponse<T> {
   data: T | null
   error: string | null
 }
+
+export interface PageResult<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}

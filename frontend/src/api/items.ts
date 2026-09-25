@@ -1,12 +1,11 @@
 import client from './client'
-import type { ApiResponse } from '../types/api'
+import type { ApiResponse, PageResult } from '../types/api'
 import type {
   AvailabilityResult,
   CreateItemRequest,
   ItemDetail,
   ItemPhoto,
   ItemSummary,
-  PageResult,
   UpdateItemRequest,
 } from '../types/inventory'
 
