@@ -9,6 +9,7 @@ import PublicInvoicePage from './pages/public/PublicInvoicePage'
 import GalleryPage from './pages/public/GalleryPage'
 import ReviewsPage from './pages/public/ReviewsPage'
 import SubmitReviewPage from './pages/public/SubmitReviewPage'
+import AboutPage from './pages/public/AboutPage'
 import { useAuthStore } from './store/authStore'
 
 const queryClient = new QueryClient({
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/public/invoices/:shareToken" element={<PublicInvoicePage />} />
             <Route path="/gallery" element={<PublicLayout><GalleryPage /></PublicLayout>} />
             <Route path="/reviews" element={<PublicLayout><ReviewsPage /></PublicLayout>} />
+            <Route path="/about" element={<PublicLayout><AboutPage /></PublicLayout>} />
             <Route path="/review" element={<PublicLayout><SubmitReviewPage /></PublicLayout>} />
             <Route path="/*" element={
               <ProtectedRoute>
