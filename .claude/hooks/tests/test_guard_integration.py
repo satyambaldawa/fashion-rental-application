@@ -5,6 +5,9 @@ import sys
 import unittest
 
 GUARD_PATH = os.path.join(os.path.dirname(__file__), "..", "guard.py")
+HOOKS_DIR = os.path.join(os.path.dirname(__file__), "..")
+REPO_ROOT = os.path.join(HOOKS_DIR, "..", "..")
+SETTINGS_PATH = os.path.join(HOOKS_DIR, "..", "settings.json")
 
 
 def run_guard(tool_name, tool_input, raw_stdin=None, agent_type=None):
@@ -172,6 +175,66 @@ class GuardIntegrationTest(unittest.TestCase):
             self.assertEqual(
                 output["hookSpecificOutput"]["permissionDecision"], "allow", cmd
             )
+
+
+class GuardCloudSessionInvocationTest(unittest.TestCase):
+    """Regression coverage for #92: settings.json's hook command must resolve
+    guard.py whether or not CLAUDE_PROJECT_DIR is set — cloud sessions never
+    populate it, so a bare `${CLAUDE_PROJECT_DIR}/...` reference silently
+    fails to execute and PreToolUse denies-by-default, blocking every hooked
+    tool call (see #91)."""
+
+    def _hook_commands(self):
+        with open(SETTINGS_PATH) as f:
+            settings = json.load(f)
+        return [
+            entry["hooks"][0]["command"]
+            for entry in settings["hooks"]["PreToolUse"]
+        ]
+
+    def _run_hook_command(self, command, claude_project_dir):
+        env = os.environ.copy()
+        if claude_project_dir is None:
+            env.pop("CLAUDE_PROJECT_DIR", None)
+        else:
+            env["CLAUDE_PROJECT_DIR"] = claude_project_dir
+        payload = json.dumps(
+            {"tool_name": "Write", "tool_input": {"file_path": "x", "content": "y"}}
+        )
+        return subprocess.run(
+            ["bash", "-c", command],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=REPO_ROOT,
+            env=env,
+        )
+
+    def test_all_four_matchers_use_the_same_command(self):
+        commands = self._hook_commands()
+        self.assertEqual(len(commands), 4)
+        self.assertEqual(len(set(commands)), 1)
+
+    def test_hook_resolves_with_claude_project_dir_set(self):
+        command = self._hook_commands()[0]
+        result = self._run_hook_command(command, claude_project_dir=REPO_ROOT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("No such file or directory", result.stderr)
+
+    def test_hook_resolves_with_claude_project_dir_unset(self):
+        # The exact cloud-session condition: CLAUDE_PROJECT_DIR absent, cwd is
+        # the repo root (confirmed via a live claude --cloud spike on #91).
+        command = self._hook_commands()[0]
+        result = self._run_hook_command(command, claude_project_dir=None)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("No such file or directory", result.stderr)
+
+    def test_hook_resolves_with_claude_project_dir_empty(self):
+        command = self._hook_commands()[0]
+        result = self._run_hook_command(command, claude_project_dir="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("No such file or directory", result.stderr)
 
 
 if __name__ == "__main__":
