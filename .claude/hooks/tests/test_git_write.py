@@ -120,18 +120,20 @@ class GitWriteCloudPipelineExemptionTest(unittest.TestCase):
             )
         self.assertEqual(result[0], "allow")
 
-    def test_still_asks_when_home_is_cloud_shaped_but_project_dir_is_set(self):
-        # Both signals must agree -- a single misleading signal must not flip
-        # a real local session into the exempted path.
-        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
-             patch.dict(git_write.os.environ, {"CLAUDE_PROJECT_DIR": "/some/path"}, clear=False):
+    def test_allows_checkout_even_when_claude_project_dir_is_set(self):
+        # This is the confirmed real shape of a routine session: a live run's
+        # own embedded diagnostic showed CLAUDE_PROJECT_DIR set (to the repo
+        # path) even though HOME was /root. An earlier version of this check
+        # required CLAUDE_PROJECT_DIR to be unset, which was simply wrong for
+        # routines and left three straight live runs stalled on this exact
+        # prompt. HOME alone is the signal now.
+        with patch.object(git_write.os.path, "expanduser", return_value="/root"), \
+             patch.dict(git_write.os.environ, {"CLAUDE_PROJECT_DIR": "/home/user/fashion-rental-application"}, clear=False):
             result = git_write.check("Bash", "git checkout -b feat/x", {})
-        self.assertEqual(result[0], "ask")
+        self.assertEqual(result[0], "allow")
 
-    def test_still_asks_when_project_dir_unset_but_home_is_local_shaped(self):
-        with patch.object(git_write.os.path, "expanduser", return_value="/Users/satyambaldawa"), \
-             patch.dict(git_write.os.environ, {}, clear=False):
-            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+    def test_still_asks_on_local_shaped_home(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/Users/satyambaldawa"):
             result = git_write.check("Bash", "git checkout -b feat/x", {})
         self.assertEqual(result[0], "ask")
 
@@ -154,7 +156,6 @@ class GitWriteCloudPipelineExemptionTest(unittest.TestCase):
             result = git_write.check("Bash", "git checkout -b feat/x", {})
         self.assertEqual(result[0], "ask")
         self.assertIn("/some/unexpected/path", result[1])
-        self.assertIn("CLAUDE_PROJECT_DIR", result[1])
 
     def test_still_asks_on_merge_in_cloud_session(self):
         with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
