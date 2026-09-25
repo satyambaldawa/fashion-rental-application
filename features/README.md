@@ -79,8 +79,8 @@ Each file contains everything a developer needs to implement the feature end-to-
 |------|-------|----------|--------|
 | `US-801-803-customer-reviews.md` | Submit, browse, and moderate customer reviews | P1 | 🚧 |
 
-Backend end-to-end (schema, service, endpoints, tests — issue #131) is done. Public submit form
-and browse page (#132) and the owner moderation UI (#133) are still pending.
+Backend end-to-end (schema, service, endpoints, tests — issue #131) and the public submit form and
+browse page (#132) are done. The owner moderation UI (#133) is still pending.
 
 ---
 

@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/inventory', label: 'Inventory',       roles: ['OWNER'] },
   { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
   { key: '/gallery',   label: 'Gallery',         roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/reviews',   label: 'Reviews',         roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
 ]
 
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
 // but Login and New Rental both just point an anonymous visitor at /login.
 const PUBLIC_NAV_ITEMS: { key: string; label: string; target: string }[] = [
   { key: '/gallery',   label: 'Gallery',     target: '/gallery' },
+  { key: '/reviews',   label: 'Reviews',     target: '/reviews' },
   { key: 'login',      label: 'Login',       target: '/login' },
   { key: 'new-rental', label: 'New Rental',  target: '/login' },
 ]
@@ -169,7 +171,7 @@ export function TopNav() {
 
 // Unauthenticated equivalent of TopNav — shown on public pages (e.g. /gallery)
 // when there is no logged-in user. "Login" and "New Rental" both route an
-// anonymous visitor to /login; only Gallery is a real public destination.
+// anonymous visitor to /login; Gallery and Reviews are the real public destinations.
 export function PublicNav() {
   const navigate = useNavigate()
   const location = useLocation()

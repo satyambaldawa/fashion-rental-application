@@ -9,9 +9,10 @@ import { receiptsApi } from './receipts'
 import { invoicesApi } from './invoices'
 import { reportsApi } from './reports'
 import { authApi, login } from './auth'
-import { publicApi } from './public'
+import { publicApi, publicClient } from './public'
 import { galleryApi, galleryAdminApi } from './gallery'
 import { getLateFeeRules, updateLateFeeRules } from './config'
+import { reviewsApi } from './reviews'
 import { useAuthStore } from '../store/authStore'
 
 afterEach(() => useAuthStore.setState({ token: null, role: null }))
@@ -92,6 +93,47 @@ describe('publicApi', () => {
   it('getReceipt / getInvoice use the unauthenticated client', async () => {
     expect((await publicApi.getReceipt('share-r')).id).toBe('rcpt-1')
     expect((await publicApi.getInvoice('share-i')).id).toBe('inv-1')
+  })
+})
+
+describe('reviewsApi', () => {
+  it('listPublic unwraps the paged envelope', async () => {
+    const page = await reviewsApi.listPublic({ sort: 'NEWEST', page: 0 })
+    expect(page.content[0].reviewerName).toBe('Priya S')
+    expect(page.totalElements).toBe(2)
+  })
+
+  it('posts a review as multipart with a JSON review part and an images part per file', async () => {
+    // A real FormData request through msw+jsdom hangs, so spy on the transport: this
+    // also lets us assert the exact wire shape (review JSON part, images parts, header).
+    const postSpy = vi.spyOn(publicClient, 'post').mockResolvedValue({
+      data: { success: true, data: { id: 'x', status: 'PENDING' }, error: null },
+    })
+    const file = new File([new Uint8Array(10)], 'photo.jpg', { type: 'image/jpeg' })
+
+    await reviewsApi.submit(
+      { reviewerName: 'Priya S', phone: '9876543210', itemDescription: 'Red lehenga', rating: 5, reviewText: 'Lovely.' },
+      [file],
+    )
+
+    const [url, body, config] = postSpy.mock.calls[0] as [string, FormData, { headers: Record<string, string> }]
+    expect(url).toBe('/reviews')
+    expect(body).toBeInstanceOf(FormData)
+    const reviewPart = body.get('review') as Blob
+    expect(reviewPart.type).toBe('application/json')
+    // jsdom's Blob/File shim has no .text(), so read it via FileReader instead.
+    const reviewJson = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(reviewPart)
+    })
+    expect(JSON.parse(reviewJson)).toEqual({
+      reviewerName: 'Priya S', phone: '9876543210', itemDescription: 'Red lehenga', rating: 5, reviewText: 'Lovely.',
+    })
+    expect(body.getAll('images')).toHaveLength(1)
+    expect(config.headers['Content-Type']).toBe('multipart/form-data')
+    postSpy.mockRestore()
   })
 })
 

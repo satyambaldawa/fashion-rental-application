@@ -29,13 +29,14 @@ const renderGalleryRoute = () => {
 
 describe('PublicLayout', () => {
   describe('logged out', () => {
-    it('shows exactly Gallery, Login, and New Rental in the nav, with no Logout control', async () => {
+    it('shows exactly Gallery, Reviews, Login, and New Rental in the nav, with no Logout control', async () => {
       useAuthStore.setState({ token: null, role: null })
 
       renderGalleryRoute()
       await flush()
 
       expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Reviews' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'New Rental' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /logout/i })).not.toBeInTheDocument()
