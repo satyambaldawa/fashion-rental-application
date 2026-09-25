@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
 const PUBLIC_NAV_ITEMS: { key: string; label: string; target: string }[] = [
   { key: '/gallery',   label: 'Gallery',     target: '/gallery' },
   { key: '/reviews',   label: 'Reviews',     target: '/reviews' },
+  { key: '/about',     label: 'About',       target: '/about' },
 ]
 
 // Active-tab underline indicator using petal color
@@ -168,7 +169,7 @@ export function TopNav() {
 }
 
 // Unauthenticated equivalent of TopNav — shown on public pages (e.g. /gallery)
-// when there is no logged-in user. Gallery and Reviews are the real public
+// when there is no logged-in user. Gallery, Reviews and About are the real public
 // destinations; Login sits separately in the header's right corner (LoginButton).
 export function PublicNav() {
   const navigate = useNavigate()

@@ -24,6 +24,7 @@ import PublicInvoicePage from './public/PublicInvoicePage'
 import GalleryPage from './public/GalleryPage'
 import ReviewsPage from './public/ReviewsPage'
 import SubmitReviewPage from './public/SubmitReviewPage'
+import AboutPage from './public/AboutPage'
 
 // Owner token so isOwner-gated pages render their full content.
 beforeEach(() => useAuthStore.setState({ token: 'test-token', role: 'OWNER' }))
@@ -167,6 +168,12 @@ describe('page smoke renders', () => {
 
   it('ReviewsPage renders', async () => {
     const { container } = renderWithProviders(<ReviewsPage />, { route: '/reviews' })
+    await flush()
+    expect(container.firstChild).toBeTruthy()
+  })
+
+  it('AboutPage renders', async () => {
+    const { container } = renderWithProviders(<AboutPage />, { route: '/about' })
     await flush()
     expect(container.firstChild).toBeTruthy()
   })
