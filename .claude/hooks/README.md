@@ -32,6 +32,18 @@ edits/writes: the former is a static backstop that survives a hook bug, the
 latter also catches Bash-based mutations (`rm`, `sed -i`, `git commit`, shell
 redirects) that no `permissions.deny` glob could ever see.
 
+## Cloud-session invocation
+
+The hook command in `.claude/settings.json` is `${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guard.py`.
+Cloud sessions never populate `CLAUDE_PROJECT_DIR`, so the `:-.` fallback resolves the
+path relative to the working directory instead — cloud sessions run with the clone
+root as `cwd`, so this lands on the same file. Before this fallback existed, the
+command expanded to `/.claude/hooks/guard.py` in a cloud session (a file that
+doesn't exist at the filesystem root); a `PreToolUse` hook that fails to execute
+denies its tool, so every `Bash`/`Edit`/`Write`/`NotebookEdit` call was silently
+blocked — including something as inert as `echo hello`. See #91/#92 for the
+diagnosis and fix.
+
 ## Skills are guidance, not enforcement
 
 `db-ops`, `gcp-ops`, `github-ops` under `.claude/skills/` carry operational
