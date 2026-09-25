@@ -73,8 +73,14 @@ not improvise a way forward.
     condition, never treated as an implicit approval.
 - **`gh` and heredocs:** the `guard.py` PreToolUse hook denies any Bash command whose text
   contains DDL keywords (`ALTER`, `DROP`, `TRUNCATE`, …), including inside a heredoc. Write
-  comment/PR bodies to a file and pass them via `gh api`'s `-f body=@<file>` form, never an
+  comment/PR bodies to a file and pass them via `gh api`'s `-F body=@<file>` form, never an
   inline heredoc.
+- **`-f` vs `-F` in `gh api`:** `-f`/`--raw-field` treats a value starting with `@` as a
+  *literal string*, not a file reference — it does NOT read the file. Only `-F`/`--field`
+  (typed field) resolves `@<file>` to that file's contents. A live run posted a halt comment
+  with `-f body=@<file>.md` and got the literal path back as the comment body; it had to
+  self-correct with a follow-up `PATCH ... -F body=@<file>`. Use `-f` only for short inline
+  values (a title, a label name); use `-F body=@<file>` for anything written to a file first.
 
 ## Pipeline
 
@@ -146,7 +152,9 @@ feature notes). Skip if nothing needs it.
 ### 8. Ship
 1. `git add -A && git commit` — message states the why, references #$1.
 2. `git push -u origin <branch>`.
-3. Open the PR: `gh api repos/satyambaldawa/fashion-rental-application/pulls -X POST -f title="<title>" -f head="<branch>" -f base="main" -f body="<body>"` — body summarizes the work and the review outcomes, including recorded Suggestions.
+3. Open the PR: write the body to a file, then
+   `gh api repos/satyambaldawa/fashion-rental-application/pulls -X POST -f title="<title>" -f head="<branch>" -f base="main" -F body=@<file>`
+   — body summarizes the work and the review outcomes, including recorded Suggestions.
 4. Remove `auto-in-progress`
    (`gh api repos/satyambaldawa/fashion-rental-application/issues/$1/labels/auto-in-progress -X DELETE`).
 5. Post a comment with the PR URL.
@@ -243,11 +251,19 @@ against `/issues/<N>/labels/<name>` — is explicitly exempted (see `policy/gith
 
 ### Post a comment
 
+For a short, fixed string (e.g. the stage-0 tracking comment):
 ```bash
 gh api repos/satyambaldawa/fashion-rental-application/issues/<N>/comments \
   -X POST -f body="<text>"
 ```
-Verified live 2026-09-25.
+For anything longer or generated (halt comments, verbatim persona verdicts) — write it to a
+file first, then use `-F` (not `-f`), which is the only flag that actually reads `@<file>`:
+```bash
+gh api repos/satyambaldawa/fashion-rental-application/issues/<N>/comments \
+  -X POST -F body=@<file>
+```
+Verified live 2026-09-25 (the short form); the `-F body=@<file>` form was required after a
+real run's `-f body=@<file>` attempt posted the literal path instead of the file's contents.
 
 ### Resolve when a label was applied (for the staleness watchdog)
 
@@ -260,10 +276,12 @@ label lifecycle with real `labeled` events).
 
 ### Open a pull request
 
+Write the body to a file first, then:
 ```bash
 gh api repos/satyambaldawa/fashion-rental-application/pulls \
-  -X POST -f title="<title>" -f head="<branch>" -f base="main" -f body="<body>"
+  -X POST -f title="<title>" -f head="<branch>" -f base="main" -F body=@<file>
 ```
+Note `-F` (not `-f`) for `body` — see the `-f` vs `-F` note above.
 
 Not fired live during #93's verification — deliberately, since every unattended session
 correctly declined or withheld it pending human approval, and none was present to give it.
