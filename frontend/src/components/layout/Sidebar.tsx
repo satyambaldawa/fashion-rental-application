@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/reports',   label: 'Reports',         roles: ['OWNER'] },
   { key: '/gallery',   label: 'Gallery',         roles: ['OWNER', 'EXECUTIVE'] },
   { key: '/reviews',   label: 'Reviews',         roles: ['OWNER', 'EXECUTIVE'] },
+  { key: '/reviews/manage', label: 'Manage Reviews', roles: ['OWNER'] },
   { key: '/settings',  label: 'Settings',        roles: ['OWNER'] },
 ]
 

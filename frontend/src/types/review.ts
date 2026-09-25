@@ -35,3 +35,28 @@ export interface ListPublicReviewsParams {
   sort: ReviewSort
   page: number
 }
+
+// Mirrors AdminReviewResponse. Owner-only: includes phone and moderation state.
+// Deliberately not `extends PublicReview` — keeps the phone-field boundary explicit.
+export interface AdminReview {
+  id: string
+  reviewerName: string
+  phone: string
+  itemDescription: string
+  rating: number
+  reviewText: string
+  status: ReviewStatus
+  createdAt: string
+  moderatedAt: string | null
+  images: ReviewImage[]
+}
+
+export interface UpdateReviewStatusRequest {
+  status: ReviewStatus
+}
+
+export interface ListModerationReviewsParams {
+  status?: ReviewStatus
+  page: number
+  size: number
+}
