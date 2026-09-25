@@ -62,7 +62,17 @@ _PIPELINE_SAFE_VERBS = {"add", "checkout", "commit", "push"}
 
 
 def _is_cloud_session():
-    home_is_cloud_shaped = os.path.expanduser("~").startswith("/home/")
+    home = os.path.expanduser("~")
+    # Confirmed via a live routine run's own shell-snapshot path
+    # ($HOME/.claude/shell-snapshots/...) that this environment's actual
+    # $HOME is /root, not /home/<something> as originally assumed from cwd
+    # alone (cwd and $HOME are not the same thing, and conflating them was
+    # the bug: the exemption below never fired on a real run, reproducing
+    # the exact stall this fix exists to remove). /home/ is kept as a second
+    # accepted pattern -- genuinely observed via cwd, just not yet confirmed
+    # as $HOME in any run -- rather than removed, since either shape is a
+    # real, evidenced possibility and neither weakens the check.
+    home_is_cloud_shaped = home == "/root" or home.startswith("/home/")
     project_dir_unset = not os.environ.get("CLAUDE_PROJECT_DIR")
     return home_is_cloud_shaped and project_dir_unset
 

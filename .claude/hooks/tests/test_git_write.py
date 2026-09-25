@@ -100,6 +100,17 @@ class GitWriteCloudPipelineExemptionTest(unittest.TestCase):
             result = git_write.check("Bash", "git checkout main && git pull && git checkout -b feat/issue-1", {})
         self.assertEqual(result[0], "allow")
 
+    def test_allows_checkout_when_home_is_root(self):
+        # The confirmed real shape: this cloud environment runs as root, so
+        # $HOME is /root, not /home/<something>. Regression coverage for the
+        # bug where the exemption never fired on a real routine run because
+        # only /home/ was recognized.
+        with patch.object(git_write.os.path, "expanduser", return_value="/root"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git checkout -b feat/issue-1", {})
+        self.assertEqual(result[0], "allow")
+
     def test_allows_add_commit_push_chain_in_cloud_session(self):
         with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
              patch.dict(git_write.os.environ, {}, clear=False):
