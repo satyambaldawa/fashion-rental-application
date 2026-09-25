@@ -6,10 +6,6 @@ import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import ReviewsPage from './ReviewsPage'
 
-// Default msw handler (src/test/handlers.ts) seeds:
-//   review-1 — Priya S, 5★, Red bridal lehenga, one photo, created 2026-09-20
-//   review-2 — Anil K,  4★, Maroon sherwani, no photos,   created 2026-09-18
-
 const pageOf = (content: unknown[], totalElements: number, totalPages: number) =>
   HttpResponse.json({
     success: true,

@@ -16,7 +16,8 @@ public class ReviewImageUploader {
 
     private static final String REVIEWS_NAMESPACE = "reviews";
     private static final int MAX_IMAGES = 3;
-    private static final long MAX_BYTES_PER_IMAGE = 5L * 1024 * 1024;
+    private static final int MAX_IMAGE_MEGABYTES = 5;
+    private static final long MAX_BYTES_PER_IMAGE = MAX_IMAGE_MEGABYTES * 1024L * 1024;
     private static final List<String> ALLOWED_CONTENT_TYPES =
             List.of("image/jpeg", "image/png", "image/webp");
 
@@ -59,14 +60,15 @@ public class ReviewImageUploader {
 
     private void validateAll(MultipartFile[] files) {
         if (files.length > MAX_IMAGES) {
-            throw new ValidationException("You can attach at most 3 photos");
+            throw new ValidationException("You can attach at most " + MAX_IMAGES + " photos");
         }
         for (MultipartFile file : files) {
             if (file.isEmpty()) {
                 throw new ValidationException("Photo is empty");
             }
             if (file.getSize() > MAX_BYTES_PER_IMAGE) {
-                throw new ValidationException("Each photo must be smaller than 5MB");
+                throw new ValidationException(
+                        "Each photo must be smaller than " + MAX_IMAGE_MEGABYTES + "MB");
             }
             if (!ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
                 throw new ValidationException("Only JPEG, PNG, and WebP photos are allowed");

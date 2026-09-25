@@ -67,4 +67,30 @@ class SubmitReviewRequestValidationTest {
         assertThat(validator.validate(
                 new SubmitReviewRequest("   ", "9876543210", "Red lehenga", 5, "Fine."))).isNotEmpty();
     }
+
+    @Test
+    void should_reject_a_blank_item_description() {
+        assertThat(validator.validate(
+                new SubmitReviewRequest("Priya S", "9876543210", "   ", 5, "Fine.")))
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("itemDescription");
+    }
+
+    @Test
+    void should_reject_an_item_description_longer_than_100_characters() {
+        SubmitReviewRequest request = new SubmitReviewRequest(
+                "Priya S", "9876543210", "x".repeat(101), 5, "Fine.");
+
+        assertThat(validator.validate(request))
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("itemDescription");
+    }
+
+    @Test
+    void should_accept_an_item_description_of_exactly_100_characters() {
+        SubmitReviewRequest request = new SubmitReviewRequest(
+                "Priya S", "9876543210", "x".repeat(100), 5, "Fine.");
+
+        assertThat(validator.validate(request)).isEmpty();
+    }
 }

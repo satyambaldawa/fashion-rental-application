@@ -5,6 +5,7 @@ import com.fashionrental.inventory.storage.ImageStorageService;
 import com.fashionrental.inventory.storage.UploadResult;
 import com.fashionrental.review.model.ReviewSort;
 import com.fashionrental.review.model.request.SubmitReviewRequest;
+import com.fashionrental.review.model.response.SubmitReviewResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,13 +66,14 @@ class ReviewServiceTest {
         when(reviewImageUploader.uploadAll(any())).thenReturn(List.of());
         when(reviewRepository.save(any(Review.class))).thenAnswer(i -> i.getArgument(0));
 
-        reviewService.submit(request(), null, IP);
+        SubmitReviewResponse response = reviewService.submit(request(), null, IP);
 
         ArgumentCaptor<Review> saved = ArgumentCaptor.forClass(Review.class);
         verify(reviewRepository).save(saved.capture());
         assertThat(saved.getValue().getStatus()).isEqualTo(Review.Status.PENDING);
         assertThat(saved.getValue().getSubmitterIp()).isEqualTo(IP);
         assertThat(saved.getValue().getPhone()).isEqualTo("9876543210");
+        assertThat(response.status()).isEqualTo(Review.Status.PENDING);
     }
 
     @Test
@@ -189,25 +191,7 @@ class ReviewServiceTest {
 
     @Test
     void should_delete_stored_images_when_status_changes_to_rejected() {
-        Review review = new Review();
-        review.setReviewerName("Priya S");
-        review.setPhone("9876543210");
-        review.setItemDescription("Red lehenga");
-        review.setRating(5);
-        review.setReviewText("Lovely outfit.");
-        review.setStatus(Review.Status.PENDING);
-        review.setSubmitterIp(IP);
-
-        ReviewImage image1 = new ReviewImage();
-        image1.setUrl("full-1");
-        image1.setThumbnailUrl("thumb-1");
-        review.addImage(image1);
-
-        ReviewImage image2 = new ReviewImage();
-        image2.setUrl("full-2");
-        image2.setThumbnailUrl("thumb-2");
-        review.addImage(image2);
-
+        Review review = ReviewTestFixtures.pendingReviewWithTwoImages();
         UUID id = UUID.randomUUID();
         when(reviewRepository.findById(id)).thenReturn(Optional.of(review));
         when(reviewRepository.save(any(Review.class))).thenAnswer(i -> i.getArgument(0));
@@ -217,6 +201,19 @@ class ReviewServiceTest {
         verify(imageStorageService).deleteImage("full-1", "thumb-1");
         verify(imageStorageService).deleteImage("full-2", "thumb-2");
         assertThat(review.getImages()).isEmpty();
+    }
+
+    @Test
+    void should_retain_images_when_status_changes_to_approved() {
+        Review review = ReviewTestFixtures.pendingReviewWithTwoImages();
+        UUID id = UUID.randomUUID();
+        when(reviewRepository.findById(id)).thenReturn(Optional.of(review));
+        when(reviewRepository.save(any(Review.class))).thenAnswer(i -> i.getArgument(0));
+
+        reviewService.updateStatus(id, Review.Status.APPROVED);
+
+        verify(imageStorageService, never()).deleteImage(any(), any());
+        assertThat(review.getImages()).hasSize(2);
     }
 
     @Test

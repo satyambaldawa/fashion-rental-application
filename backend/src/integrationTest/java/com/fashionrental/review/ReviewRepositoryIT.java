@@ -37,7 +37,7 @@ class ReviewRepositoryIT extends AbstractIntegrationTest {
         review.setReviewText("Lovely outfit.");
         review.setStatus(status);
         review.setSubmitterIp("203.0.113.7");
-        return reviewRepository.save(review);
+        return reviewRepository.saveAndFlush(review);
     }
 
     @Test
@@ -137,15 +137,7 @@ class ReviewRepositoryIT extends AbstractIntegrationTest {
 
     @Test
     void should_reject_a_rating_outside_one_to_five_at_the_database_level() {
-        Review review = new Review();
-        review.setReviewerName("Priya S");
-        review.setPhone("9876543210");
-        review.setItemDescription("Red lehenga");
-        review.setRating(9);
-        review.setReviewText("Lovely outfit.");
-        review.setSubmitterIp("203.0.113.7");
-
         assertThat(org.assertj.core.api.Assertions.catchThrowable(
-                () -> reviewRepository.saveAndFlush(review))).isNotNull();
+                () -> persist(Review.Status.PENDING, 9, "Priya S"))).isNotNull();
     }
 }

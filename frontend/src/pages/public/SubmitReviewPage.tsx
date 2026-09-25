@@ -10,7 +10,8 @@ import type { ApiResponse } from '../../types/api'
 import type { SubmitReviewRequest } from '../../types/review'
 
 const MAX_IMAGES = 3
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGE_MEGABYTES = 5
+const MAX_IMAGE_BYTES = MAX_IMAGE_MEGABYTES * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const INDIAN_MOBILE_PATTERN = /^[6-9]\d{9}$/
 const GENERIC_SUBMIT_ERROR = 'Could not submit your review. Please try again.'
@@ -45,7 +46,7 @@ export default function SubmitReviewPage() {
       return Upload.LIST_IGNORE
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setFileError('Each photo must be smaller than 5MB')
+      setFileError(`Each photo must be smaller than ${MAX_IMAGE_MEGABYTES}MB`)
       return Upload.LIST_IGNORE
     }
     setFileError(null)
@@ -129,6 +130,7 @@ export default function SubmitReviewPage() {
 
           <Form.Item label="Photos (optional, up to 3)">
             <Upload
+              aria-label="Photos"
               listType="picture-card"
               accept={ALLOWED_IMAGE_TYPES.join(',')}
               maxCount={MAX_IMAGES}

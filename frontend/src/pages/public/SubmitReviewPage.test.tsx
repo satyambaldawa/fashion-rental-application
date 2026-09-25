@@ -9,12 +9,16 @@ type User = ReturnType<typeof userEvent.setup>
 
 const FIVE_STARS = 4
 
-async function fillValidForm(user: User, screen: Rendered) {
+async function fillRequiredTextFields(user: User, screen: Rendered) {
   await user.type(screen.getByLabelText('Your name'), 'Priya S')
   await user.type(screen.getByLabelText('Mobile number'), '9876543210')
   await user.type(screen.getByLabelText('What did you rent?'), 'Red lehenga')
-  await user.click(screen.getAllByRole('radio')[FIVE_STARS])
   await user.type(screen.getByLabelText('Your review'), 'Beautiful outfit.')
+}
+
+async function fillValidForm(user: User, screen: Rendered) {
+  await fillRequiredTextFields(user, screen)
+  await user.click(screen.getAllByRole('radio')[FIVE_STARS])
 }
 
 describe('SubmitReviewPage', () => {
@@ -49,10 +53,7 @@ describe('SubmitReviewPage', () => {
     const user = userEvent.setup()
     const screen = renderWithProviders(<SubmitReviewPage />, { route: '/review' })
 
-    await user.type(screen.getByLabelText('Your name'), 'Priya S')
-    await user.type(screen.getByLabelText('Mobile number'), '9876543210')
-    await user.type(screen.getByLabelText('What did you rent?'), 'Red lehenga')
-    await user.type(screen.getByLabelText('Your review'), 'Beautiful outfit.')
+    await fillRequiredTextFields(user, screen)
     await user.click(screen.getByRole('button', { name: /submit review/i }))
 
     expect(await screen.findByText('Please give a rating')).toBeInTheDocument()
@@ -70,7 +71,7 @@ describe('SubmitReviewPage', () => {
     const photo = new File([new Uint8Array(10)], 'photo.jpg', { type: 'image/jpeg' })
 
     await fillValidForm(user, screen)
-    await user.upload(screen.container.querySelector('input[type="file"]') as HTMLInputElement, photo)
+    await user.upload(screen.getByLabelText('Photos'), photo)
     await user.click(screen.getByRole('button', { name: /submit review/i }))
 
     expect(await screen.findByText(
@@ -114,10 +115,7 @@ describe('SubmitReviewPage', () => {
     const screen = renderWithProviders(<SubmitReviewPage />, { route: '/review' })
     const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.jpg', { type: 'image/jpeg' })
 
-    await user.upload(
-      screen.container.querySelector('input[type="file"]') as HTMLInputElement,
-      oversized,
-    )
+    await user.upload(screen.getByLabelText('Photos'), oversized)
 
     expect(await screen.findByText('Each photo must be smaller than 5MB')).toBeInTheDocument()
     expect(screen.container.querySelectorAll('.ant-upload-list-item')).toHaveLength(0)

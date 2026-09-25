@@ -21,11 +21,16 @@ public record SubmitReviewRequest(
         String itemDescription,
 
         @NotNull(message = "Please give a rating")
-        @Min(value = 1, message = "Rating must be between 1 and 5")
-        @Max(value = 5, message = "Rating must be between 1 and 5")
+        @Min(value = SubmitReviewRequest.MIN_RATING, message = SubmitReviewRequest.RATING_RANGE_MESSAGE)
+        @Max(value = SubmitReviewRequest.MAX_RATING, message = SubmitReviewRequest.RATING_RANGE_MESSAGE)
         Integer rating,
 
         @NotBlank(message = "Review cannot be empty")
         @Size(max = 256, message = "Review must be 256 characters or fewer")
         String reviewText
-) {}
+) {
+    static final int MIN_RATING = 1;
+    static final int MAX_RATING = 5;
+    static final String RATING_RANGE_MESSAGE =
+            "Rating must be between " + MIN_RATING + " and " + MAX_RATING;
+}
