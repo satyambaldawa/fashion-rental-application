@@ -142,6 +142,20 @@ class GitWriteCloudPipelineExemptionTest(unittest.TestCase):
             result = git_write.check("Bash", "git add -A && git reset --hard HEAD~1", {})
         self.assertEqual(result[0], "ask")
 
+    def test_ask_reason_includes_live_diagnostic_values(self):
+        # Two prior guesses at the cloud-shape pattern (cwd-derived /home/,
+        # then confirmed /root) both still left real runs stalled on this
+        # same prompt. Rather than guess a fourth time, the ask reason now
+        # always carries the live HOME/CLAUDE_PROJECT_DIR values, so the next
+        # occurrence is diagnosable straight from the run log.
+        with patch.object(git_write.os.path, "expanduser", return_value="/some/unexpected/path"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git checkout -b feat/x", {})
+        self.assertEqual(result[0], "ask")
+        self.assertIn("/some/unexpected/path", result[1])
+        self.assertIn("CLAUDE_PROJECT_DIR", result[1])
+
     def test_still_asks_on_merge_in_cloud_session(self):
         with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
              patch.dict(git_write.os.environ, {}, clear=False):

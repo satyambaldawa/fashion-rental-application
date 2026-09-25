@@ -61,20 +61,21 @@ def _mutating_verb(segment):
 _PIPELINE_SAFE_VERBS = {"add", "checkout", "commit", "push"}
 
 
-def _is_cloud_session():
+def _cloud_session_signals():
+    """Returns (is_cloud, debug_str). Split out from the boolean so the ask
+    path below can report exactly what this check saw when it does NOT
+    recognize a session as cloud -- two attempts at guessing the right
+    home-directory pattern from inference alone (cwd, then the confirmed
+    /root case) both still left real runs stalled on this same prompt, so
+    the ask reason now always carries the live values instead of asking for
+    a fourth guess."""
     home = os.path.expanduser("~")
-    # Confirmed via a live routine run's own shell-snapshot path
-    # ($HOME/.claude/shell-snapshots/...) that this environment's actual
-    # $HOME is /root, not /home/<something> as originally assumed from cwd
-    # alone (cwd and $HOME are not the same thing, and conflating them was
-    # the bug: the exemption below never fired on a real run, reproducing
-    # the exact stall this fix exists to remove). /home/ is kept as a second
-    # accepted pattern -- genuinely observed via cwd, just not yet confirmed
-    # as $HOME in any run -- rather than removed, since either shape is a
-    # real, evidenced possibility and neither weakens the check.
-    home_is_cloud_shaped = home == "/root" or home.startswith("/home/")
-    project_dir_unset = not os.environ.get("CLAUDE_PROJECT_DIR")
-    return home_is_cloud_shaped and project_dir_unset
+    normalized = home.rstrip("/") or "/"
+    home_is_cloud_shaped = normalized == "/root" or normalized.startswith("/home/")
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+    project_dir_unset = not project_dir
+    debug = f"HOME={home!r} normalized={normalized!r} CLAUDE_PROJECT_DIR={project_dir!r}"
+    return (home_is_cloud_shaped and project_dir_unset), debug
 
 
 def check(tool_name, text, tool_input):
@@ -86,7 +87,8 @@ def check(tool_name, text, tool_input):
     matched = [v for v in verbs if v]
     if not matched:
         return None
-    if _is_cloud_session() and all(v in _PIPELINE_SAFE_VERBS for v in matched):
+    is_cloud, debug = _cloud_session_signals()
+    if is_cloud and all(v in _PIPELINE_SAFE_VERBS for v in matched):
         return (
             "allow",
             "Cloud session performing only add/checkout/commit/push — exempted per "
@@ -98,5 +100,6 @@ def check(tool_name, text, tool_input):
         "ask",
         f"git {verb} can mutate the working tree, history, staging area, or a "
         "remote and isn't pre-approved. Requires interactive confirmation — "
-        "unattended subagents are auto-denied. Blocked by git-write policy.",
+        "unattended subagents are auto-denied. Blocked by git-write policy. "
+        f"[cloud-exemption check: {debug}]",
     )
