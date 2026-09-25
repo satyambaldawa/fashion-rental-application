@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -84,6 +85,58 @@ class GitWritePolicyTest(unittest.TestCase):
     def test_ignores_unrelated_command(self):
         result = git_write.check("Bash", "pnpm test", {})
         self.assertIsNone(result)
+
+
+class GitWriteCloudPipelineExemptionTest(unittest.TestCase):
+    """#96's carve-out: /work-issue-auto's own add/checkout/commit/push must not
+    stall an unattended cloud session waiting for a human who isn't there. Every
+    other mutating verb, and every non-cloud session, must keep asking exactly
+    as before."""
+
+    def test_allows_checkout_in_cloud_session(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git checkout main && git pull && git checkout -b feat/issue-1", {})
+        self.assertEqual(result[0], "allow")
+
+    def test_allows_add_commit_push_chain_in_cloud_session(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check(
+                "Bash", "git add -A && git commit -m msg && git push -u origin feat/issue-1", {}
+            )
+        self.assertEqual(result[0], "allow")
+
+    def test_still_asks_when_home_is_cloud_shaped_but_project_dir_is_set(self):
+        # Both signals must agree -- a single misleading signal must not flip
+        # a real local session into the exempted path.
+        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
+             patch.dict(git_write.os.environ, {"CLAUDE_PROJECT_DIR": "/some/path"}, clear=False):
+            result = git_write.check("Bash", "git checkout -b feat/x", {})
+        self.assertEqual(result[0], "ask")
+
+    def test_still_asks_when_project_dir_unset_but_home_is_local_shaped(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/Users/satyambaldawa"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git checkout -b feat/x", {})
+        self.assertEqual(result[0], "ask")
+
+    def test_still_asks_on_unsafe_verb_even_in_cloud_session(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git add -A && git reset --hard HEAD~1", {})
+        self.assertEqual(result[0], "ask")
+
+    def test_still_asks_on_merge_in_cloud_session(self):
+        with patch.object(git_write.os.path, "expanduser", return_value="/home/user"), \
+             patch.dict(git_write.os.environ, {}, clear=False):
+            git_write.os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            result = git_write.check("Bash", "git merge main", {})
+        self.assertEqual(result[0], "ask")
 
 
 if __name__ == "__main__":
