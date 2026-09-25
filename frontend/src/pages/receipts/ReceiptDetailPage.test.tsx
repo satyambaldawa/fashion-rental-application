@@ -36,3 +36,16 @@ describe('ReceiptDetailPage discount row', () => {
     expect(screen.queryByText(/Discount \(/)).not.toBeInTheDocument()
   })
 })
+
+describe('ReceiptDetailPage WhatsApp share', () => {
+  it('includes a link to the review page in the WhatsApp message', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt())))
+
+    await renderReceipt()
+
+    const link = await screen.findByRole('link', { name: /Send on WhatsApp/i })
+    const decodedHref = decodeURIComponent(link.getAttribute('href') ?? '')
+
+    expect(decodedHref).toContain(`${window.location.origin}/review`)
+  })
+})

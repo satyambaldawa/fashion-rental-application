@@ -9,7 +9,7 @@ import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals,
 import type { LateFeeRule } from '../types/config'
 import type { UserRecord, LoginResponse } from '../types/auth'
 import type { Coupon } from '../types/coupons'
-import type { PublicReview } from '../types/review'
+import type { AdminReview, PublicReview } from '../types/review'
 
 type Partialize<T> = (overrides?: Partial<T>) => T
 
@@ -165,4 +165,10 @@ export const aPublicReview: Partialize<PublicReview> = (o = {}) => ({
     url: 'https://cdn.example.com/review-1.jpg',
     thumbnailUrl: 'https://cdn.example.com/review-1-thumb.jpg',
   }], ...o,
+})
+
+export const anAdminReview: Partialize<AdminReview> = (o = {}) => ({
+  id: 'review-1', reviewerName: 'Priya S', phone: '9876543210', itemDescription: 'Red bridal lehenga',
+  rating: 5, reviewText: 'Beautiful outfit.', status: 'PENDING',
+  createdAt: '2026-09-20T14:30:00+05:30', moderatedAt: null, images: [], ...o,
 })

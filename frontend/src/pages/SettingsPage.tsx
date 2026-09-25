@@ -10,6 +10,7 @@ import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import { authApi } from '../api/auth'
 import CouponsPage from './coupons/CouponsPage'
 import GalleryManagePage from './gallery/GalleryManagePage'
+import ReviewModerationPage from './reviews/ReviewModerationPage'
 import type { LateFeeRuleItem } from '../types/config'
 import type { CreateUserRequest, UpdateUserRequest, UserRecord } from '../types/auth'
 
@@ -320,6 +321,7 @@ export default function SettingsPage() {
           { key: 'users', label: 'Manage Users', children: manageUsersTab },
           { key: 'coupons', label: 'Coupons', children: <CouponsPage /> },
           { key: 'gallery', label: 'Gallery', children: <GalleryManagePage /> },
+          { key: 'reviews', label: 'Reviews', children: <ReviewModerationPage /> },
         ]}
       />
 

@@ -121,4 +121,16 @@ export const handlers = [
       { status: 201 },
     ),
   ),
+
+  // admin reviews (owner) — /api/reviews, distinct from /api/public/reviews above
+  http.get('*/api/reviews', ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')
+    const reviews = [f.anAdminReview()]
+    return ok(page(status ? reviews.filter(r => r.status === status) : reviews))
+  }),
+  http.patch('*/api/reviews/:id/status', async ({ request, params }) => {
+    const body = (await request.json()) as { status?: 'PENDING' | 'APPROVED' | 'REJECTED' }
+    return ok(f.anAdminReview({ id: params.id as string, status: body.status }))
+  }),
+  http.delete('*/api/reviews/:id', () => ok(null)),
 ]
