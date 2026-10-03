@@ -97,10 +97,23 @@ You are the **orchestrator** for issue **#$1**. Drive it end-to-end through the 
    - `tech-lead` **[sonnet]**
    - `business-lead` **[sonnet]**
 9. Collect the three verdicts. Synthesize into one consolidated list: **Blockers** (union of all
-   must-fix) and **Suggestions**.
-   🛑 **GATE — present the synthesis; ask for course-corrections to the plan.** Apply what the user
-   directs to the plan document.
-   🛑 **GATE — ask: run Pass 2 (re-review the revised plan) or skip to build?**
+   must-fix, merging duplicates while keeping each persona's text verbatim) and **Suggestions**.
+9a. Dispatch **Triage [opus]** (`.claude/agents/triage.md`) — a separate subagent, never the
+    orchestrator classifying inline. Pass it the verbatim consolidated Blocker list, the plan, and
+    the issue requirements. It returns each Blocker classified **Must-halt** or **Auto-absorb**,
+    with the persona's own fix quoted word-for-word for every Auto-absorb item. Apply this verdict
+    exactly as returned — you may not reclassify an item. A `Triage` dispatch that returns empty is
+    a **failed dispatch, not a pass** — treat the whole Blocker list as Must-halt and gate normally.
+    For each Auto-absorb item: apply the quoted fix to the plan document, then confirm it actually
+    landed in the plan text — if it didn't, that item is Must-halt instead, not a silently dropped
+    fix. Auto-absorb is capped at **5** items (counted after merging); if Triage's own rubric would
+    put more than 5 items there, treat the whole list as Must-halt and gate normally — don't ask
+    Triage to shrink its own list to fit.
+    🛑 **GATE — present two sections: "Blockers you need to decide on"** (Must-halt, verbatim) **and
+    "Small items already folded in — FYI"** (Auto-absorb, each with the persona's quoted fix).**
+    Ask for course-corrections on the Must-halt items; apply what the user directs to the plan
+    document.
+    🛑 **GATE — ask: run Pass 2 (re-review the revised plan) or skip to build?**
 
 ### 4. Pass 2 (only if chosen)
 10. Re-dispatch the three personas on the revised plan → synthesize →
@@ -114,6 +127,21 @@ You are the **orchestrator** for issue **#$1**. Drive it end-to-end through the 
     changed and why, and must never weaken a test to go green.
     🛑 **GATE — ask: re-evaluate the built code (loop the three personas back to step 8, this time
     reviewing the code diff instead of the plan) or continue?**
+12a. **If re-evaluate is chosen:** build the diff by running `git add -N .` (intent-to-add, so new
+    untracked files appear in the diff without staging their content) and then `git diff main`
+    — this captures committed, staged, and unstaged changes, including brand-new files, against
+    the base branch. (Plain `git diff` alone would miss untracked files; `git diff main...HEAD` is
+    empty, since nothing is committed until step 15.) Write the result to a file. Dispatch the same
+    three personas as step 8 **in parallel**, passing that diff + the issue requirements + the
+    approved plan, with the review target stated as the diff rather than the plan. Synthesize into
+    Blockers + Suggestions exactly as step 9 does, then run the same **Triage [opus]** sub-step as
+    9a, with this diff as its input instead of the plan. For each Auto-absorb item here: apply the
+    fix to the working tree exactly as quoted, confirm it's present in a diff rebuilt the same way
+    (`git add -N .` then `git diff main` — never plain `git diff`, which would miss a fix that
+    landed in a new file), and re-run both test suites; red after absorption means that item is
+    Must-halt instead, not an applied fix.
+    🛑 **GATE — present the same two-section split as 9a** (Must-halt Blockers to decide on;
+    Auto-absorb items already folded in, FYI).
 
 ### 6. Coverage
 13. Dispatch **Coverage [sonnet]**: assess coverage of the changed code (esp. billing, availability,

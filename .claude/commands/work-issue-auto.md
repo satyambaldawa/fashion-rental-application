@@ -15,7 +15,8 @@ not improvise a way forward.
 | `/work-issue` stage | 🛑 gate | This command's rule |
 |---|---|---|
 | 1. Baseline | present diagnosis, ask if/how to fix | Diagnose + Fix, one attempt → still red = **HALT (baseline)** |
-| 3. Persona review | present synthesis, ask for course-corrections | any Blocker = **HALT (blocker)**; Suggestions recorded in PR body, never block |
+| 3. Persona review | (synthesis only, no gate yet) | merge duplicate Blockers, keeping each persona's text verbatim; Suggestions recorded in PR body, never block |
+| 3. Persona review (9a Triage) | present two-section split, ask for course-corrections on Must-halt | Stage 3.5 **Triage** classifies each Blocker; any **Must-halt** = **HALT (blocker)**; **Auto-absorb** items applied automatically, verified, and listed in the PR body under "Small fixes applied automatically" |
 | 3. Persona review | ask: run Pass 2 or skip to build? | **no Pass 2** — no human to choose one |
 | 4. Pass 2 | present verdicts, ask for course-corrections | n/a — Pass 2 never runs in auto mode |
 | 5. Build | present diagnosis, ask if/how to fix | Diagnose + Fix, one attempt → still red = **HALT (build tests)** |
@@ -131,9 +132,34 @@ Dispatch **in parallel**, passing each the plan + issue requirements:
 - `tech-lead` **[sonnet]**
 - `business-lead` **[sonnet]**
 
-If **any** returns a Blocker → **HALT (blocker)**, quoting every blocker verbatim.
-Suggestions are recorded for the PR body; they never halt.
+Synthesize into one consolidated list: **Blockers** (merging duplicates, keeping each persona's
+text verbatim) and **Suggestions**. Suggestions are recorded for the PR body; they never halt.
 **No Pass 2 in auto mode** — no human is present to choose one.
+
+### 3.5 Triage
+
+Dispatch **Triage [opus]** (`.claude/agents/triage.md`) — a separate subagent, never this
+orchestrator classifying inline. Pass it the verbatim consolidated Blocker list, the plan, and the
+issue requirements. It returns each Blocker classified **Must-halt** or **Auto-absorb**, quoting
+the persona's own fix word-for-word for every Auto-absorb item. Apply this verdict exactly as
+returned — never reclassify an item.
+
+A `Triage` dispatch that returns empty is a **failed dispatch, not a pass** — treat the whole
+Blocker list as Must-halt: **HALT (blocker)**.
+
+**Any Must-halt Blocker → HALT (blocker)**, quoting every Must-halt Blocker verbatim.
+
+For each Auto-absorb item: apply the quoted fix to the plan document, then confirm it actually
+landed in the plan text — if it's missing, that item is Must-halt instead: **HALT (blocker)**,
+never claim a fix that isn't there.
+
+**Cap:** at most **5** Auto-absorb items per run, counted after merging. If Triage's own rubric
+would put more than 5 items there, treat the whole list as Must-halt: **HALT (blocker)** — the
+plan itself is suspect; don't ask Triage to shrink its list to fit.
+
+Auto-absorbed items are recorded for the PR body under **"Small fixes applied automatically"**,
+stating they were classified by the separate Triage agent, for reviewer attention. Auto-absorbed
+items are never silently dropped — always listed.
 
 ### 4. Build
 Dispatch **fullstack-craftsman [sonnet]** to implement the approved plan exactly — following
@@ -169,7 +195,9 @@ feature notes). Skip if nothing needs it.
 2. `git push -u origin <branch>`.
 3. Open the PR: write the body to a file, then
    `gh api repos/satyambaldawa/fashion-rental-application/pulls -X POST -f title="<title>" -f head="<branch>" -f base="main" -F body=@<file>`
-   — body summarizes the work and the review outcomes, including recorded Suggestions.
+   — body summarizes the work and the review outcomes, including recorded Suggestions and, under
+   **"Small fixes applied automatically"**, every Auto-absorb item from Stage 3.5 with a note that
+   they were classified by the separate Triage agent, for reviewer attention.
 4. Remove `auto-in-progress`
    (`gh api repos/satyambaldawa/fashion-rental-application/issues/$1/labels/auto-in-progress -X DELETE`).
 5. Post a comment with the PR URL.
@@ -188,9 +216,11 @@ On any halt condition:
 
 Halt conditions:
 - Baseline tests red after one fix attempt
-- Any persona Blocker
+- Any Must-halt Blocker (per Stage 3.5 Triage classification), or an Auto-absorb fix that
+  doesn't actually land when verified, or Triage's rubric exceeding the 5-item Auto-absorb cap
 - Build tests red after one fix attempt
-- A subagent dispatch returns empty/no result (treated as infrastructure failure, not a pass)
+- A subagent dispatch returns empty/no result (treated as infrastructure failure, not a pass) —
+  this includes an empty `Triage` dispatch
 
 ## GitHub operations
 
