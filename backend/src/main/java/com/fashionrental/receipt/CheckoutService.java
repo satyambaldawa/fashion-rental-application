@@ -17,7 +17,9 @@ import com.fashionrental.inventory.PackageComponentRepository;
 import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.request.EligibleCouponsRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
+import com.fashionrental.receipt.model.response.EligibleCouponResponse;
 import com.fashionrental.receipt.model.response.PreviewLineItem;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -144,6 +146,22 @@ public class CheckoutService {
                 grandTotal,
                 unavailableItems
         );
+    }
+
+    // Reuses preview() for date-range validation, inactive/ad-hoc item rejection and
+    // pricing, so the cart is always priced server-side — never from a client-sent
+    // subtotal — and this list can never disagree with what createReceipt will charge.
+    @Transactional(readOnly = true)
+    public List<EligibleCouponResponse> eligibleCoupons(EligibleCouponsRequest request) {
+        int totalRent = preview(toPreviewRequest(request)).totalRent();
+        return couponDiscountResolver.findEligible(discountableSubtotals(totalRent)).stream()
+                .map(receiptMapper::toEligibleCouponResponse)
+                .toList();
+    }
+
+    private CheckoutPreviewRequest toPreviewRequest(EligibleCouponsRequest request) {
+        return new CheckoutPreviewRequest(
+                request.startDatetime(), request.endDatetime(), request.items(), request.adHocItems(), null);
     }
 
     @Transactional

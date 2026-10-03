@@ -1,3 +1,5 @@
+import type { DiscountType } from './coupons'
+
 export interface CheckoutLineItem {
   itemId: string
   quantity: number
@@ -39,6 +41,19 @@ export interface PreviewLineItem {
   lineRent: number
   lineDeposit: number
   availableQuantity: number
+}
+
+// The server-priced cart for a checkout/preview-shaped request, without a couponCode —
+// this endpoint lists coupons, it doesn't apply one.
+export type EligibleCouponsRequest = Omit<CheckoutPreviewRequest, 'couponCode'>
+
+export interface EligibleCoupon {
+  code: string
+  discountType: DiscountType
+  value: number
+  minSubtotal: number | null
+  validTo: string
+  discountAmount: number
 }
 
 export interface CheckoutPreview {

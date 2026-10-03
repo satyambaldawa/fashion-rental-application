@@ -38,6 +38,7 @@ export const handlers = [
 
   // receipts / checkout
   http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview())),
+  http.post('*/api/checkout/eligible-coupons', () => ok([])),
   http.get('*/api/receipts/:id', () => ok(f.aReceipt())),
   http.get('*/api/receipts', () => ok([f.aReceiptSummary()])),
   http.post('*/api/receipts/:receiptId/return/preview', () => ok(f.aReturnPreview())),

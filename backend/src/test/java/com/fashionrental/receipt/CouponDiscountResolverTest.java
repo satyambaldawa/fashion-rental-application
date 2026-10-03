@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -185,6 +186,152 @@ class CouponDiscountResolverTest {
 
         assertThatThrownBy(() -> resolver.resolve("SAVE20", new DiscountableSubtotals(100, 0)))
                 .hasMessageContaining("no longer active");
+    }
+
+    // ─── findEligible() ─────────────────────────────────────────────────────
+
+    @Test
+    void should_list_an_active_coupon_within_its_window_under_limit_and_meeting_minimum() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, 100);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).extracting(AppliedDiscount::code).containsExactly("SAVE20");
+    }
+
+    @Test
+    void should_exclude_a_coupon_not_yet_valid() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, null);
+        coupon.setValidFrom(NOW.plusDays(1));
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_exclude_an_expired_coupon() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, null);
+        coupon.setValidTo(NOW.minusDays(1));
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_exclude_a_coupon_at_its_usage_limit() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, 5, null);
+        coupon.setTimesUsed(5);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_include_a_coupon_with_no_usage_limit() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, null);
+        coupon.setTimesUsed(1000);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).extracting(AppliedDiscount::code).containsExactly("SAVE20");
+    }
+
+    @Test
+    void should_exclude_a_coupon_whose_min_subtotal_exceeds_the_cart() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, 2000);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1999, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_include_one_whose_min_subtotal_equals_the_cart() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, 2000);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(2000, 0));
+
+        assertThat(eligible).extracting(AppliedDiscount::code).containsExactly("SAVE20");
+    }
+
+    @Test
+    void should_exclude_an_inactive_coupon_even_if_the_repository_returns_it() {
+        // Defence in depth: the shared rule, not only the query, filters it.
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, null);
+        coupon.setIsActive(false);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_compute_each_discount_amount_with_the_same_math_as_resolve() {
+        Coupon percentCoupon = validCoupon("SAVE10", Coupon.DiscountType.PERCENT, 10, null, null);
+        Coupon fixedCoupon = validCoupon("FLAT500", Coupon.DiscountType.FIXED, 500, null, null);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc())
+                .thenReturn(List.of(percentCoupon, fixedCoupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1505, 0));
+
+        assertThat(eligible)
+                .filteredOn(d -> d.code().equals("SAVE10"))
+                .extracting(AppliedDiscount::amount)
+                .containsExactly(150);
+
+        List<AppliedDiscount> fixedEligible = resolver.findEligible(new DiscountableSubtotals(300, 0));
+        assertThat(fixedEligible)
+                .filteredOn(d -> d.code().equals("FLAT500"))
+                .extracting(AppliedDiscount::amount)
+                .containsExactly(300);
+    }
+
+    @Test
+    void should_return_an_empty_list_when_nothing_is_eligible() {
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of());
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).isEmpty();
+    }
+
+    @Test
+    void should_keep_the_repository_newest_first_order_rather_than_sorting_by_discount_size() {
+        Coupon smallerDiscount = validCoupon("SMALL5", Coupon.DiscountType.PERCENT, 5, null, null);
+        Coupon biggerDiscount = validCoupon("BIG50", Coupon.DiscountType.PERCENT, 50, null, null);
+        // Repository order (newest first) deliberately puts the smaller discount first —
+        // findEligible must not re-sort by amount.
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc())
+                .thenReturn(List.of(smallerDiscount, biggerDiscount));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        assertThat(eligible).extracting(AppliedDiscount::code).containsExactly("SMALL5", "BIG50");
+    }
+
+    @Test
+    void should_agree_with_resolve_for_every_listed_coupon() {
+        Coupon coupon = validCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20, null, 500);
+        when(couponRepository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(coupon));
+        when(couponRepository.findByCode("SAVE20")).thenReturn(Optional.of(coupon));
+
+        List<AppliedDiscount> eligible = resolver.findEligible(new DiscountableSubtotals(1000, 0));
+
+        for (AppliedDiscount listed : eligible) {
+            AppliedDiscount resolved = resolver.resolve(listed.code(), new DiscountableSubtotals(1000, 0));
+            assertThat(resolved.amount()).isEqualTo(listed.amount());
+        }
     }
 
     // ─── computeDiscountAmount() — pure arithmetic ─────────────────────────

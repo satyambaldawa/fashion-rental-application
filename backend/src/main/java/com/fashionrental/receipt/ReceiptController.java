@@ -3,7 +3,9 @@ package com.fashionrental.receipt;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.request.EligibleCouponsRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
+import com.fashionrental.receipt.model.response.EligibleCouponResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +36,14 @@ public class ReceiptController {
             @Valid @RequestBody CheckoutPreviewRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(checkoutService.preview(request)));
+    }
+
+    @Operation(summary = "List coupons currently eligible for this cart (any authenticated staff role)")
+    @PostMapping("/api/checkout/eligible-coupons")
+    public ResponseEntity<ApiResponse<List<EligibleCouponResponse>>> eligibleCoupons(
+            @Valid @RequestBody EligibleCouponsRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(checkoutService.eligibleCoupons(request)));
     }
 
     @Operation(summary = "Create a new rental receipt")

@@ -18,7 +18,9 @@ import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.request.EligibleCouponsRequest;
 import com.fashionrental.receipt.model.response.CheckoutPreviewResponse;
+import com.fashionrental.receipt.model.response.EligibleCouponResponse;
 import com.fashionrental.receipt.model.response.PreviewLineItem;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.junit.jupiter.api.AfterEach;
@@ -1112,6 +1114,98 @@ class CheckoutServiceTest {
         assertThat(preview.discountAmount()).isEqualTo(created.getDiscountAmount());
         assertThat(preview.totalDeposit()).isEqualTo(created.getTotalDeposit());
         assertThat(preview.grandTotal()).isEqualTo(created.getGrandTotal());
+    }
+
+    // ─── Eligible coupons ───────────────────────────────────────────────────
+
+    @Test
+    void should_pass_the_server_computed_rent_subtotal_to_find_eligible() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.findEligible(any())).thenReturn(List.of());
+
+        EligibleCouponsRequest request = new EligibleCouponsRequest(
+                START, END, List.of(new CheckoutLineItem(itemId, 2)), List.of());
+
+        checkoutService.eligibleCoupons(request);
+
+        ArgumentCaptor<DiscountableSubtotals> captor = ArgumentCaptor.forClass(DiscountableSubtotals.class);
+        verify(couponDiscountResolver).findEligible(captor.capture());
+        assertThat(captor.getValue().rent()).isEqualTo(1200); // 200 * 3 days * 2
+        assertThat(captor.getValue().sale()).isZero();
+    }
+
+    @Test
+    void should_include_ad_hoc_rent_in_the_eligibility_subtotal() {
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.findEligible(any())).thenReturn(List.of());
+
+        EligibleCouponsRequest request = new EligibleCouponsRequest(
+                START, END, List.of(), List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)));
+
+        checkoutService.eligibleCoupons(request);
+
+        ArgumentCaptor<DiscountableSubtotals> captor = ArgumentCaptor.forClass(DiscountableSubtotals.class);
+        verify(couponDiscountResolver).findEligible(captor.capture());
+        assertThat(captor.getValue().rent()).isEqualTo(500);
+    }
+
+    @Test
+    void should_reject_eligible_coupons_request_when_end_before_start() {
+        OffsetDateTime end = START.minusDays(1);
+
+        EligibleCouponsRequest request = new EligibleCouponsRequest(
+                START, end, List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), List.of());
+
+        assertThatThrownBy(() -> checkoutService.eligibleCoupons(request))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("endDatetime must be after startDatetime");
+    }
+
+    @Test
+    void should_map_each_eligible_discount_via_the_mapper() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+        Coupon coupon = makeCoupon("SAVE20", Coupon.DiscountType.PERCENT, 20);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.findEligible(any()))
+                .thenReturn(List.of(new AppliedDiscount(coupon, "SAVE20", 120)));
+        when(receiptMapper.toEligibleCouponResponse(any()))
+                .thenReturn(new EligibleCouponResponse("SAVE20", "PERCENT", 20, null, coupon.getValidTo(), 120));
+
+        EligibleCouponsRequest request = new EligibleCouponsRequest(
+                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of());
+
+        List<EligibleCouponResponse> result = checkoutService.eligibleCoupons(request);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).code()).isEqualTo("SAVE20");
+        verify(receiptMapper).toEligibleCouponResponse(any());
+    }
+
+    @Test
+    void should_not_increment_times_used_when_listing_eligible_coupons() {
+        UUID itemId = UUID.randomUUID();
+        Item item = makeItem(itemId, "Blue Sherwani", 200, 1000);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(5);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
+        when(couponDiscountResolver.findEligible(any())).thenReturn(List.of());
+
+        EligibleCouponsRequest request = new EligibleCouponsRequest(
+                START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of());
+
+        checkoutService.eligibleCoupons(request);
+
+        verify(couponRepository, never()).incrementTimesUsed(any());
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

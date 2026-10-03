@@ -4,6 +4,8 @@ import type {
   CheckoutPreview,
   CheckoutPreviewRequest,
   CheckoutRequest,
+  EligibleCoupon,
+  EligibleCouponsRequest,
   Receipt,
   ReceiptSummary,
 } from '../types/receipt'
@@ -11,6 +13,9 @@ import type {
 export const receiptsApi = {
   preview: (data: CheckoutPreviewRequest): Promise<CheckoutPreview> =>
     client.post<ApiResponse<CheckoutPreview>>('/checkout/preview', data).then(r => r.data.data!),
+
+  eligibleCoupons: (data: EligibleCouponsRequest): Promise<EligibleCoupon[]> =>
+    client.post<ApiResponse<EligibleCoupon[]>>('/checkout/eligible-coupons', data).then(r => r.data.data!),
 
   create: (data: CheckoutRequest): Promise<Receipt> =>
     client.post<ApiResponse<Receipt>>('/receipts', data).then(r => r.data.data!),
