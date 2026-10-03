@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Row, Col, Image, Typography, Empty, Spin } from 'antd'
 import { galleryApi } from '../../api/gallery'
@@ -10,6 +10,12 @@ const FILTER_OPTIONS: { label: string; value: ItemCategory | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
   ...CATEGORY_OPTIONS,
 ]
+
+const VALID_CATEGORIES = new Set<string>(CATEGORY_OPTIONS.map(opt => opt.value))
+
+function isItemCategory(value: string): value is ItemCategory {
+  return VALID_CATEGORIES.has(value)
+}
 
 function groupByCategory(images: GalleryImage[]): [ItemCategory, GalleryImage[]][] {
   const groups = new Map<ItemCategory, GalleryImage[]>()
@@ -72,15 +78,35 @@ function GallerySection({ category, images, showTitle }: {
 }
 
 export default function GalleryPage() {
-  const [category, setCategory] = useState<ItemCategory | undefined>(undefined)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // An empty `?category=` is treated as "All", not as invalid — only a non-empty,
+  // unrecognized value triggers the "Category not found" branch.
+  const rawCategory = searchParams.get('category')
+  const isUnknownCategory = !!rawCategory && !isItemCategory(rawCategory)
+  const category: ItemCategory | undefined =
+    rawCategory && isItemCategory(rawCategory) ? rawCategory : undefined
 
   const { data: images, isLoading } = useQuery({
-    queryKey: ['public-gallery', category],
+    queryKey: ['public-gallery', category, isUnknownCategory ? 'invalid' : 'valid'],
     queryFn: () => galleryApi.list(category),
+    enabled: !isUnknownCategory,
   })
 
-  const activeCategory = category ?? 'ALL'
+  const activeCategory = isUnknownCategory ? null : (category ?? 'ALL')
   const sections = groupByCategory(images ?? [])
+
+  function selectCategory(value: ItemCategory | 'ALL') {
+    if (value === activeCategory) return
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value === 'ALL') {
+        next.delete('category')
+      } else {
+        next.set('category', value)
+      }
+      return next
+    }, { replace: true })
+  }
 
   return (
     <div>
@@ -91,7 +117,8 @@ export default function GalleryPage() {
           return (
             <button
               key={opt.value}
-              onClick={() => setCategory(opt.value === 'ALL' ? undefined : opt.value)}
+              aria-pressed={isActive}
+              onClick={() => selectCategory(opt.value)}
               style={{
                 padding: '5px 16px',
                 borderRadius: 999,
@@ -113,17 +140,19 @@ export default function GalleryPage() {
         })}
       </div>
 
-      {isLoading && (
+      {isUnknownCategory && <Empty description="Category not found" />}
+
+      {!isUnknownCategory && isLoading && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
           <Spin size="large" />
         </div>
       )}
 
-      {!isLoading && sections.length === 0 && (
+      {!isUnknownCategory && !isLoading && sections.length === 0 && (
         <Empty description="No images to show" />
       )}
 
-      {!isLoading && sections.map(([sectionCategory, sectionImages]) => (
+      {!isUnknownCategory && !isLoading && sections.map(([sectionCategory, sectionImages]) => (
         <GallerySection
           key={sectionCategory}
           category={sectionCategory}
