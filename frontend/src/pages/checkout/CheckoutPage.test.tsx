@@ -525,3 +525,238 @@ describe('CheckoutPage coupons', () => {
     expect(descriptionValue('Grand Total')).toBe('₹1,300') // 300 + 1000, un-discounted
   })
 })
+
+describe('CheckoutPage eligible coupons', () => {
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    sessionStorage.clear()
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  it('renders the eligible coupon list above the manual input', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([
+        f.anEligibleCoupon(),
+        f.anEligibleCoupon({ code: 'FLAT100', discountType: 'FIXED', value: 100, discountAmount: 100 }),
+      ])),
+    )
+
+    await goToPreview()
+
+    expect(await screen.findByRole('button', { name: 'Apply coupon SAVE20' })).toBeInTheDocument()
+    expect(screen.getByText('SAVE20')).toBeInTheDocument()
+    expect(screen.getByText('20% off')).toBeInTheDocument()
+    expect(screen.getByText('Save ₹60')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply coupon FLAT100' })).toBeInTheDocument()
+  })
+
+  it('selecting a coupon from the list applies it exactly like manual entry', async () => {
+    seedCart([baseCartItem]) // rate 300 × 1 day × qty 1 = 300 rent, 1000 deposit
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon()])),
+      http.post('*/api/checkout/preview', async ({ request }) => {
+        const body = (await request.json()) as { couponCode?: string | null }
+        expect(body.couponCode).toBe('SAVE20')
+        return ok(f.aCheckoutPreview({
+          couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+        }))
+      }),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply coupon SAVE20' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+    expect(screen.getByText('−₹60')).toBeInTheDocument()
+    expect(descriptionValue('Total Deposit')).toBe('₹1,000')
+    expect(descriptionValue('Grand Total')).toBe('₹1,240')
+  })
+
+  it('shows the empty state when no coupons are eligible, and manual entry still works', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      // The default handler already returns [] for eligible-coupons.
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    expect(await screen.findByText('No coupons available for this order.')).toBeInTheDocument()
+    expect(screen.queryByText(/Couldn't load/)).not.toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Have a coupon?'), 'SAVE20')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+  })
+
+  it('keeps the manual coupon input available alongside the eligible list', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon()])),
+    )
+
+    await goToPreview()
+
+    expect(await screen.findByRole('button', { name: 'Apply coupon SAVE20' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Have a coupon?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+  })
+
+  it('applies the discount amount returned by preview, not the amount shown in the eligible list', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      // The list's discountAmount can be stale by the time the user clicks "Use" (e.g. the
+      // owner edited the coupon in the moment between the list loading and the click) — the
+      // applied total must always come from preview()'s response, never from this cached entry.
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon({ discountAmount: 60 })])),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 45, totalRent: 300, totalDeposit: 1000, grandTotal: 1255,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    expect(await screen.findByText('Save ₹60')).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply coupon SAVE20' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+    expect(screen.getByText('−₹45')).toBeInTheDocument()
+    expect(screen.queryByText('−₹60')).not.toBeInTheDocument()
+    expect(descriptionValue('Grand Total')).toBe('₹1,255')
+  })
+
+  it('lets an EXECUTIVE see and apply an eligible coupon', async () => {
+    setAuth('EXECUTIVE')
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon()])),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply coupon SAVE20' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+  })
+
+  it('discards a stale preview response triggered by selecting a coupon from the list', async () => {
+    setAuth('OWNER')
+    seedCart([baseCartItem]) // rate 300 × 1 day × qty 1 = 300 rent
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon()])),
+    )
+
+    // Holds the preview response open until the test resolves it manually, simulating a
+    // response that lands after the cart has already been mutated.
+    let resolvePreview!: (value: Response) => void
+    const pendingPreview = new Promise<Response>(resolve => { resolvePreview = resolve })
+    server.use(http.post('*/api/checkout/preview', () => pendingPreview))
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply coupon SAVE20' }))
+    await flush() // request is dispatched and now in flight
+
+    // Mutate the cart while the request is still pending — the response below was priced
+    // against the qty-1 cart, not this one.
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    // The stale response now lands, priced for the cart as it was at select-time.
+    resolvePreview(ok(f.aCheckoutPreview({
+      couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+    })) as unknown as Response)
+    await flush()
+
+    // Must not silently apply totals computed for a cart that no longer exists.
+    expect(screen.queryByText('Discount (SAVE20)')).not.toBeInTheDocument()
+    expect(await screen.findByText(
+      'The cart changed while applying this coupon — please apply it again.',
+    )).toBeInTheDocument()
+    // 300 (Sherwani) + 250 (custom product) = 550 rent, un-discounted.
+    expect(descriptionValue('Grand Total')).toBe('₹1,550')
+  })
+
+  it('warns that the cart changed after a coupon applied from the list is dropped', async () => {
+    setAuth('OWNER')
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => ok([f.anEligibleCoupon()])),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply coupon SAVE20' }))
+    await flush()
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /add custom product/i }))
+    await user.type(await screen.findByLabelText(/product name/i), 'Counter Sherwani')
+    await user.type(screen.getByLabelText(/total price/i), '250')
+    await user.click(screen.getByRole('button', { name: 'Add to cart' }))
+    await flush()
+
+    expect(screen.queryByText('Discount (SAVE20)')).not.toBeInTheDocument()
+    expect(await screen.findByText(/Coupon SAVE20 was removed because the cart changed/))
+      .toBeInTheDocument()
+    // The list reappears once the coupon panel collapses back to "no coupon applied".
+    expect(await screen.findByRole('button', { name: 'Apply coupon SAVE20' })).toBeInTheDocument()
+  })
+
+  it('does not block manual coupon entry when the eligible list fails to load', async () => {
+    seedCart([baseCartItem])
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/eligible-coupons', () => HttpResponse.json(
+        { success: false, data: null, error: 'Internal error' }, { status: 500 },
+      )),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    expect(await screen.findByText(/Couldn't load available coupons/)).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Have a coupon?'), 'SAVE20')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+  })
+})

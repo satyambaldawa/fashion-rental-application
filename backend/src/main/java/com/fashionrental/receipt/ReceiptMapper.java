@@ -1,6 +1,8 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.configuration.Coupon;
 import com.fashionrental.inventory.Item;
+import com.fashionrental.receipt.model.response.EligibleCouponResponse;
 import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,18 @@ import java.util.List;
 
 @Component
 public class ReceiptMapper {
+
+    public EligibleCouponResponse toEligibleCouponResponse(AppliedDiscount discount) {
+        Coupon coupon = discount.coupon();
+        return new EligibleCouponResponse(
+                discount.code(),
+                coupon.getDiscountType().name(),
+                coupon.getValue(),
+                coupon.getMinSubtotal(),
+                coupon.getValidTo(),
+                discount.amount()
+        );
+    }
 
     public ReceiptResponse toReceiptResponse(Receipt receipt) {
         List<ReceiptLineItemResponse> lineItems = receipt.getLineItems().stream()

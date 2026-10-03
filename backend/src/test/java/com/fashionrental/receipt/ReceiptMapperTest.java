@@ -1,8 +1,10 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.configuration.Coupon;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.inventory.ItemPhoto;
+import com.fashionrental.receipt.model.response.EligibleCouponResponse;
 import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import com.fashionrental.support.TestData;
@@ -15,6 +17,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReceiptMapperTest {
 
     private final ReceiptMapper mapper = new ReceiptMapper();
+
+    @Test
+    void toEligibleCouponResponse_maps_the_coupon_terms_and_the_discount_computed_for_this_cart() {
+        Coupon coupon = new Coupon();
+        coupon.setCode("SAVE20");
+        coupon.setDiscountType(Coupon.DiscountType.PERCENT);
+        coupon.setValue(20);
+        coupon.setMinSubtotal(200);
+        coupon.setValidTo(OffsetDateTime.parse("2026-06-30T23:59:59+05:30"));
+
+        AppliedDiscount discount = new AppliedDiscount(coupon, "SAVE20", 60);
+
+        EligibleCouponResponse response = mapper.toEligibleCouponResponse(discount);
+
+        assertThat(response.code()).isEqualTo("SAVE20");
+        assertThat(response.discountType()).isEqualTo("PERCENT");
+        assertThat(response.value()).isEqualTo(20);
+        assertThat(response.minSubtotal()).isEqualTo(200);
+        assertThat(response.validTo()).isEqualTo(coupon.getValidTo());
+        assertThat(response.discountAmount()).isEqualTo(60);
+    }
 
     @Test
     void toLineItemResponse_uses_first_photo_in_the_ordered_collection() {

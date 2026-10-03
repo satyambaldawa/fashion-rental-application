@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
@@ -52,6 +52,7 @@ import type {
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
+import EligibleCouponList from './EligibleCouponList'
 import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 import { CATEGORY_OPTIONS } from '../../constants/categories'
@@ -85,6 +86,7 @@ export default function CheckoutPage() {
   injectChipFocusStyleOnce()
 
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const screens = Grid.useBreakpoint()
   const isMobile = !screens.lg
@@ -201,6 +203,15 @@ export default function CheckoutPage() {
     enabled: !!cart && screen === 'preview',
   })
 
+  // Lists coupons the server would currently accept for this cart. Keyed on the cart
+  // signature (not just screen/cart existence) so any edit to dates, items or quantities
+  // refetches automatically — a list priced for a since-changed cart is never shown.
+  const eligibleCouponsQuery = useQuery({
+    queryKey: ['eligible-coupons', cart ? cartSignature() : null],
+    queryFn: () => receiptsApi.eligibleCoupons(buildPreviewRequest()),
+    enabled: !!cart && screen === 'preview' && (cart?.items.length ?? 0) > 0,
+  })
+
   // Only show items that are actually available for the cart's dates
   const availableItems = (itemsPage?.content ?? []).filter(i => i.availableQuantity > 0)
 
@@ -269,6 +280,9 @@ export default function CheckoutPage() {
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }
       setCouponError(apiErr?.response?.data?.error ?? 'Failed to apply coupon. Please try again.')
+      // A coupon rejected here may have just hit its usage limit or been deactivated —
+      // refetch the list so it doesn't keep offering a code that no longer applies.
+      queryClient.invalidateQueries({ queryKey: ['eligible-coupons'] })
     },
   })
 
@@ -374,6 +388,14 @@ export default function CheckoutPage() {
     if (!couponInput.trim()) return
     setCouponError(null)
     previewMutation.mutate(couponInput.trim())
+  }
+
+  // Selecting a coupon from the list goes through the exact same mutation as manual entry,
+  // so apply, discount display, the large-discount confirm, stale-response rejection and
+  // the cart-change warning all behave identically for both paths.
+  function handleSelectEligibleCoupon(code: string) {
+    setCouponError(null)
+    previewMutation.mutate(code)
   }
 
   function handleRemoveCoupon() {
@@ -884,6 +906,14 @@ export default function CheckoutPage() {
             </Space>
           ) : (
             <>
+              <EligibleCouponList
+                coupons={eligibleCouponsQuery.data}
+                isLoading={eligibleCouponsQuery.isLoading}
+                isError={eligibleCouponsQuery.isError}
+                disabled={previewMutation.isPending}
+                pendingCode={previewMutation.isPending ? previewMutation.variables ?? null : null}
+                onSelect={handleSelectEligibleCoupon}
+              />
               <Space.Compact style={{ width: '100%' }}>
                 <Input
                   placeholder="Have a coupon?"
