@@ -22,8 +22,11 @@ Examples:
 `ready-for-deployment` label to a specific issue, may commit, push a feature branch, and open a
 PR for that issue without an additional in-chat approval — the label is the advance, scoped
 authorization. It must still never push to `main` and never merge; halting instead of opening a
-PR is always the default on any test failure or persona Blocker. This exception applies to no
-other command and to no other trigger.
+PR is always the default on any test failure, or on any persona Blocker except one classified
+Auto-absorb under the conservative triage in `/work-issue-auto` — and a Blocker concerning
+correctness, security, data integrity, money or time handling, acceptance criteria, scope, or any
+file under `.claude/`, `.githooks/`, CI workflows, or `CLAUDE.md` itself may never be classified
+Auto-absorb. This exception applies to no other command and to no other trigger.
 
 ---
 
