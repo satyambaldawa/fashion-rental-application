@@ -11,3 +11,21 @@ body,
   margin: 0;
   padding: 0;
 }
+
+/* Center-mode carousel (see pages/public/AboutPage.tsx "Our Collection") — the centred
+   slide (react-slick's .slick-center) is full-size; the rest are smaller and slightly
+   faded (but still in colour), so the next/previous cards read as "coming into focus". */
+.collection-carousel .slick-slide {
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  opacity: 0.7;
+  transform: scale(0.86);
+}
+
+.collection-carousel .slick-slide.slick-center {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.collection-carousel .slick-slide > div {
+  height: 100%;
+}
