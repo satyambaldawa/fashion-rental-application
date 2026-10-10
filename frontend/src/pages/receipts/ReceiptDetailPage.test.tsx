@@ -10,7 +10,7 @@ import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
 import { STORAGE_KEY as CART_STORAGE_KEY, SESSION_MARKER_KEY } from '../../hooks/useCart'
-import type { Cart, CatalogueCartItem } from '../../types/receipt'
+import type { Cart } from '../../types/receipt'
 import ReceiptDetailPage from './ReceiptDetailPage'
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
@@ -32,18 +32,12 @@ function renderReceiptWithCheckoutStub() {
         <MemoryRouter initialEntries={['/receipts/rcpt-1']}>
           <Routes>
             <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
-            <Route path="/checkout" element={<div data-testid="checkout-stub" />} />
+            <Route path="/checkout" element={<h1>Checkout stub</h1>} />
           </Routes>
         </MemoryRouter>
       </ConfigProvider>
     </QueryClientProvider>,
   )
-}
-
-const aCartItem: CatalogueCartItem = {
-  kind: 'CATALOGUE', lineKey: 'item-1', itemId: 'item-1', itemName: 'Royal Sherwani',
-  itemType: 'INDIVIDUAL', category: 'COSTUME', size: 'M', componentNames: null,
-  thumbnailUrl: null, rate: 300, deposit: 1000, quantity: 1, availableQuantity: 3,
 }
 
 describe('ReceiptDetailPage discount row', () => {
@@ -143,7 +137,7 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
     await user.click(await screen.findByRole('button', { name: /Add items/i }))
     await flush()
 
-    expect(await screen.findByTestId('checkout-stub')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Checkout stub' })).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY)!)).toEqual({
       startDatetime: '2026-04-18T10:00:00+05:30',
       endDatetime: '2026-04-19T10:00:00+05:30',
@@ -169,14 +163,14 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
     await flush()
 
     expect(screen.queryByText('Discard the cart in progress?')).not.toBeInTheDocument()
-    expect(await screen.findByTestId('checkout-stub')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Checkout stub' })).toBeInTheDocument()
   })
 
   it('AC4: a non-empty cart in progress prompts to discard, and Cancel leaves it untouched', async () => {
     setNow('2026-04-18T12:00:00+05:30')
     server.use(http.get('*/api/receipts/rcpt-1', () =>
       ok(f.aReceipt({ status: 'GIVEN', endDatetime: '2026-04-19T10:00:00+05:30' }))))
-    const inProgressCart: Cart = { startDatetime: 'x', endDatetime: 'y', rentalDays: 2, items: [aCartItem] }
+    const inProgressCart: Cart = { startDatetime: 'x', endDatetime: 'y', rentalDays: 2, items: [f.aCatalogueCartItem()] }
     const storedJson = JSON.stringify(inProgressCart)
     localStorage.setItem(CART_STORAGE_KEY, storedJson)
 
@@ -192,14 +186,14 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
     await flush()
 
     expect(localStorage.getItem(CART_STORAGE_KEY)).toBe(storedJson)
-    expect(screen.queryByTestId('checkout-stub')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Checkout stub' })).not.toBeInTheDocument()
   })
 
   it('AC4: OK discards the cart in progress and starts the new customer cart', async () => {
     setNow('2026-04-18T12:00:00+05:30')
     server.use(http.get('*/api/receipts/rcpt-1', () =>
       ok(f.aReceipt({ status: 'GIVEN', customerId: 'cust-9', customerName: 'Priya', customerPhone: '9900011122' }))))
-    const inProgressCart: Cart = { startDatetime: 'x', endDatetime: 'y', rentalDays: 2, items: [aCartItem] }
+    const inProgressCart: Cart = { startDatetime: 'x', endDatetime: 'y', rentalDays: 2, items: [f.aCatalogueCartItem()] }
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(inProgressCart))
 
     const user = userEvent.setup()
@@ -212,7 +206,7 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
     await user.click(screen.getByRole('button', { name: 'Discard and continue' }))
     await flush()
 
-    expect(await screen.findByTestId('checkout-stub')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Checkout stub' })).toBeInTheDocument()
     const stored = JSON.parse(localStorage.getItem(CART_STORAGE_KEY)!)
     expect(stored.items).toEqual([])
     expect(stored.customer).toEqual({ id: 'cust-9', name: 'Priya', phone: '9900011122' })
@@ -254,6 +248,6 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
 
     expect(await screen.findByText('This rental is now overdue — items can no longer be added.')).toBeInTheDocument()
     expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull()
-    expect(screen.queryByTestId('checkout-stub')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Checkout stub' })).not.toBeInTheDocument()
   })
 })

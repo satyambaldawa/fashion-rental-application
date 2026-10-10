@@ -184,9 +184,9 @@ describe('useCart', () => {
   describe('customer carried over from a receipt (#165)', () => {
     const customer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
 
-    it('persists the customer through createCart and every mutator, until clearCart drops it', () => {
+    it('persists the customer through every mutator, until clearCart drops it', () => {
+      startCustomerCart({ customer, startDatetime: 's', endDatetime: 'e', rentalDays: 1 })
       const { result } = renderHook(() => useCart())
-      act(() => result.current.createCart('s', 'e', 1, customer))
       expect(result.current.cart?.customer).toEqual(customer)
 
       act(() => result.current.addItem(aCatalogueItem()))
@@ -206,12 +206,6 @@ describe('useCart', () => {
 
       act(() => result.current.clearCart())
       expect(result.current.cart).toBeNull()
-    })
-
-    it('createCart without a customer stores null, so existing callers are unaffected', () => {
-      const { result } = renderHook(() => useCart())
-      act(() => result.current.createCart('s', 'e', 1))
-      expect(result.current.cart?.customer).toBeNull()
     })
 
     it('loads an old-format cart with no customer field as undefined, leaving existing behaviour unchanged', () => {

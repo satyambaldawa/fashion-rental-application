@@ -65,8 +65,7 @@ function formatCategory(cat: string | null): string {
   return cat.charAt(0) + cat.slice(1).toLowerCase()
 }
 
-// Exported so it can be unit-tested with fake timers independently of the component render.
-export function canAddItems(receipt: Receipt): boolean {
+function canAddItems(receipt: Receipt): boolean {
   return receipt.status === 'GIVEN' && dayjs(receipt.endDatetime).isAfter(dayjs())
 }
 

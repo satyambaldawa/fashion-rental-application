@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { AppliedCouponPreview, Cart, CartCustomer, CartItem, CustomerCartSeed } from '../types/receipt'
+import type { AppliedCouponPreview, Cart, CartItem, CustomerCartSeed } from '../types/receipt'
 
 export type { Cart, CartItem }
 
@@ -16,6 +16,10 @@ interface LoadedCart {
   // Non-null only on the render where loadCart() itself dropped a coupon that was present
   // in storage — lets the caller warn once, the same way a mid-session cart edit does.
   droppedCouponCode: string | null
+}
+
+function hasMalformedCustomer(cart: Cart): boolean {
+  return !!cart.customer && typeof cart.customer.id !== 'string'
 }
 
 function loadCart(): LoadedCart {
@@ -49,16 +53,12 @@ function loadCart(): LoadedCart {
     // coupon mutation racing a clearCart() (see applyCoupon/removeCoupon below).
     if (!Array.isArray(cart.items)) return { cart: null, droppedCouponCode: null }
 
-    // A malformed customer (e.g. {} from a corrupted write) must fall back to normal
-    // checkout rather than submitting a receipt with a bad customerId.
-    if (cart.customer && typeof cart.customer.id !== 'string') {
-      cart.customer = null
-    }
+    const loaded = hasMalformedCustomer(cart) ? { ...cart, customer: null } : cart
 
-    if (cart.appliedCoupon && isNewBrowserSession) {
-      return { cart: { ...cart, appliedCoupon: null }, droppedCouponCode: cart.appliedCoupon.couponCode }
+    if (loaded.appliedCoupon && isNewBrowserSession) {
+      return { cart: { ...loaded, appliedCoupon: null }, droppedCouponCode: loaded.appliedCoupon.couponCode }
     }
-    return { cart, droppedCouponCode: null }
+    return { cart: loaded, droppedCouponCode: null }
   } catch {
     return { cart: null, droppedCouponCode: null }
   }
@@ -111,10 +111,8 @@ export function useCart() {
     setCartState(next)
   }, [])
 
-  const createCart = useCallback((
-    startDatetime: string, endDatetime: string, rentalDays: number, customer?: CartCustomer,
-  ) => {
-    setCart({ startDatetime, endDatetime, rentalDays, items: [], customer: customer ?? null })
+  const createCart = useCallback((startDatetime: string, endDatetime: string, rentalDays: number) => {
+    setCart({ startDatetime, endDatetime, rentalDays, items: [] })
   }, [setCart])
 
   // Any cart mutation invalidates an applied coupon — the discount is a function of the
