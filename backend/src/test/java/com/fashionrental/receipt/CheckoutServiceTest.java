@@ -276,7 +276,7 @@ class CheckoutServiceTest {
         when(receiptMapper.toReceiptResponse(any(Receipt.class))).thenAnswer(inv -> {
             Receipt r = inv.getArgument(0);
             return new ReceiptResponse(null, null, null, null, null, null, null, null,
-                    r.getRentalDays(), 0, null, 0, 0, 0, null, null, List.of(), null);
+                    r.getRentalDays(), 0, null, 0, 0, 0, null, null, List.of(), null, null);
         });
 
         CheckoutRequest request = new CheckoutRequest(

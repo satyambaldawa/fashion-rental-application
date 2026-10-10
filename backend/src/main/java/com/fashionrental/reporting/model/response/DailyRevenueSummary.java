@@ -11,5 +11,6 @@ public record DailyRevenueSummary(
         int lateFeeIncome,
         int damageIncome,
         int totalDiscountsGiven,
-        int netFlow
+        int netFlow,
+        int cancellationRefunds
 ) {}

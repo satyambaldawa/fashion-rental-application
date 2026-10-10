@@ -13,5 +13,6 @@ public record MonthlyRevenueResponse(
         int totalDamageIncome,
         int totalDiscountsGiven,
         int totalNetFlow,
-        List<DailyRevenueSummary> dailyBreakdown
+        List<DailyRevenueSummary> dailyBreakdown,
+        int totalCancellationRefunds
 ) {}

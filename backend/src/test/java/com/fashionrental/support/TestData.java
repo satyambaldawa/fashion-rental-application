@@ -1,5 +1,6 @@
 package com.fashionrental.support;
 
+import com.fashionrental.config.AppUser;
 import com.fashionrental.configuration.LateFeeRule;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.inventory.Item;
@@ -109,6 +110,21 @@ public final class TestData {
         invoice.setTotalDamageCost(damageCost);
         setId(invoice);
         return invoice;
+    }
+
+    public static AppUser owner() {
+        AppUser owner = new AppUser();
+        owner.setUsername("owner");
+        owner.setRole(AppUser.Role.OWNER);
+        owner.setActive(true);
+        setId(owner);
+        return owner;
+    }
+
+    /** Cancels through the domain method so the receipt carries the full audit trail the DB requires. */
+    public static Receipt cancelled(Receipt receipt, OffsetDateTime cancelledAt) {
+        receipt.cancel(owner(), cancelledAt, Receipt.CancellationReason.WRONG_ORDER, null);
+        return receipt;
     }
 
     /** Sets the (normally @PrePersist-assigned) createdAt so time-window reports can be tested. */

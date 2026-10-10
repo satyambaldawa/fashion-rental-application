@@ -36,3 +36,17 @@ describe('ProcessReturnPage discount row', () => {
     expect(screen.queryByText(/Discount \(/)).not.toBeInTheDocument()
   })
 })
+
+describe('ProcessReturnPage cancelled receipt (#166)', () => {
+  it('shows Receipt Cancelled and no confirm-return button for a CANCELLED receipt', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () =>
+      ok(f.aReceipt({ status: 'CANCELLED', cancellation: f.aReceiptCancellation() }))))
+
+    await renderProcessReturn()
+
+    expect(await screen.findByText('Receipt Cancelled')).toBeInTheDocument()
+    expect(screen.getByText(/has been cancelled and cannot be returned/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirm & Complete Return/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Calculate Preview' })).not.toBeInTheDocument()
+  })
+})

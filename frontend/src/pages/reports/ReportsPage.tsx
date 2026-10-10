@@ -98,6 +98,19 @@ function DailyRevenueTab() {
             <Descriptions.Item label="Damage income">{formatCurrency(data.damageIncome)}</Descriptions.Item>
           </Descriptions>
 
+          {data.cancellationsCount > 0 && (
+            <>
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                Cancellations ({data.cancellationsCount} receipt{data.cancellationsCount !== 1 ? 's' : ''})
+              </Typography.Text>
+              <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+                <Descriptions.Item label="Refunded on cancellation">
+                  <span style={{ color: '#ff4d4f' }}>−{formatCurrency(data.cancellationRefunds)}</span>
+                </Descriptions.Item>
+              </Descriptions>
+            </>
+          )}
+
           <div style={{
             padding: '14px 20px',
             background: data.netFlow >= 0 ? '#f6ffed' : '#fff2f0',
@@ -258,6 +271,7 @@ function MonthlyRevenueTab() {
     'Rent': d.rentCollected,
     'Deposit In': d.depositsCollected,
     'Late Fee + Damage': d.lateFeeIncome + d.damageIncome,
+    'Cancellation Refunds': d.cancellationRefunds,
     'Total': d.netFlow,
   })) ?? []
 
@@ -342,6 +356,16 @@ function MonthlyRevenueTab() {
               </Card>
             </Col>
             <Col xs={12} sm={8} md={6}>
+              <Card size="small">
+                <Statistic
+                  title="Cancellation Refunds"
+                  value={data.totalCancellationRefunds}
+                  formatter={v => formatCurrency(v as number)}
+                  valueStyle={{ color: '#ff4d4f', fontSize: 18 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={6}>
               <Card size="small" style={{ borderColor: data.totalNetFlow >= 0 ? '#b7eb8f' : '#ffa39e' }}>
                 <Statistic
                   title="Net Cash Flow"
@@ -369,6 +393,7 @@ function MonthlyRevenueTab() {
                 <Bar dataKey="Rent" stackId="a" fill="#52c41a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="Deposit In" stackId="a" fill="#C2185B" />
                 <Bar dataKey="Late Fee + Damage" stackId="a" fill="#fa8c16" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Cancellation Refunds" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>

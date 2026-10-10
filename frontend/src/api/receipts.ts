@@ -1,6 +1,7 @@
 import client from './client'
 import type { ApiResponse } from '../types/api'
 import type {
+  CancelReceiptRequest,
   CheckoutPreview,
   CheckoutPreviewRequest,
   CheckoutRequest,
@@ -25,4 +26,7 @@ export const receiptsApi = {
 
   get: (id: string): Promise<Receipt> =>
     client.get<ApiResponse<Receipt>>(`/receipts/${id}`).then(r => r.data.data!),
+
+  cancel: (id: string, data: CancelReceiptRequest): Promise<Receipt> =>
+    client.post<ApiResponse<Receipt>>(`/receipts/${id}/cancel`, data).then(r => r.data.data!),
 }

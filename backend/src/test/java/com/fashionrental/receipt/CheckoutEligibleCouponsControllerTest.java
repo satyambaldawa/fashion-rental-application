@@ -39,6 +39,7 @@ class CheckoutEligibleCouponsControllerTest {
 
     @MockitoBean private CheckoutService checkoutService;
     @MockitoBean private ReceiptService receiptService;
+    @MockitoBean private ReceiptCancellationService receiptCancellationService;
 
     // Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest
     @MockitoBean private com.fashionrental.config.JwtConfig jwtConfig;

@@ -142,6 +142,25 @@ describe('CustomerDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'View Invoice' })).not.toBeInTheDocument()
   })
 
+  it('renders the CANCELLED tag for a cancelled receipt', async () => {
+    server.use(
+      http.get('*/api/customers/:id/history', () =>
+        HttpResponse.json({
+          success: true,
+          data: f.aCustomerDetail({
+            outstandingDeposit: 0,
+            receipts: [f.aCustomerReceipt({ status: 'CANCELLED', invoice: null })],
+          }),
+          error: null,
+        })),
+    )
+
+    renderPage()
+    await flush()
+
+    expect(await screen.findByText('CANCELLED')).toBeInTheDocument()
+  })
+
   it('renders items as a flat name times quantity list with no package sub-structure', async () => {
     server.use(
       http.get('*/api/customers/:id/history', () =>

@@ -3,7 +3,7 @@
 import type { CustomerSummary, Customer, CustomerDetail, CustomerReceipt } from '../types/customer'
 import type { ItemSummary, ItemDetail } from '../types/inventory'
 import type { GalleryImage } from '../types/gallery'
-import type { Receipt, ReceiptSummary, CheckoutPreview, EligibleCoupon, CartCustomer, CatalogueCartItem } from '../types/receipt'
+import type { Receipt, ReceiptSummary, ReceiptCancellation, CheckoutPreview, EligibleCoupon, CartCustomer, CatalogueCartItem } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
 import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
 import type { LateFeeRule } from '../types/config'
@@ -60,7 +60,12 @@ export const aReceipt: Partialize<Receipt> = (o = {}) => ({
     id: 'rli-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M',
     itemCategory: 'COSTUME', itemDescription: null, quantity: 1, rateSnapshot: 300,
     depositSnapshot: 1000, lineRent: 300, lineDeposit: 1000, itemPurchaseRate: 1500,
-  }], ...o,
+  }], cancellation: null, ...o,
+})
+
+export const aReceiptCancellation: Partialize<ReceiptCancellation> = (o = {}) => ({
+  cancelledAt: '2026-04-18T12:00:00+05:30', cancelledByUsername: 'owner',
+  reason: 'WRONG_ORDER', reasonDetail: null, ...o,
 })
 
 export const aReceiptSummary: Partialize<ReceiptSummary> = (o = {}) => ({
@@ -118,7 +123,7 @@ export const aReturnPreview: Partialize<ReturnPreview> = (o = {}) => ({
 export const aDailyRevenue: Partialize<DailyRevenue> = (o = {}) => ({
   date: '2026-04-19', rentCollected: 300, depositsCollected: 1000, depositsRefunded: 0,
   collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, totalDiscountsGiven: 0, netFlow: 1300,
-  newReceiptsCount: 1, returnsProcessedCount: 0, ...o,
+  newReceiptsCount: 1, returnsProcessedCount: 0, cancellationRefunds: 0, cancellationsCount: 0, ...o,
 })
 
 export const outstandingDeposits: Partialize<OutstandingDeposits> = (o = {}) => ({
@@ -135,10 +140,11 @@ export const overdueRentals: Partialize<OverdueRentals> = (o = {}) => ({
 export const aMonthlyRevenue: Partialize<MonthlyRevenue> = (o = {}) => ({
   year: 2026, month: 4, totalRentCollected: 300, totalDepositsCollected: 1000, totalDepositsRefunded: 0,
   totalCollectedFromCustomers: 0, totalLateFeeIncome: 0, totalDamageIncome: 0, totalDiscountsGiven: 0,
-  totalNetFlow: 1300,
+  totalNetFlow: 1300, totalCancellationRefunds: 0,
   dailyBreakdown: [{
     date: '2026-04-19', rentCollected: 300, depositsCollected: 1000, depositsRefunded: 0,
     collectedFromCustomers: 0, lateFeeIncome: 0, damageIncome: 0, totalDiscountsGiven: 0, netFlow: 1300,
+    cancellationRefunds: 0,
   }], ...o,
 })
 
