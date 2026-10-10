@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.config.AppUser;
 import com.fashionrental.customer.Customer;
 import jakarta.persistence.*;
 
@@ -34,7 +35,11 @@ public class Receipt {
     public static final String SUMMARY_ENTITY_GRAPH = "Receipt.summary";
 
     public enum Status {
-        GIVEN, RETURNED
+        GIVEN, RETURNED, CANCELLED
+    }
+
+    public enum CancellationReason {
+        WRONG_ORDER, CUSTOMER_DOES_NOT_WANT, CHANGE_ORDER_DATES, OTHER
     }
 
     @Id
@@ -88,6 +93,20 @@ public class Receipt {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "cancelled_at")
+    private OffsetDateTime cancelledAt;
+
+    @ManyToOne(fetch = LAZY)
+    @JoinColumn(name = "cancelled_by_user_id")
+    private AppUser cancelledBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_reason", length = 32)
+    private CancellationReason cancellationReason;
+
+    @Column(name = "cancellation_reason_detail", length = 500)
+    private String cancellationReasonDetail;
+
     @OneToMany(mappedBy = "receipt", cascade = ALL, fetch = LAZY, orphanRemoval = true)
     private List<ReceiptLineItem> lineItems = new ArrayList<>();
 
@@ -133,4 +152,21 @@ public class Receipt {
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public List<ReceiptLineItem> getLineItems() { return lineItems; }
     public void setLineItems(List<ReceiptLineItem> lineItems) { this.lineItems = lineItems; }
+
+    public OffsetDateTime getCancelledAt() { return cancelledAt; }
+    public AppUser getCancelledBy() { return cancelledBy; }
+    public CancellationReason getCancellationReason() { return cancellationReason; }
+    public String getCancellationReasonDetail() { return cancellationReasonDetail; }
+
+    /**
+     * The only way a receipt becomes CANCELLED — keeps the four audit fields from being
+     * set inconsistently (e.g. a status flip with no audit trail).
+     */
+    public void cancel(AppUser by, OffsetDateTime at, CancellationReason reason, String detail) {
+        this.status = Status.CANCELLED;
+        this.cancelledBy = by;
+        this.cancelledAt = at;
+        this.cancellationReason = reason;
+        this.cancellationReasonDetail = detail;
+    }
 }

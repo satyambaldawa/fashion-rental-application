@@ -129,6 +129,25 @@ class CustomerHistoryServiceTest {
     }
 
     @Test
+    void should_list_a_cancelled_receipt_and_exclude_it_from_outstanding_deposit() {
+        UUID customerId = UUID.randomUUID();
+        Customer customer = TestData.customer();
+        Receipt cancelled = TestData.receipt(customer, start, end, TestData.receiptLineItem(TestData.item("Sherwani", 300, 1000), 1));
+        cancelled.setStatus(Receipt.Status.CANCELLED);
+        Receipt given = TestData.receipt(customer, start, end, TestData.receiptLineItem(TestData.item("Lehenga", 200, 500), 1));
+        when(receiptRepository.findByCustomer_IdOrderByCreatedAtDesc(customerId))
+                .thenReturn(List.of(cancelled, given));
+        when(invoiceRepository.findByReceipt_IdIn(anyList())).thenReturn(List.of());
+
+        CustomerHistoryData result = customerHistoryService.getHistory(customerId);
+
+        CustomerReceiptResponse cancelledResponse = result.receipts().stream()
+                .filter(r -> r.status().equals("CANCELLED")).findFirst().orElseThrow();
+        assertThat(cancelledResponse).isNotNull();
+        assertThat(result.outstandingDeposit()).isEqualTo(500); // only the GIVEN sibling's deposit
+    }
+
+    @Test
     void should_include_individually_rented_items_with_real_pricing() {
         UUID customerId = UUID.randomUUID();
         Customer customer = TestData.customer();

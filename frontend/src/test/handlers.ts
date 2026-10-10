@@ -43,6 +43,8 @@ export const handlers = [
   http.get('*/api/receipts', () => ok([f.aReceiptSummary()])),
   http.post('*/api/receipts/:receiptId/return/preview', () => ok(f.aReturnPreview())),
   http.post('*/api/receipts/:receiptId/return', () => ok(f.anInvoice())),
+  http.post('*/api/receipts/:receiptId/cancel', () =>
+    ok(f.aReceipt({ status: 'CANCELLED', cancellation: f.aReceiptCancellation() }))),
   http.post('*/api/receipts', () => ok(f.aReceipt())),
 
   // invoices

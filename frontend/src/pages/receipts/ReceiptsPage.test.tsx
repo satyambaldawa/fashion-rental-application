@@ -9,11 +9,13 @@ import { flush, screen, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
+import { jwtWithRole } from '../../test/auth'
 import ReceiptsPage from './ReceiptsPage'
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
+const failure = () => HttpResponse.json({ success: false, data: null, error: 'boom' }, { status: 500 })
 
-beforeEach(() => useAuthStore.setState({ token: 'test-token', role: 'OWNER' }))
+beforeEach(() => useAuthStore.setState({ token: jwtWithRole('OWNER'), role: 'OWNER' }))
 
 function renderReceiptsPage(detailElement: React.ReactNode = <h1>Receipt detail stub</h1>) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
@@ -136,5 +138,52 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     await flush()
 
     expect(screen.getByRole('button', { name: /view/i })).toHaveStyle({ minHeight: '44px' })
+  })
+})
+
+function stubReceiptLists({ active = [f.aReceiptSummary()], cancelled = [] as unknown[] } = {}) {
+  server.use(http.get('*/api/receipts', ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')
+    return ok(status === 'CANCELLED' ? cancelled : active)
+  }))
+}
+
+async function renderAndOpenCancelledTab() {
+  renderReceiptsPage()
+  await flush()
+  await userEvent.setup().click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
+}
+
+describe('ReceiptsPage cancelled tab (#166)', () => {
+  it('lists recently cancelled receipts with a Cancelled tag and a View button', async () => {
+    stubReceiptLists({
+      cancelled: [f.aReceiptSummary({ id: 'rcpt-9', receiptNumber: 'R-2026-0009', status: 'CANCELLED' })],
+    })
+
+    await renderAndOpenCancelledTab()
+
+    const panel = within(screen.getByRole('tabpanel'))
+    expect(await panel.findByText('R-2026-0009')).toBeInTheDocument()
+    expect(panel.getByText('Cancelled')).toBeInTheDocument()
+    expect(panel.getByRole('button', { name: /view/i })).toBeInTheDocument()
+    expect(panel.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
+  })
+
+  it('shows an empty state when nothing was cancelled in the last 7 days', async () => {
+    stubReceiptLists({ cancelled: [] })
+
+    await renderAndOpenCancelledTab()
+
+    expect(await screen.findByText('No receipts cancelled in the last 7 days')).toBeInTheDocument()
+  })
+
+  it('shows an error instead of an empty list when the cancelled receipts fail to load', async () => {
+    server.use(http.get('*/api/receipts', ({ request }) =>
+      new URL(request.url).searchParams.get('status') === 'CANCELLED' ? failure() : ok([f.aReceiptSummary()])))
+
+    await renderAndOpenCancelledTab()
+
+    expect(await screen.findByText('Failed to load cancelled receipts. Please try again.')).toBeInTheDocument()
+    expect(screen.queryByText('No receipts cancelled in the last 7 days')).not.toBeInTheDocument()
   })
 })

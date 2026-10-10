@@ -13,5 +13,7 @@ public record DailyRevenueResponse(
         int totalDiscountsGiven,
         int netFlow,
         int newReceiptsCount,
-        int returnsProcessedCount
+        int returnsProcessedCount,
+        int cancellationRefunds,
+        int cancellationsCount
 ) {}

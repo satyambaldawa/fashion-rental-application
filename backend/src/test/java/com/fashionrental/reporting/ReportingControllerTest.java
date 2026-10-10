@@ -40,7 +40,7 @@ class ReportingControllerTest {
     @WithMockUser(roles = "OWNER")
     void should_use_explicit_date_when_provided() throws Exception {
         LocalDate date = LocalDate.of(2026, 4, 18);
-        DailyRevenueResponse response = new DailyRevenueResponse(date, 1000, 500, 0, 1500, 0, 0, 0, 1500, 2, 1);
+        DailyRevenueResponse response = new DailyRevenueResponse(date, 1000, 500, 0, 1500, 0, 0, 0, 1500, 2, 1, 0, 0);
         when(reportingService.getDailyRevenue(date)).thenReturn(response);
 
         mockMvc.perform(get("/api/reports/daily-revenue").param("date", "2026-04-18"))
@@ -54,7 +54,7 @@ class ReportingControllerTest {
     void should_default_to_today_when_no_date_provided() throws Exception {
         LocalDate today = LocalDate.now();
         when(reportingService.getDailyRevenue(today))
-                .thenReturn(new DailyRevenueResponse(today, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+                .thenReturn(new DailyRevenueResponse(today, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
         mockMvc.perform(get("/api/reports/daily-revenue"))
                 .andExpect(status().isOk())
@@ -92,7 +92,7 @@ class ReportingControllerTest {
     @WithMockUser(roles = "OWNER")
     void should_use_explicit_year_and_month_when_provided() throws Exception {
         when(reportingService.getMonthlyRevenue(2026, 3))
-                .thenReturn(new MonthlyRevenueResponse(2026, 3, 5000, 2000, 1000, 6000, 0, 0, 0, 6000, List.of()));
+                .thenReturn(new MonthlyRevenueResponse(2026, 3, 5000, 2000, 1000, 6000, 0, 0, 0, 6000, List.of(), 0));
 
         mockMvc.perform(get("/api/reports/monthly-revenue").param("year", "2026").param("month", "3"))
                 .andExpect(status().isOk())
@@ -105,7 +105,7 @@ class ReportingControllerTest {
     void should_default_to_current_year_and_month_when_not_provided() throws Exception {
         var now = java.time.YearMonth.now();
         when(reportingService.getMonthlyRevenue(now.getYear(), now.getMonthValue()))
-                .thenReturn(new MonthlyRevenueResponse(now.getYear(), now.getMonthValue(), 0, 0, 0, 0, 0, 0, 0, 0, List.of()));
+                .thenReturn(new MonthlyRevenueResponse(now.getYear(), now.getMonthValue(), 0, 0, 0, 0, 0, 0, 0, 0, List.of(), 0));
 
         mockMvc.perform(get("/api/reports/monthly-revenue"))
                 .andExpect(status().isOk())

@@ -1,6 +1,7 @@
 package com.fashionrental.receipt;
 
 import com.fashionrental.common.response.ApiResponse;
+import com.fashionrental.receipt.model.request.CancelReceiptRequest;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.request.EligibleCouponsRequest;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,10 +26,16 @@ public class ReceiptController {
 
     private final CheckoutService checkoutService;
     private final ReceiptService receiptService;
+    private final ReceiptCancellationService receiptCancellationService;
 
-    public ReceiptController(CheckoutService checkoutService, ReceiptService receiptService) {
+    public ReceiptController(
+            CheckoutService checkoutService,
+            ReceiptService receiptService,
+            ReceiptCancellationService receiptCancellationService
+    ) {
         this.checkoutService = checkoutService;
         this.receiptService = receiptService;
+        this.receiptCancellationService = receiptCancellationService;
     }
 
     @Operation(summary = "Preview checkout totals and availability before creating a receipt")
@@ -68,5 +76,14 @@ public class ReceiptController {
     @GetMapping("/api/receipts/{id}")
     public ResponseEntity<ApiResponse<ReceiptResponse>> getReceipt(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(receiptService.getReceipt(id)));
+    }
+
+    @Operation(summary = "Cancel a Given receipt more than 12 hours before its end (owner only); refunds the full amount collected")
+    @PostMapping("/api/receipts/{id}/cancel")
+    public ResponseEntity<ApiResponse<ReceiptResponse>> cancelReceipt(
+            @PathVariable UUID id, @Valid @RequestBody CancelReceiptRequest request, Principal principal
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                receiptCancellationService.cancelReceipt(id, request, principal.getName())));
     }
 }

@@ -36,6 +36,7 @@ class ReceiptControllerTest {
 
     @MockitoBean CheckoutService checkoutService;
     @MockitoBean ReceiptService receiptService;
+    @MockitoBean ReceiptCancellationService receiptCancellationService;
 
     // Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest
     @MockitoBean com.fashionrental.config.JwtConfig jwtConfig;
@@ -75,7 +76,8 @@ class ReceiptControllerTest {
                         "M", "COSTUME", null,
                         1, 200, 1000, 600, 1000, null
                 )),
-                OffsetDateTime.now()
+                OffsetDateTime.now(),
+                null
         );
     }
 

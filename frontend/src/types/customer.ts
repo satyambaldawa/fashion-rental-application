@@ -1,3 +1,5 @@
+import type { ReceiptStatus } from './receipt'
+
 export type CustomerType = 'STUDENT' | 'PROFESSIONAL' | 'MISC'
 
 export interface Customer {
@@ -53,7 +55,7 @@ export interface CustomerReceiptInvoice {
 export interface CustomerReceipt {
   id: string
   receiptNumber: string
-  status: 'GIVEN' | 'RETURNED'
+  status: ReceiptStatus
   startDatetime: string
   endDatetime: string
   totalRent: number

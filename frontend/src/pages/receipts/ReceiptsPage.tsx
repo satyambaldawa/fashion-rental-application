@@ -4,6 +4,7 @@ import { Badge, Button, ConfigProvider, Empty, Space, Tabs, Tag, Typography } fr
 import type { ThemeConfig } from 'antd'
 import { RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
+import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -26,6 +27,9 @@ const VIEW_BUTTON_THEME: ThemeConfig = {
     },
   },
 }
+
+// 44px minimum tap target for the Android tablet (#168).
+const CARD_ACTION_STYLE = { minHeight: 44, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }
 
 function formatOverdue(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min overdue`
@@ -54,6 +58,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <Space wrap>
             <Typography.Text strong>{receipt.receiptNumber}</Typography.Text>
+            {receipt.status === 'CANCELLED' && <Tag color="red">Cancelled</Tag>}
             {receipt.isOverdue && receipt.overdueHours !== null && (
               <Tag color="red">{formatOverdue(receipt.overdueHours)}</Tag>
             )}
@@ -103,16 +108,18 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
             <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
           </div>
           <div style={{ marginTop: 8 }}>
-            <ConfigProvider theme={VIEW_BUTTON_THEME}>
-              <Button
-                icon={<RightOutlined />}
-                iconPosition="end"
-                style={{ minHeight: 44, minWidth: 104, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }}
-                onClick={() => navigate(`/receipts/${receipt.id}`)}
-              >
-                View
-              </Button>
-            </ConfigProvider>
+            <Space wrap style={{ justifyContent: 'flex-end' }}>
+              <ConfigProvider theme={VIEW_BUTTON_THEME}>
+                <Button
+                  icon={<RightOutlined />}
+                  iconPosition="end"
+                  style={{ ...CARD_ACTION_STYLE, minWidth: 104 }}
+                  onClick={() => navigate(`/receipts/${receipt.id}`)}
+                >
+                  View
+                </Button>
+              </ConfigProvider>
+            </Space>
           </div>
         </div>
       </div>
@@ -121,14 +128,19 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
 }
 
 export default function ReceiptsPage() {
-  const { data: receipts = [], isLoading } = useQuery({
+  const { data: receipts = [], isLoading: isActiveLoading, isError: isActiveError } = useQuery({
     queryKey: ['receipts', 'active'],
     queryFn: () => receiptsApi.list({ status: 'GIVEN' }),
   })
 
+  const { data: cancelled = [], isLoading: isCancelledLoading, isError: isCancelledError } = useQuery({
+    queryKey: ['receipts', 'cancelled'],
+    queryFn: () => receiptsApi.list({ status: 'CANCELLED' }),
+  })
+
   const overdue = receipts.filter(r => r.isOverdue)
 
-  if (isLoading) {
+  if (isActiveLoading || isCancelledLoading) {
     return <Typography.Text>Loading...</Typography.Text>
   }
 
@@ -140,7 +152,9 @@ export default function ReceiptsPage() {
           <span style={{ paddingRight: 8 }}>All Active</span>
         </Badge>
       ),
-      children: receipts.length === 0
+      children: isActiveError
+        ? <ErrorMessage message="Failed to load active rentals. Please try again." />
+        : receipts.length === 0
         ? <Empty description="No active rentals" />
         : receipts.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
@@ -151,9 +165,24 @@ export default function ReceiptsPage() {
           <span style={{ paddingRight: 8 }}>Overdue</span>
         </Badge>
       ),
-      children: overdue.length === 0
+      children: isActiveError
+        ? <ErrorMessage message="Failed to load overdue rentals. Please try again." />
+        : overdue.length === 0
         ? <Empty description="No overdue rentals" />
         : overdue.map(r => <ReceiptCard key={r.id} receipt={r} />),
+    },
+    {
+      key: 'cancelled',
+      label: (
+        <Badge count={cancelled.length} size="small" color="red">
+          <span style={{ paddingRight: 8 }}>Cancelled (last 7 days)</span>
+        </Badge>
+      ),
+      children: isCancelledError
+        ? <ErrorMessage message="Failed to load cancelled receipts. Please try again." />
+        : cancelled.length === 0
+        ? <Empty description="No receipts cancelled in the last 7 days" />
+        : cancelled.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
   ]
 

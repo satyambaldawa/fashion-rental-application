@@ -84,6 +84,22 @@ export interface ReceiptLineItem {
   itemPurchaseRate: number | null  // null = no purchase cost recorded; disables damage-by-percentage
 }
 
+export type ReceiptStatus = 'GIVEN' | 'RETURNED' | 'CANCELLED'
+
+export type CancellationReason = 'WRONG_ORDER' | 'CUSTOMER_DOES_NOT_WANT' | 'CHANGE_ORDER_DATES' | 'OTHER'
+
+export interface ReceiptCancellation {
+  cancelledAt: string
+  cancelledByUsername: string | null
+  reason: CancellationReason
+  reasonDetail: string | null
+}
+
+export interface CancelReceiptRequest {
+  reason: CancellationReason
+  reasonDetail?: string | null
+}
+
 export interface Receipt {
   id: string
   receiptNumber: string
@@ -99,10 +115,11 @@ export interface Receipt {
   discountAmount: number
   totalDeposit: number
   grandTotal: number
-  status: 'GIVEN' | 'RETURNED'
+  status: ReceiptStatus
   notes: string | null
   lineItems: ReceiptLineItem[]
   createdAt: string
+  cancellation: ReceiptCancellation | null
 }
 
 export interface ReceiptSummary {
@@ -119,7 +136,7 @@ export interface ReceiptSummary {
   discountAmount: number
   totalDeposit: number
   grandTotal: number
-  status: 'GIVEN' | 'RETURNED'
+  status: ReceiptStatus
   isOverdue: boolean
   overdueHours: number | null
 }

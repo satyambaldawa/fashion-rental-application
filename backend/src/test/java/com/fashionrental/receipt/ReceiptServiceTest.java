@@ -4,12 +4,14 @@ import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.inventory.Item;
 import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
+import com.fashionrental.support.TestData;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -25,9 +27,15 @@ class ReceiptServiceTest {
     @Mock ReceiptRepository receiptRepository;
     @Mock DateTimeUtil dateTimeUtil;
 
-    @InjectMocks ReceiptService receiptService;
-
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-04-21T12:00:00+05:30");
+
+    private ReceiptService receiptService;
+
+    @BeforeEach
+    void setUp() {
+        Clock fixedClock = Clock.fixed(NOW.toInstant(), NOW.getOffset());
+        receiptService = new ReceiptService(receiptRepository, dateTimeUtil, new ReceiptMapper(), fixedClock);
+    }
 
     @Test
     void should_mark_receipt_as_overdue_when_past_end_datetime() {
@@ -81,6 +89,20 @@ class ReceiptServiceTest {
         List<ReceiptSummaryResponse> result = receiptService.listReceipts(null, null);
 
         assertThat(result.get(0).itemNames()).containsExactly("Blue Pagdi \u00d73");
+    }
+
+    @Test
+    void should_list_only_receipts_cancelled_within_the_last_7_days() {
+        Receipt recentlyCancelled = buildReceipt(NOW.plusDays(3), Receipt.Status.GIVEN, "Lehenga", 1);
+        recentlyCancelled.cancel(TestData.owner(), NOW.minusDays(1), Receipt.CancellationReason.WRONG_ORDER, null);
+
+        when(receiptRepository.findByStatusAndCancelledAtGreaterThanEqualOrderByEndDatetimeAsc(
+                Receipt.Status.CANCELLED, NOW.minusDays(7)))
+                .thenReturn(List.of(recentlyCancelled));
+
+        List<ReceiptSummaryResponse> result = receiptService.listReceipts(Receipt.Status.CANCELLED, null);
+
+        assertThat(result).extracting(ReceiptSummaryResponse::status).containsExactly("CANCELLED");
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
