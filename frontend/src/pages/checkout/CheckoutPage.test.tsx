@@ -8,7 +8,7 @@ import CheckoutPage from './CheckoutPage'
 import { useAuthStore } from '../../store/authStore'
 import { STORAGE_KEY as CART_STORAGE_KEY, SESSION_MARKER_KEY } from '../../hooks/useCart'
 import { jwtWithRole } from '../../test/auth'
-import type { Cart, CartItem, CatalogueCartItem, AdHocCartItem } from '../../types/receipt'
+import type { Cart, CartCustomer, CartItem, CatalogueCartItem, AdHocCartItem } from '../../types/receipt'
 
 function setAuth(role: 'OWNER' | 'EXECUTIVE') {
   useAuthStore.setState({ token: jwtWithRole(role), role })
@@ -41,6 +41,21 @@ function seedCart(items: CartItem[], overrides: Partial<Pick<Cart, 'rentalDays' 
     endDatetime: overrides.endDatetime ?? '2026-04-19T10:00:00+05:30',
     rentalDays: overrides.rentalDays ?? 1,
     items,
+  }
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
+}
+
+// A cart pinned to a customer carried over from a receipt via "Add items" (#165).
+function seedCustomerCart(
+  items: CartItem[], customer: CartCustomer,
+  overrides: Partial<Pick<Cart, 'rentalDays' | 'endDatetime'>> = {},
+) {
+  const cart: Cart = {
+    startDatetime: '2026-04-18T10:00:00+05:30',
+    endDatetime: overrides.endDatetime ?? '2026-04-19T10:00:00+05:30',
+    rentalDays: overrides.rentalDays ?? 1,
+    items,
+    customer,
   }
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
 }
@@ -758,5 +773,193 @@ describe('CheckoutPage eligible coupons', () => {
     await flush()
 
     expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+  })
+})
+
+describe('CheckoutPage customer carried over from a receipt (#165)', () => {
+  const pinnedCustomer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
+
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    sessionStorage.clear()
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  it('AC3/AC6: opens on browse with the banner, and requests items for the receipt\'s exact dates', async () => {
+    seedCustomerCart([], pinnedCustomer)
+    const captured: { params: URLSearchParams | null } = { params: null }
+    server.use(http.get('*/api/items', ({ request }) => {
+      captured.params = new URL(request.url).searchParams
+      return ok(page([f.anItemSummary({ id: 'item-1' })]))
+    }))
+
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+    expect(screen.getByText('Priya')).toBeInTheDocument()
+    expect(captured.params?.get('startDatetime')).toBe('2026-04-18T10:00:00+05:30')
+    expect(captured.params?.get('endDatetime')).toBe('2026-04-19T10:00:00+05:30')
+  })
+
+  it('AC6: the customer banner persists across browse, preview and confirm', async () => {
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    server.use(http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))))
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Confirm & Proceed' }))
+    await flush()
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+  })
+
+  it('AC7: a coupon can still be applied on preview, and the pinned customer survives the edit', async () => {
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
+      }))),
+    )
+
+    const user = userEvent.setup()
+    await goToPreview()
+
+    await user.type(screen.getByPlaceholderText('Have a coupon?'), 'SAVE20')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await flush()
+
+    expect(await screen.findByText('Discount (SAVE20)')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY)!).customer).toEqual(pinnedCustomer)
+  })
+
+  it('AC8/AC9/AC10: confirm has no customer search or New Customer button, Create Receipt is enabled, and posts the pinned customer id with the new items only', async () => {
+    seedCustomerCart([baseCartItem], pinnedCustomer, { rentalDays: 3, endDatetime: '2026-04-21T10:00:00+05:30' })
+    let capturedBody: unknown = null
+    let otherReceiptCallMade = false
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.put('*/api/receipts/:id', () => { otherReceiptCallMade = true; return ok(f.aReceipt()) }),
+      http.post('*/api/receipts/:receiptId/return', () => { otherReceiptCallMade = true; return ok(f.anInvoice()) }),
+      http.post('*/api/receipts', async ({ request }) => {
+        capturedBody = await request.json()
+        return ok(f.aReceipt({ id: 'rcpt-new' }))
+      }),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout', path: '/checkout' })
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+    await user.click(await screen.findByRole('button', { name: 'Confirm & Proceed' }))
+    await flush()
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New Customer' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create Receipt' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await flush()
+
+    expect(capturedBody).toMatchObject({
+      customerId: 'cust-9',
+      startDatetime: '2026-04-18T10:00:00+05:30',
+      endDatetime: '2026-04-21T10:00:00+05:30',
+      items: [{ itemId: 'item-1', quantity: 1 }],
+    })
+    expect(otherReceiptCallMade).toBe(false)
+    expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull()
+  })
+
+  it('AC12: the banner survives cancelling the ad-hoc modal, and a reload (remount)', async () => {
+    setAuth('OWNER')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    server.use(http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))))
+
+    const user = userEvent.setup()
+    const first = renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: /add custom product/i }))
+    await flush()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await flush()
+
+    expect(screen.getByText(/Adding items for/)).toBeInTheDocument()
+
+    first.unmount()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Checkout' })).toBeInTheDocument()
+  })
+
+  it('AC13: Delete Cart drops the pinned customer so the home screen shows a fresh start', async () => {
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    server.use(http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))))
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Cart' }))
+    await flush()
+
+    expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull()
+    expect(await screen.findByRole('button', { name: /Create New Cart/i })).toBeInTheDocument()
+    expect(screen.queryByText(/Adding items for/)).not.toBeInTheDocument()
+  })
+
+  it('AC14: a normal cart (no pinned customer) shows no banner on any screen and keeps the normal customer-search flow', async () => {
+    seedCart([baseCartItem])
+    server.use(http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))))
+
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />)
+    await flush()
+    expect(screen.queryByText(/Adding items for/)).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+    expect(screen.queryByText(/Adding items for/)).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Confirm & Proceed' }))
+    await flush()
+    expect(screen.queryByText(/Adding items for/)).not.toBeInTheDocument()
+    // AntD's AutoComplete renders its placeholder as a sibling span, not a native
+    // placeholder attribute, so this is matched by visible text rather than by role.
+    expect(screen.getByText('Search by phone or name...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Customer' })).toBeInTheDocument()
+  })
+
+  it('ignores a stale newCustomerId query param when a customer is already pinned by the cart', async () => {
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    let fetchedOtherCustomer = false
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.get('*/api/customers/cust-other', () => {
+        fetchedOtherCustomer = true
+        return ok(f.aCustomer({ id: 'cust-other' }))
+      }),
+    )
+
+    renderWithProviders(<CheckoutPage />, { route: '/checkout?newCustomerId=cust-other', path: '/checkout' })
+    await flush()
+
+    expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
+    expect(screen.getByText('Priya')).toBeInTheDocument()
+    expect(fetchedOtherCustomer).toBe(false)
   })
 })

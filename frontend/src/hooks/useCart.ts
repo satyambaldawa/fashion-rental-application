@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { AppliedCouponPreview, Cart, CartItem } from '../types/receipt'
+import type { AppliedCouponPreview, Cart, CartCustomer, CartItem, CustomerCartSeed } from '../types/receipt'
 
 export type { Cart, CartItem }
 
@@ -49,6 +49,12 @@ function loadCart(): LoadedCart {
     // coupon mutation racing a clearCart() (see applyCoupon/removeCoupon below).
     if (!Array.isArray(cart.items)) return { cart: null, droppedCouponCode: null }
 
+    // A malformed customer (e.g. {} from a corrupted write) must fall back to normal
+    // checkout rather than submitting a receipt with a bad customerId.
+    if (cart.customer && typeof cart.customer.id !== 'string') {
+      cart.customer = null
+    }
+
     if (cart.appliedCoupon && isNewBrowserSession) {
       return { cart: { ...cart, appliedCoupon: null }, droppedCouponCode: cart.appliedCoupon.couponCode }
     }
@@ -64,6 +70,28 @@ function saveCart(cart: Cart | null) {
   } else {
     localStorage.removeItem(STORAGE_KEY)
   }
+}
+
+// Plain functions (not hooks) for use outside CheckoutPage — e.g. ReceiptDetailPage's
+// "Add items" action. They must never mount useCart() itself: doing so would run the
+// effect that writes SESSION_MARKER_KEY, and if the tab is fresh, CheckoutPage's later
+// loadCart() would then wrongly see the marker and trust a stored coupon it should drop.
+
+/** Reads the persisted cart without marking this browser tab session as touched. */
+export function peekPersistedCart(): Cart | null {
+  return loadCart().cart
+}
+
+/** Starts a fresh cart pinned to a customer carried over from a receipt (#165). */
+export function startCustomerCart(seed: CustomerCartSeed): void {
+  saveCart({
+    startDatetime: seed.startDatetime,
+    endDatetime: seed.endDatetime,
+    rentalDays: seed.rentalDays,
+    items: [],
+    appliedCoupon: null,
+    customer: seed.customer,
+  })
 }
 
 export function useCart() {
@@ -83,8 +111,10 @@ export function useCart() {
     setCartState(next)
   }, [])
 
-  const createCart = useCallback((startDatetime: string, endDatetime: string, rentalDays: number) => {
-    setCart({ startDatetime, endDatetime, rentalDays, items: [] })
+  const createCart = useCallback((
+    startDatetime: string, endDatetime: string, rentalDays: number, customer?: CartCustomer,
+  ) => {
+    setCart({ startDatetime, endDatetime, rentalDays, items: [], customer: customer ?? null })
   }, [setCart])
 
   // Any cart mutation invalidates an applied coupon — the discount is a function of the

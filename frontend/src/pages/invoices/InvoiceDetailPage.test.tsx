@@ -51,3 +51,12 @@ describe('InvoiceDetailPage discount row', () => {
     expect(descriptionValue('Rent Charged')).toBe('₹300')
   })
 })
+
+describe('InvoiceDetailPage "Add items" (#165)', () => {
+  it('has no Add items button — the action only exists on the receipt it was created from', async () => {
+    await renderInvoice()
+
+    expect(await screen.findByText('Rent Charged')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add items' })).not.toBeInTheDocument()
+  })
+})

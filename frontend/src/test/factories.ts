@@ -3,7 +3,7 @@
 import type { CustomerSummary, Customer, CustomerDetail, CustomerReceipt } from '../types/customer'
 import type { ItemSummary, ItemDetail } from '../types/inventory'
 import type { GalleryImage } from '../types/gallery'
-import type { Receipt, ReceiptSummary, CheckoutPreview, EligibleCoupon } from '../types/receipt'
+import type { Receipt, ReceiptSummary, CheckoutPreview, EligibleCoupon, CartCustomer } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
 import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
 import type { LateFeeRule } from '../types/config'
@@ -78,6 +78,10 @@ export const aCheckoutPreview: Partialize<CheckoutPreview> = (o = {}) => ({
     itemId: 'item-1', itemName: 'Royal Sherwani', rate: 300, deposit: 1000, quantity: 1,
     rentalDays: 1, lineRent: 300, lineDeposit: 1000, availableQuantity: 3,
   }], ...o,
+})
+
+export const aCartCustomer: Partialize<CartCustomer> = (o = {}) => ({
+  id: 'cust-1', name: 'Meera', phone: '9811122233', ...o,
 })
 
 export const anEligibleCoupon: Partialize<EligibleCoupon> = (o = {}) => ({

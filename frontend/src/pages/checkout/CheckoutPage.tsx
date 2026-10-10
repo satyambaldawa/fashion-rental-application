@@ -53,6 +53,7 @@ import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
 import EligibleCouponList from './EligibleCouponList'
+import CustomerCartBanner from './CustomerCartBanner'
 import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 import { CATEGORY_OPTIONS } from '../../constants/categories'
@@ -98,6 +99,10 @@ export default function CheckoutPage() {
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
+  // Set only when this cart was started from "Add items" on a receipt (#165) — the
+  // customer is then fixed for the whole flow and customer selection is skipped.
+  const cartCustomer = cart?.customer ?? null
+
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
 
@@ -105,6 +110,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     const newCustomerId = searchParams.get('newCustomerId')
     if (newCustomerId) {
+      if (cartCustomer) {
+        // This flow cannot reach the register page itself, but a stale or manually edited
+        // URL must never override a customer the cart has already fixed.
+        setSearchParams({}, { replace: true })
+        return
+      }
       customersApi.get(newCustomerId).then(customer => {
         setSelectedCustomer({
           id: customer.id,
@@ -119,7 +130,7 @@ export default function CheckoutPage() {
       }).catch(() => {})
       setSearchParams({}, { replace: true })
     }
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, cartCustomer])
 
   // Create cart modal
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -331,6 +342,7 @@ export default function CheckoutPage() {
 
   function handleDeleteCart() {
     clearCart()
+    setSelectedCustomer(null)
     setScreen('home')
   }
 
@@ -409,9 +421,10 @@ export default function CheckoutPage() {
   // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
   // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
   function handleConfirmReceipt() {
-    if (!selectedCustomer) return
+    const customerId = cartCustomer?.id ?? selectedCustomer?.id
+    if (!customerId) return
     setConflictError(null)
-    createMutation.mutate(buildRequest(selectedCustomer.id))
+    createMutation.mutate(buildRequest(customerId))
   }
 
   // --- Render helpers ---
@@ -477,6 +490,8 @@ export default function CheckoutPage() {
             </Space>
           }
         />
+
+        {cartCustomer && <CustomerCartBanner customer={cartCustomer} />}
 
         {/* Filters */}
         <div style={{ marginBottom: 16 }}>
@@ -864,6 +879,8 @@ export default function CheckoutPage() {
       <div style={{ maxWidth: 920, width: '100%' }}>
         <PageHeader label="New Rental" title="Order" accent="Preview" />
 
+        {cartCustomer && <CustomerCartBanner customer={cartCustomer} />}
+
         <Descriptions size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Start">{dayjs(cart!.startDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
           <Descriptions.Item label="End">{dayjs(cart!.endDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
@@ -970,24 +987,42 @@ export default function CheckoutPage() {
 
     return (
       <div style={{ maxWidth: 560 }}>
-        <PageHeader label="New Rental" title="Select" accent="Customer" />
+        {cartCustomer ? (
+          <PageHeader label="New Rental" title="Confirm" accent="Rental" />
+        ) : (
+          <PageHeader label="New Rental" title="Select" accent="Customer" />
+        )}
 
-        <Typography.Paragraph type="secondary">
-          Search by phone number or name. If the customer is new, register them first.
-        </Typography.Paragraph>
+        {cartCustomer ? (
+          <>
+            <CustomerCartBanner customer={cartCustomer} />
+            <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="Name">{cartCustomer.name}</Descriptions.Item>
+                <Descriptions.Item label="Phone">{cartCustomer.phone}</Descriptions.Item>
+              </Descriptions>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Typography.Paragraph type="secondary">
+              Search by phone number or name. If the customer is new, register them first.
+            </Typography.Paragraph>
 
-        <CustomerSearch onSelect={setSelectedCustomer} placeholder="Search by phone or name..." />
+            <CustomerSearch onSelect={setSelectedCustomer} placeholder="Search by phone or name..." />
 
-        {selectedCustomer && (
-          <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="Name">{selectedCustomer.name}</Descriptions.Item>
-              <Descriptions.Item label="Phone">{selectedCustomer.phone}</Descriptions.Item>
-              {selectedCustomer.organizationName && (
-                <Descriptions.Item label="Organisation">{selectedCustomer.organizationName}</Descriptions.Item>
-              )}
-            </Descriptions>
-          </Card>
+            {selectedCustomer && (
+              <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Name">{selectedCustomer.name}</Descriptions.Item>
+                  <Descriptions.Item label="Phone">{selectedCustomer.phone}</Descriptions.Item>
+                  {selectedCustomer.organizationName && (
+                    <Descriptions.Item label="Organisation">{selectedCustomer.organizationName}</Descriptions.Item>
+                  )}
+                </Descriptions>
+              </Card>
+            )}
+          </>
         )}
 
         <Divider />
@@ -1012,10 +1047,12 @@ export default function CheckoutPage() {
 
         <Space>
           <Button onClick={() => setScreen('preview')}>Back</Button>
-          <Button onClick={() => navigate('/customers/register?returnTo=checkout')}>New Customer</Button>
+          {!cartCustomer && (
+            <Button onClick={() => navigate('/customers/register?returnTo=checkout')}>New Customer</Button>
+          )}
           <Button
             type="primary"
-            disabled={!selectedCustomer}
+            disabled={!(cartCustomer ?? selectedCustomer)}
             loading={createMutation.isPending}
             onClick={handleConfirmReceipt}
           >

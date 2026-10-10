@@ -162,10 +162,27 @@ export interface AppliedCouponPreview {
   grandTotal: number
 }
 
+// Customer fixed for a cart started from "Add items" on a receipt (#165). Absent/null = normal checkout.
+export interface CartCustomer {
+  id: string
+  name: string
+  phone: string
+}
+
 export interface Cart {
   startDatetime: string   // ISO 8601 with IST offset
   endDatetime: string     // ISO 8601 with IST offset
   rentalDays: number
   items: CartItem[]
   appliedCoupon?: AppliedCouponPreview | null
+  customer?: CartCustomer | null
+}
+
+// What ReceiptDetailPage's "Add items" seeds a fresh cart from — the source receipt's
+// exact dates and customer, with no items, coupon or notes carried over.
+export interface CustomerCartSeed {
+  customer: CartCustomer
+  startDatetime: string
+  endDatetime: string
+  rentalDays: number
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { useCart, STORAGE_KEY, LEGACY_STORAGE_KEY } from './useCart'
-import type { AppliedCouponPreview, CatalogueCartItem, AdHocCartItem } from '../types/receipt'
+import { useCart, STORAGE_KEY, LEGACY_STORAGE_KEY, SESSION_MARKER_KEY, peekPersistedCart, startCustomerCart } from './useCart'
+import type { AppliedCouponPreview, CartCustomer, CatalogueCartItem, AdHocCartItem } from '../types/receipt'
 
 const aCouponPreview = (overrides: Partial<AppliedCouponPreview> = {}): AppliedCouponPreview => ({
   couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240, ...overrides,
@@ -178,6 +178,71 @@ describe('useCart', () => {
       act(() => result.current.removeCoupon())
       expect(result.current.cart).toBeNull()
       expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    })
+  })
+
+  describe('customer carried over from a receipt (#165)', () => {
+    const customer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
+
+    it('persists the customer through createCart and every mutator, until clearCart drops it', () => {
+      const { result } = renderHook(() => useCart())
+      act(() => result.current.createCart('s', 'e', 1, customer))
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.addItem(aCatalogueItem()))
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.updateQuantity('i1', 3))
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.applyCoupon(aCouponPreview()))
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.removeCoupon())
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.removeItem('i1'))
+      expect(result.current.cart?.customer).toEqual(customer)
+
+      act(() => result.current.clearCart())
+      expect(result.current.cart).toBeNull()
+    })
+
+    it('createCart without a customer stores null, so existing callers are unaffected', () => {
+      const { result } = renderHook(() => useCart())
+      act(() => result.current.createCart('s', 'e', 1))
+      expect(result.current.cart?.customer).toBeNull()
+    })
+
+    it('loads an old-format cart with no customer field as undefined, leaving existing behaviour unchanged', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [] }))
+
+      const { result } = renderHook(() => useCart())
+
+      expect(result.current.cart?.customer).toBeUndefined()
+      expect(result.current.cart?.items).toEqual([])
+    })
+
+    it('falls back to null when a malformed customer is found in storage', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [], customer: {},
+      }))
+
+      const { result } = renderHook(() => useCart())
+
+      expect(result.current.cart?.customer).toBeNull()
+    })
+
+    it('peekPersistedCart reads without marking the session, and startCustomerCart writes the expected shape', () => {
+      expect(peekPersistedCart()).toBeNull()
+      expect(sessionStorage.getItem(SESSION_MARKER_KEY)).toBeNull()
+
+      startCustomerCart({ customer, startDatetime: 's', endDatetime: 'e', rentalDays: 2 })
+
+      expect(sessionStorage.getItem(SESSION_MARKER_KEY)).toBeNull()
+      expect(peekPersistedCart()).toEqual({
+        startDatetime: 's', endDatetime: 'e', rentalDays: 2, items: [], appliedCoupon: null, customer,
+      })
     })
   })
 })

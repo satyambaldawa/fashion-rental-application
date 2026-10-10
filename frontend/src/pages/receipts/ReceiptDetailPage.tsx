@@ -4,19 +4,22 @@ import {
   Button,
   Descriptions,
   Divider,
+  message,
+  Modal,
   Space,
   Spin,
   Table,
   Tag,
   Typography,
 } from 'antd'
-import { ArrowLeftOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
-import type { ReceiptLineItem } from '../../types/receipt'
+import type { Receipt, ReceiptLineItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
+import { peekPersistedCart, startCustomerCart } from '../../hooks/useCart'
 
 const PRINT_STYLES = `
 @media print {
@@ -62,6 +65,11 @@ function formatCategory(cat: string | null): string {
   return cat.charAt(0) + cat.slice(1).toLowerCase()
 }
 
+// Exported so it can be unit-tested with fake timers independently of the component render.
+export function canAddItems(receipt: Receipt): boolean {
+  return receipt.status === 'GIVEN' && dayjs(receipt.endDatetime).isAfter(dayjs())
+}
+
 export default function ReceiptDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -89,6 +97,38 @@ export default function ReceiptDetailPage() {
         </Button>
       </div>
     )
+  }
+
+  const handleAddItems = () => {
+    if (!canAddItems(receipt)) {
+      message.warning('This rental is now overdue — items can no longer be added.')
+      return
+    }
+
+    const seed = {
+      customer: { id: receipt.customerId, name: receipt.customerName, phone: receipt.customerPhone },
+      startDatetime: receipt.startDatetime,
+      endDatetime: receipt.endDatetime,
+      rentalDays: receipt.rentalDays,
+    }
+
+    const go = () => {
+      startCustomerCart(seed)
+      navigate('/checkout')
+    }
+
+    const existing = peekPersistedCart()
+    if (existing && existing.items.length > 0) {
+      Modal.confirm({
+        title: 'Discard the cart in progress?',
+        content: `A cart with ${existing.items.length} item(s) is in progress. Starting a new cart for ${receipt.customerName} will discard it.`,
+        okText: 'Discard and continue',
+        okButtonProps: { danger: true },
+        onOk: go,
+      })
+      return
+    }
+    go()
   }
 
   const lineItemColumns = [
@@ -200,6 +240,11 @@ export default function ReceiptDetailPage() {
             >
               Send on WhatsApp
             </Button>
+            {canAddItems(receipt) && (
+              <Button size="large" icon={<PlusOutlined />} onClick={handleAddItems}>
+                Add items
+              </Button>
+            )}
             {receipt.status === 'GIVEN' && (
               <Button size="large" type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>
                 Process Return
