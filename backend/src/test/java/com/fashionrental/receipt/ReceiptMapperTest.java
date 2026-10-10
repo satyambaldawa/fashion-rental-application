@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.config.AppUser;
 import com.fashionrental.configuration.Coupon;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.inventory.Item;
@@ -98,6 +99,56 @@ class ReceiptMapperTest {
 
         assertThat(componentResponse.itemId()).isEqualTo(componentItem.getId());
         assertThat(componentResponse.thumbnailUrl()).isEqualTo("https://r2.example/component-thumb.jpg");
+    }
+
+    @Test
+    void toReceiptResponse_maps_the_cancellation_block_for_a_cancelled_receipt() {
+        Item item = TestData.item("Sherwani", 300, 1000);
+        Customer customer = TestData.customer("Asha", "9812345678");
+        ReceiptLineItem lineItem = TestData.receiptLineItem(item, 1);
+        OffsetDateTime start = OffsetDateTime.parse("2026-04-10T10:00:00+05:30");
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-11T10:00:00+05:30");
+        Receipt receipt = TestData.receipt(customer, start, end, lineItem);
+
+        AppUser owner = new AppUser();
+        owner.setUsername("owner");
+        OffsetDateTime cancelledAt = OffsetDateTime.parse("2026-04-10T12:00:00+05:30");
+        receipt.cancel(owner, cancelledAt, Receipt.CancellationReason.OTHER, "customer changed plans");
+
+        ReceiptResponse response = mapper.toReceiptResponse(receipt);
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+        assertThat(response.cancellation()).isNotNull();
+        assertThat(response.cancellation().cancelledAt()).isEqualTo(cancelledAt);
+        assertThat(response.cancellation().cancelledByUsername()).isEqualTo("owner");
+        assertThat(response.cancellation().reason()).isEqualTo("OTHER");
+        assertThat(response.cancellation().reasonDetail()).isEqualTo("customer changed plans");
+    }
+
+    @Test
+    void toReceiptResponse_leaves_cancellation_null_for_a_given_receipt() {
+        ReceiptResponse response = mapReceiptWith(TestData.item("Sherwani", 300, 1000));
+
+        assertThat(response.cancellation()).isNull();
+    }
+
+    @Test
+    void toPublicReceiptResponse_keeps_status_cancelled_but_nulls_the_cancellation_block() {
+        Item item = TestData.item("Sherwani", 300, 1000);
+        Customer customer = TestData.customer("Asha", "9812345678");
+        ReceiptLineItem lineItem = TestData.receiptLineItem(item, 1);
+        OffsetDateTime start = OffsetDateTime.parse("2026-04-10T10:00:00+05:30");
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-11T10:00:00+05:30");
+        Receipt receipt = TestData.receipt(customer, start, end, lineItem);
+
+        AppUser owner = new AppUser();
+        owner.setUsername("owner");
+        receipt.cancel(owner, OffsetDateTime.now(), Receipt.CancellationReason.WRONG_ORDER, null);
+
+        ReceiptResponse response = mapper.toPublicReceiptResponse(receipt);
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+        assertThat(response.cancellation()).isNull();
     }
 
     private ReceiptResponse mapReceiptWith(Item item) {

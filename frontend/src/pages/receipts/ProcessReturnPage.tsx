@@ -87,6 +87,15 @@ export default function ProcessReturnPage() {
       </div>
     )
   }
+  if (receipt.status === 'CANCELLED') {
+    return (
+      <div>
+        <Typography.Title level={4}>Receipt Cancelled</Typography.Title>
+        <Alert type="warning" message={`${receipt.receiptNumber} has been cancelled and cannot be returned.`} style={{ marginBottom: 16 }} />
+        <Button onClick={() => navigate('/receipts')}>Back to Active Rentals</Button>
+      </div>
+    )
+  }
 
   function buildRequest(): ProcessReturnRequest {
     const lineItems: ReturnLineItemRequest[] = receipt!.lineItems.map(li => {

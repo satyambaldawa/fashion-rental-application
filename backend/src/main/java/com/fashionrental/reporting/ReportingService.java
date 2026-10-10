@@ -67,16 +67,23 @@ public class ReportingService {
         int lateFeeIncome  = invoicesSettled.stream().mapToInt(Invoice::getTotalLateFee).sum();
         int damageIncome   = invoicesSettled.stream().mapToInt(Invoice::getTotalDamageCost).sum();
 
+        List<Receipt> receiptsCancelled = receiptRepository.findByCancelledAtBetweenOrderByCancelledAtAsc(dayStart, dayEnd);
+        // grand_total is rent net of discount plus deposit, enforced by receipts_grand_total_check,
+        // so it is exactly the full amount collected from the customer at checkout time.
+        int cancellationRefunds = receiptsCancelled.stream().mapToInt(Receipt::getGrandTotal).sum();
+
         // rentCollected stays gross so the label stays truthful; discountsGiven is netted
         // out separately so netFlow reflects cash actually received.
-        int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers - depositsRefunded;
+        int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers
+                - depositsRefunded - cancellationRefunds;
 
         return new DailyRevenueResponse(
                 date,
                 rentCollected, depositsCollected, depositsRefunded,
                 collectedFromCustomers, lateFeeIncome, damageIncome,
                 discountsGiven, netFlow,
-                receiptsCreated.size(), invoicesSettled.size()
+                receiptsCreated.size(), invoicesSettled.size(),
+                cancellationRefunds, receiptsCancelled.size()
         );
     }
 
@@ -107,12 +114,15 @@ public class ReportingService {
 
         List<Receipt> receipts = receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(monthStart, monthEnd);
         List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(monthStart, monthEnd);
+        List<Receipt> cancellations = receiptRepository.findByCancelledAtBetweenOrderByCancelledAtAsc(monthStart, monthEnd);
 
         // Group by day (in IST)
         Map<LocalDate, List<Receipt>> receiptsByDay = receipts.stream()
                 .collect(Collectors.groupingBy(r -> r.getCreatedAt().atZoneSameInstant(IST).toLocalDate()));
         Map<LocalDate, List<Invoice>> invoicesByDay = invoices.stream()
                 .collect(Collectors.groupingBy(i -> i.getCreatedAt().atZoneSameInstant(IST).toLocalDate()));
+        Map<LocalDate, List<Receipt>> cancellationsByDay = cancellations.stream()
+                .collect(Collectors.groupingBy(r -> r.getCancelledAt().atZoneSameInstant(IST).toLocalDate()));
 
         // Build one entry per calendar day in the month (zeros for days with no activity)
         List<DailyRevenueSummary> dailyBreakdown = new ArrayList<>();
@@ -120,6 +130,7 @@ public class ReportingService {
             LocalDate date = yearMonth.atDay(day);
             List<Receipt> dayReceipts = receiptsByDay.getOrDefault(date, List.of());
             List<Invoice> dayInvoices = invoicesByDay.getOrDefault(date, List.of());
+            List<Receipt> dayCancellations = cancellationsByDay.getOrDefault(date, List.of());
 
             int rentCollected     = dayReceipts.stream().mapToInt(Receipt::getTotalRent).sum();
             int depositsCollected = dayReceipts.stream().mapToInt(Receipt::getTotalDeposit).sum();
@@ -132,12 +143,15 @@ public class ReportingService {
                     .mapToInt(Invoice::getFinalAmount).sum();
             int lateFeeIncome = dayInvoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
             int damageIncome  = dayInvoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
-            int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers - depositsRefunded;
+            int cancellationRefunds = dayCancellations.stream().mapToInt(Receipt::getGrandTotal).sum();
+            int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers
+                    - depositsRefunded - cancellationRefunds;
 
             dailyBreakdown.add(new DailyRevenueSummary(
                     date, rentCollected, depositsCollected,
                     depositsRefunded, collectedFromCustomers,
-                    lateFeeIncome, damageIncome, discountsGiven, netFlow
+                    lateFeeIncome, damageIncome, discountsGiven, netFlow,
+                    cancellationRefunds
             ));
         }
 
@@ -153,14 +167,16 @@ public class ReportingService {
                 .mapToInt(Invoice::getFinalAmount).sum();
         int totalLateFeeIncome = invoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
         int totalDamageIncome  = invoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
+        int totalCancellationRefunds = cancellations.stream().mapToInt(Receipt::getGrandTotal).sum();
         int totalNetFlow = totalRentCollected - totalDiscountsGiven + totalDepositsCollected
-                + totalCollectedFromCustomers - totalDepositsRefunded;
+                + totalCollectedFromCustomers - totalDepositsRefunded - totalCancellationRefunds;
 
         return new MonthlyRevenueResponse(
                 year, month,
                 totalRentCollected, totalDepositsCollected, totalDepositsRefunded,
                 totalCollectedFromCustomers, totalLateFeeIncome, totalDamageIncome,
-                totalDiscountsGiven, totalNetFlow, dailyBreakdown
+                totalDiscountsGiven, totalNetFlow, dailyBreakdown,
+                totalCancellationRefunds
         );
     }
 

@@ -98,6 +98,19 @@ function DailyRevenueTab() {
             <Descriptions.Item label="Damage income">{formatCurrency(data.damageIncome)}</Descriptions.Item>
           </Descriptions>
 
+          {data.cancellationsCount > 0 && (
+            <>
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                Cancellations ({data.cancellationsCount} receipt{data.cancellationsCount !== 1 ? 's' : ''})
+              </Typography.Text>
+              <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+                <Descriptions.Item label="Refunded on cancellation">
+                  <span style={{ color: '#ff4d4f' }}>−{formatCurrency(data.cancellationRefunds)}</span>
+                </Descriptions.Item>
+              </Descriptions>
+            </>
+          )}
+
           <div style={{
             padding: '14px 20px',
             background: data.netFlow >= 0 ? '#f6ffed' : '#fff2f0',
@@ -338,6 +351,16 @@ function MonthlyRevenueTab() {
                   value={data.totalDiscountsGiven}
                   formatter={v => formatCurrency(v as number)}
                   valueStyle={{ color: '#52c41a', fontSize: 18 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <Card size="small">
+                <Statistic
+                  title="Cancellation Refunds"
+                  value={data.totalCancellationRefunds}
+                  formatter={v => formatCurrency(v as number)}
+                  valueStyle={{ color: '#ff4d4f', fontSize: 18 }}
                 />
               </Card>
             </Col>

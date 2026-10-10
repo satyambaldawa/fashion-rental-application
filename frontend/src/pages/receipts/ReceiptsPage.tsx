@@ -32,6 +32,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
         <div style={{ flex: 1 }}>
           <Space wrap>
             <Typography.Text strong>{receipt.receiptNumber}</Typography.Text>
+            {receipt.status === 'CANCELLED' && <Tag color="red">Cancelled</Tag>}
             {receipt.isOverdue && receipt.overdueHours !== null && (
               <Tag color="red">{formatOverdue(receipt.overdueHours)}</Tag>
             )}
@@ -73,7 +74,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
           )}
           <div style={{ marginTop: 8 }}>
             <Button size="small" onClick={() => navigate(`/receipts/${receipt.id}`)}>
-              Process Return
+              {receipt.status === 'GIVEN' ? 'Process Return' : 'View'}
             </Button>
           </div>
         </div>
@@ -86,6 +87,11 @@ export default function ReceiptsPage() {
   const { data: receipts = [], isLoading } = useQuery({
     queryKey: ['receipts', 'active'],
     queryFn: () => receiptsApi.list({ status: 'GIVEN' }),
+  })
+
+  const { data: cancelled = [] } = useQuery({
+    queryKey: ['receipts', 'cancelled'],
+    queryFn: () => receiptsApi.list({ status: 'CANCELLED' }),
   })
 
   const overdue = receipts.filter(r => r.isOverdue)
@@ -116,6 +122,17 @@ export default function ReceiptsPage() {
       children: overdue.length === 0
         ? <Empty description="No overdue rentals" />
         : overdue.map(r => <ReceiptCard key={r.id} receipt={r} />),
+    },
+    {
+      key: 'cancelled',
+      label: (
+        <Badge count={cancelled.length} size="small" color="red">
+          <span style={{ paddingRight: 8 }}>Cancelled</span>
+        </Badge>
+      ),
+      children: cancelled.length === 0
+        ? <Empty description="No cancelled receipts" />
+        : cancelled.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
   ]
 

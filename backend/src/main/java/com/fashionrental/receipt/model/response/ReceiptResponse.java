@@ -22,5 +22,6 @@ public record ReceiptResponse(
         String status,
         String notes,
         List<ReceiptLineItemResponse> lineItems,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        ReceiptCancellationResponse cancellation
 ) {}

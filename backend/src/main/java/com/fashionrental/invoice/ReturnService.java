@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,7 +54,7 @@ public class ReturnService {
 
     @Transactional(readOnly = true)
     public ReturnPreviewResponse previewReturn(UUID receiptId, ProcessReturnRequest request) {
-        Receipt receipt = loadActiveReceipt(receiptId);
+        Receipt receipt = loadReturnableReceipt(receiptRepository.findById(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
         Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);
 
@@ -83,7 +84,9 @@ public class ReturnService {
 
     @Transactional
     public InvoiceResponse processReturn(UUID receiptId, ProcessReturnRequest request) {
-        Receipt receipt = loadActiveReceipt(receiptId);
+        // Locked so a concurrent cancel can't commit CANCELLED while this transaction is
+        // mid-flight building an invoice for the same receipt (plan §4, "Concurrency").
+        Receipt receipt = loadReturnableReceipt(receiptRepository.findByIdForUpdate(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
         Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);
 
@@ -164,11 +167,13 @@ public class ReturnService {
 
     // ── helpers ─────────────────────────────────────────────────────────────────
 
-    private Receipt loadActiveReceipt(UUID receiptId) {
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+    private Receipt loadReturnableReceipt(Optional<Receipt> found, UUID receiptId) {
+        Receipt receipt = found.orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
         if (receipt.getStatus() == Receipt.Status.RETURNED) {
             throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has already been returned");
+        }
+        if (receipt.getStatus() == Receipt.Status.CANCELLED) {
+            throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has been cancelled and cannot be returned");
         }
         return receipt;
     }

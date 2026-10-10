@@ -10,6 +10,8 @@ export interface DailyRevenue {
   netFlow: number
   newReceiptsCount: number
   returnsProcessedCount: number
+  cancellationRefunds: number
+  cancellationsCount: number
 }
 
 export interface OutstandingDepositItem {
@@ -53,6 +55,7 @@ export interface DailyRevenueSummary {
   damageIncome: number
   totalDiscountsGiven: number
   netFlow: number
+  cancellationRefunds: number
 }
 
 export interface MonthlyRevenue {
@@ -67,6 +70,7 @@ export interface MonthlyRevenue {
   totalDiscountsGiven: number
   totalNetFlow: number
   dailyBreakdown: DailyRevenueSummary[]
+  totalCancellationRefunds: number
 }
 
 export interface CouponDiscountSummary {

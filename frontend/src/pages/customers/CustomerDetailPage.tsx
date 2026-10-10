@@ -22,6 +22,7 @@ const CUSTOMER_TYPE_COLORS: Record<CustomerType, string> = {
 const RECEIPT_STATUS_COLORS: Record<CustomerReceipt['status'], string> = {
   GIVEN: 'orange',
   RETURNED: 'green',
+  CANCELLED: 'red',
 }
 
 function formatDatetime(value: string): string {

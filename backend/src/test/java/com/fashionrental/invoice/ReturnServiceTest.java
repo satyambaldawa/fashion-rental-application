@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -113,7 +114,7 @@ class ReturnServiceTest {
     })
     void processReturn_computes_deposit_settlement(int lateFee, int damage, int deposit,
                                                    int expectedFinal, String expectedType) {
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0001");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -131,7 +132,7 @@ class ReturnServiceTest {
 
     @Test
     void processReturn_marks_receipt_returned_and_persists_invoice() {
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0002");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -151,7 +152,7 @@ class ReturnServiceTest {
     void processReturn_threads_the_receipts_coupon_onto_the_invoice_response() {
         receipt.setCouponCode("SAVE20");
         receipt.setDiscountAmount(60);
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0003");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -168,7 +169,7 @@ class ReturnServiceTest {
 
     @Test
     void processReturn_reports_a_null_coupon_code_and_zero_discount_when_none_was_applied() {
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0004");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -184,7 +185,7 @@ class ReturnServiceTest {
     @ParameterizedTest
     @CsvSource({"UPI,UPI", "OTHER,OTHER", "CASH,CASH", "garbage,CASH"})
     void processReturn_parses_payment_method_and_falls_back_to_cash(String input, String expected) {
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0003");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -211,13 +212,51 @@ class ReturnServiceTest {
     }
 
     @Test
+    void processReturn_locks_the_receipt_row_for_update_rather_than_reading_it_plainly() {
+        // The lock closes the cancel-vs-return race (see ReceiptRepository.findByIdForUpdate);
+        // a regression back to a plain findById would silently reopen that race.
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0099");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        returnService.processReturn(receipt.getId(), returnRequest(false));
+
+        verify(receiptRepository).findByIdForUpdate(receipt.getId());
+        verify(receiptRepository, never()).findById(any());
+    }
+
+    @Test
     void processReturn_rejects_already_returned_receipt() {
         receipt.setStatus(Receipt.Status.RETURNED);
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
 
         assertThatThrownBy(() -> returnService.processReturn(receipt.getId(), returnRequest(false)))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("already been returned");
+    }
+
+    @Test
+    void processReturn_rejects_cancelled_receipt() {
+        receipt.setStatus(Receipt.Status.CANCELLED);
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> returnService.processReturn(receipt.getId(), returnRequest(false)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has been cancelled");
+
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    @Test
+    void previewReturn_rejects_cancelled_receipt() {
+        receipt.setStatus(Receipt.Status.CANCELLED);
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> returnService.previewReturn(receipt.getId(), returnRequest(false)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has been cancelled");
     }
 
     @Test
@@ -257,7 +296,7 @@ class ReturnServiceTest {
         photo.setThumbnailUrl("https://r2.example/thumb-0.jpg");
         photo.setSortOrder(0);
         item.getPhotos().add(photo);
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0005");
         when(shareTokenService.generate()).thenReturn("share-token");
@@ -271,7 +310,7 @@ class ReturnServiceTest {
 
     @Test
     void processReturn_returns_null_thumbnail_when_item_has_no_photos() {
-        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
         when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0006");
         when(shareTokenService.generate()).thenReturn("share-token");

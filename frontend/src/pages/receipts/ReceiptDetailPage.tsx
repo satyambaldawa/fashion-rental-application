@@ -1,6 +1,8 @@
+import type { CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Alert,
   Button,
   Descriptions,
   Divider,
@@ -15,11 +17,14 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
-import type { Receipt, ReceiptLineItem } from '../../types/receipt'
+import type { Receipt, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
 import { peekPersistedCart, startCustomerCart } from '../../hooks/useCart'
+import { useAuth } from '../../hooks/useAuth'
+import { CANCELLATION_REASON_LABELS, isReceiptCancellable } from '../../utils/receiptCancellation'
+import CancelReceiptFlow from './CancelReceiptFlow'
 
 const PRINT_STYLES = `
 @media print {
@@ -69,9 +74,16 @@ function canAddItems(receipt: Receipt): boolean {
   return receipt.status === 'GIVEN' && dayjs(receipt.endDatetime).isAfter(dayjs())
 }
 
+const STATUS_TAG_STYLES: Record<ReceiptStatus, CSSProperties> = {
+  GIVEN: { background: '#6E0B37', color: '#fff', border: 'none' },
+  RETURNED: { background: '#fff', color: '#7a5361', border: '1px solid #eed6e0' },
+  CANCELLED: { background: '#fff', color: '#ff4d4f', border: '1px solid #ff4d4f' },
+}
+
 export default function ReceiptDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isOwner } = useAuth()
 
   const { data: receipt, isLoading, isError } = useQuery({
     queryKey: ['receipt', id],
@@ -249,6 +261,7 @@ export default function ReceiptDetailPage() {
                 Process Return
               </Button>
             )}
+            {isOwner && isReceiptCancellable(receipt) && <CancelReceiptFlow receipt={receipt} />}
           </Space>
         </div>
 
@@ -268,11 +281,8 @@ export default function ReceiptDetailPage() {
                 <Tag
                   style={{
                     borderRadius: 999,
-                    border: 'none',
                     fontWeight: 500,
-                    ...(receipt.status === 'GIVEN'
-                      ? { background: '#6E0B37', color: '#fff' }
-                      : { background: '#fff', color: '#7a5361', border: '1px solid #eed6e0' }),
+                    ...STATUS_TAG_STYLES[receipt.status],
                   }}
                 >
                   {receipt.status}
@@ -280,6 +290,36 @@ export default function ReceiptDetailPage() {
               </Space>
             }
           />
+
+          {receipt.cancellation && (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 20 }}
+              message="This receipt was cancelled"
+              description={
+                <Descriptions size="small" column={1}>
+                  <Descriptions.Item label="Cancelled on">
+                    {dayjs(receipt.cancellation.cancelledAt).format('DD MMM YYYY, h:mm A')}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Cancelled by">
+                    {receipt.cancellation.cancelledByUsername ?? '—'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Reason">
+                    {CANCELLATION_REASON_LABELS[receipt.cancellation.reason]}
+                  </Descriptions.Item>
+                  {receipt.cancellation.reason === 'OTHER' && receipt.cancellation.reasonDetail && (
+                    <Descriptions.Item label="Details">
+                      {receipt.cancellation.reasonDetail}
+                    </Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="Refunded">
+                    {formatCurrency(receipt.grandTotal)}
+                  </Descriptions.Item>
+                </Descriptions>
+              }
+            />
+          )}
 
           {/* Customer & rental details */}
           <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small" style={{ marginBottom: 20 }}>
@@ -344,15 +384,28 @@ export default function ReceiptDetailPage() {
               flexDirection: 'column',
               justifyContent: 'center',
             }}>
-              <Typography.Text style={{ fontSize: 13, color: '#555' }}>
-                Deposit refundable on return
-              </Typography.Text>
-              <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#C2185B' }}>
-                {formatCurrency(receipt.totalDeposit)}
-              </Typography.Title>
-              <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
-                Subject to item condition at return
-              </Typography.Text>
+              {receipt.cancellation ? (
+                <>
+                  <Typography.Text style={{ fontSize: 13, color: '#555' }}>
+                    Refunded on cancellation
+                  </Typography.Text>
+                  <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#C2185B' }}>
+                    {formatCurrency(receipt.grandTotal)}
+                  </Typography.Title>
+                </>
+              ) : (
+                <>
+                  <Typography.Text style={{ fontSize: 13, color: '#555' }}>
+                    Deposit refundable on return
+                  </Typography.Text>
+                  <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#C2185B' }}>
+                    {formatCurrency(receipt.totalDeposit)}
+                  </Typography.Title>
+                  <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+                    Subject to item condition at return
+                  </Typography.Text>
+                </>
+              )}
             </div>
           </div>
 

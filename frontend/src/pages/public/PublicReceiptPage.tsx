@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Descriptions, Divider, Table, Typography } from 'antd'
+import { Alert, Descriptions, Divider, Table, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { publicApi } from '../../api/public'
 import type { ReceiptLineItem } from '../../types/receipt'
@@ -113,8 +113,15 @@ export default function PublicReceiptPage() {
         </div>
         <Typography.Title level={5} style={{ margin: 0 }}>
           {receipt.receiptNumber}
+          {receipt.status === 'CANCELLED' && (
+            <Tag color="red" style={{ marginLeft: 8 }}>CANCELLED</Tag>
+          )}
         </Typography.Title>
       </div>
+
+      {receipt.status === 'CANCELLED' && (
+        <Alert type="error" message="This receipt has been cancelled." style={{ marginBottom: 20 }} showIcon />
+      )}
 
       <Divider style={{ margin: '12px 0 20px' }} />
 
@@ -175,13 +182,24 @@ export default function PublicReceiptPage() {
           flexDirection: 'column',
           justifyContent: 'center',
         }}>
-          <Typography.Text style={{ fontSize: 13, color: '#555' }}>Deposit refundable on return</Typography.Text>
-          <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#A81259' }}>
-            {formatCurrency(receipt.totalDeposit)}
-          </Typography.Title>
-          <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
-            Subject to item condition at return
-          </Typography.Text>
+          {receipt.status === 'CANCELLED' ? (
+            <>
+              <Typography.Text style={{ fontSize: 13, color: '#555' }}>Amount refunded</Typography.Text>
+              <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#A81259' }}>
+                {formatCurrency(receipt.grandTotal)}
+              </Typography.Title>
+            </>
+          ) : (
+            <>
+              <Typography.Text style={{ fontSize: 13, color: '#555' }}>Deposit refundable on return</Typography.Text>
+              <Typography.Title level={3} style={{ margin: '4px 0 0', color: '#A81259' }}>
+                {formatCurrency(receipt.totalDeposit)}
+              </Typography.Title>
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+                Subject to item condition at return
+              </Typography.Text>
+            </>
+          )}
         </div>
       </div>
 

@@ -43,7 +43,7 @@ public class PublicController {
     @Transactional(readOnly = true)
     public ApiResponse<ReceiptResponse> getReceiptByShareToken(@PathVariable String shareToken) {
         return receiptRepository.findByShareToken(shareToken)
-                .map(receiptMapper::toReceiptResponse)
+                .map(receiptMapper::toPublicReceiptResponse)
                 .map(ApiResponse::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
     }

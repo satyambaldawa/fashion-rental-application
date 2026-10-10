@@ -50,7 +50,7 @@ class PublicControllerTest {
         return new ReceiptResponse(
                 id, "R-0001", shareToken, UUID.randomUUID(), "Jane Doe", "9876543210",
                 OffsetDateTime.now(), OffsetDateTime.now().plusDays(2), 2, 1000, null, 0,
-                500, 1500, "ACTIVE", null, List.of(), OffsetDateTime.now()
+                500, 1500, "ACTIVE", null, List.of(), OffsetDateTime.now(), null
         );
     }
 
@@ -61,12 +61,30 @@ class PublicControllerTest {
         Receipt receipt = new Receipt();
         UUID id = UUID.randomUUID();
         when(receiptRepository.findByShareToken("valid-token")).thenReturn(Optional.of(receipt));
-        when(receiptMapper.toReceiptResponse(receipt)).thenReturn(receiptResponse(id, "valid-token"));
+        when(receiptMapper.toPublicReceiptResponse(receipt)).thenReturn(receiptResponse(id, "valid-token"));
 
         mockMvc.perform(get("/api/public/receipts/{shareToken}", "valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.shareToken").value("valid-token"));
+    }
+
+    @Test
+    void should_return_cancelled_status_with_no_audit_block_for_a_cancelled_receipt() throws Exception {
+        Receipt receipt = new Receipt();
+        UUID id = UUID.randomUUID();
+        ReceiptResponse cancelledResponse = new ReceiptResponse(
+                id, "R-0001", "cancelled-token", UUID.randomUUID(), "Jane Doe", "9876543210",
+                OffsetDateTime.now(), OffsetDateTime.now().plusDays(2), 2, 1000, null, 0,
+                500, 1500, "CANCELLED", null, List.of(), OffsetDateTime.now(), null
+        );
+        when(receiptRepository.findByShareToken("cancelled-token")).thenReturn(Optional.of(receipt));
+        when(receiptMapper.toPublicReceiptResponse(receipt)).thenReturn(cancelledResponse);
+
+        mockMvc.perform(get("/api/public/receipts/{shareToken}", "cancelled-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.cancellation").doesNotExist());
     }
 
     @Test
