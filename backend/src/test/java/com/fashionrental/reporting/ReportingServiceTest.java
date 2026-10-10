@@ -19,7 +19,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -239,6 +238,8 @@ class ReportingServiceTest {
 
     @Test
     void should_leave_booking_day_figures_unchanged_when_receipt_cancelled_later() {
+        TestData.withCreatedAt(receiptA, OffsetDateTime.parse("2026-04-12T10:00:00+05:30"));
+        TestData.cancelled(receiptA, OffsetDateTime.parse("2026-04-15T10:00:00+05:30"));
         when(receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of(receiptA, receiptB));
         when(invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
@@ -248,16 +249,17 @@ class ReportingServiceTest {
 
         DailyRevenueResponse report = reportingService.getDailyRevenue(LocalDate.of(2026, 4, 12));
 
-        assertThat(report.rentCollected()).isEqualTo(500);
-        assertThat(report.depositsCollected()).isEqualTo(1500);
-        assertThat(report.totalDiscountsGiven()).isZero();
-        assertThat(report.netFlow()).isEqualTo(500 + 1500);
+        assertThat(report.rentCollected()).isEqualTo(receiptA.getTotalRent() + receiptB.getTotalRent());
+        assertThat(report.depositsCollected()).isEqualTo(receiptA.getTotalDeposit() + receiptB.getTotalDeposit());
+        assertThat(report.newReceiptsCount()).isEqualTo(2);
+        assertThat(report.netFlow()).isEqualTo(receiptA.getGrandTotal() + receiptB.getGrandTotal());
         assertThat(report.cancellationRefunds()).isZero();
         assertThat(report.cancellationsCount()).isZero();
     }
 
     @Test
     void should_deduct_full_amount_collected_on_cancellation_day() {
+        TestData.cancelled(receiptA, OffsetDateTime.parse("2026-04-15T10:00:00+05:30"));
         when(receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of());
         when(invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
@@ -274,6 +276,8 @@ class ReportingServiceTest {
 
     @Test
     void should_net_to_zero_when_created_and_cancelled_same_day() {
+        TestData.withCreatedAt(receiptA, OffsetDateTime.parse("2026-04-12T10:00:00+05:30"));
+        TestData.cancelled(receiptA, OffsetDateTime.parse("2026-04-12T15:00:00+05:30"));
         when(receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of(receiptA));
         when(invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
@@ -292,7 +296,7 @@ class ReportingServiceTest {
         OffsetDateTime cancelledLaterInApril = OffsetDateTime.parse("2026-04-20T10:00:00+05:30");
         TestData.withCreatedAt(receiptA, createdInApril);
         TestData.withCreatedAt(receiptB, createdInApril);
-        ReflectionTestUtils.setField(receiptA, "cancelledAt", cancelledLaterInApril);
+        TestData.cancelled(receiptA, cancelledLaterInApril);
         when(receiptRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of(receiptA, receiptB));
         when(invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(any(), any()))
@@ -324,7 +328,7 @@ class ReportingServiceTest {
         OffsetDateTime createdInMarch = OffsetDateTime.parse("2026-03-15T10:00:00+05:30");
         OffsetDateTime cancelledInMay = OffsetDateTime.parse("2026-05-05T10:00:00+05:30");
         TestData.withCreatedAt(receiptA, createdInMarch);
-        ReflectionTestUtils.setField(receiptA, "cancelledAt", cancelledInMay);
+        TestData.cancelled(receiptA, cancelledInMay);
 
         OffsetDateTime marchStart = OffsetDateTime.parse("2026-03-01T00:00:00+05:30");
         OffsetDateTime marchEnd = OffsetDateTime.parse("2026-04-01T00:00:00+05:30");

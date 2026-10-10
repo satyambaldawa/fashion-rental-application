@@ -7,6 +7,8 @@ import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -14,23 +16,36 @@ import java.util.UUID;
 @Service
 public class ReceiptService {
 
+    // Cancelled receipts accumulate forever; the list only surfaces recent ones so it stays short.
+    static final Duration RECENT_CANCELLATIONS_WINDOW = Duration.ofDays(7);
+
     private final ReceiptRepository receiptRepository;
     private final DateTimeUtil dateTimeUtil;
     private final ReceiptMapper receiptMapper;
+    private final Clock clock;
 
-    public ReceiptService(ReceiptRepository receiptRepository, DateTimeUtil dateTimeUtil, ReceiptMapper receiptMapper) {
+    public ReceiptService(
+            ReceiptRepository receiptRepository,
+            DateTimeUtil dateTimeUtil,
+            ReceiptMapper receiptMapper,
+            Clock clock
+    ) {
         this.receiptRepository = receiptRepository;
         this.dateTimeUtil = dateTimeUtil;
         this.receiptMapper = receiptMapper;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
     public List<ReceiptSummaryResponse> listReceipts(Receipt.Status status, Boolean overdue) {
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(clock);
 
         List<Receipt> receipts;
         if (Boolean.TRUE.equals(overdue)) {
             receipts = receiptRepository.findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status.GIVEN, now);
+        } else if (status == Receipt.Status.CANCELLED) {
+            receipts = receiptRepository.findByStatusAndCancelledAtGreaterThanEqualOrderByEndDatetimeAsc(
+                    Receipt.Status.CANCELLED, now.minus(RECENT_CANCELLATIONS_WINDOW));
         } else if (status != null) {
             receipts = receiptRepository.findByStatusOrderByEndDatetimeAsc(status);
         } else {

@@ -85,14 +85,14 @@ export default function CancelReceiptFlow({ receipt }: CancelReceiptFlowProps) {
       <Modal
         title="Why is this receipt being cancelled?"
         open={step === 'reason'}
-        okText="Cancel receipt"
+        okText="Confirm cancellation"
         cancelText="Close"
         okButtonProps={{ danger: true, loading: mutation.isPending }}
         onOk={handleReasonSubmit}
         onCancel={closeReasonModal}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" initialValues={{ reason: undefined }}>
+        <Form form={form} layout="vertical">
           <Form.Item
             name="reason"
             rules={[{ required: true, message: 'Please choose a reason' }]}
@@ -105,20 +105,14 @@ export default function CancelReceiptFlow({ receipt }: CancelReceiptFlowProps) {
               ))}
             </Radio.Group>
           </Form.Item>
-          <Form.Item noStyle shouldUpdate>
-            {() =>
-              reasonWatch === 'OTHER' && (
-                <Form.Item
-                  name="reasonDetail"
-                  rules={[
-                    { required: true, whitespace: true, message: 'Please describe the reason' },
-                  ]}
-                >
-                  <Input.TextArea maxLength={500} showCount placeholder="Describe the reason" rows={3} />
-                </Form.Item>
-              )
-            }
-          </Form.Item>
+          {reasonWatch === 'OTHER' && (
+            <Form.Item
+              name="reasonDetail"
+              rules={[{ required: true, whitespace: true, message: 'Please describe the reason' }]}
+            >
+              <Input.TextArea maxLength={500} showCount placeholder="Describe the reason" rows={3} />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </>

@@ -140,7 +140,7 @@ class ReceiptCancellationServiceTest {
         assertThatThrownBy(() -> service.cancelReceipt(
                 receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner"))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("already been cancelled");
+                .hasMessageContaining("is CANCELLED and can no longer be cancelled");
 
         verify(receiptRepository, never()).save(any());
     }
@@ -153,7 +153,7 @@ class ReceiptCancellationServiceTest {
         assertThatThrownBy(() -> service.cancelReceipt(
                 receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner"))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("already been returned");
+                .hasMessageContaining("is RETURNED and can no longer be cancelled");
 
         verify(receiptRepository, never()).save(any());
     }
@@ -226,8 +226,8 @@ class ReceiptCancellationServiceTest {
 
         assertThatThrownBy(() -> service.cancelReceipt(
                 receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "ghost"))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("User not found");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Authenticated user not found");
 
         verify(receiptRepository, never()).save(any());
     }

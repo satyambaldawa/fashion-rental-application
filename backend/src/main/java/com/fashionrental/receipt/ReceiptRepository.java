@@ -26,6 +26,10 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     List<Receipt> findByStatusOrderByEndDatetimeAsc(Receipt.Status status);
 
     @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
+    List<Receipt> findByStatusAndCancelledAtGreaterThanEqualOrderByEndDatetimeAsc(
+            Receipt.Status status, OffsetDateTime cancelledSince);
+
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusAndEndDatetimeBeforeOrderByEndDatetimeAsc(Receipt.Status status, OffsetDateTime now);
 
     List<Receipt> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);

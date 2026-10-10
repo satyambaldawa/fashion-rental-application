@@ -68,9 +68,7 @@ public class ReportingService {
         int damageIncome   = invoicesSettled.stream().mapToInt(Invoice::getTotalDamageCost).sum();
 
         List<Receipt> receiptsCancelled = receiptRepository.findByCancelledAtBetweenOrderByCancelledAtAsc(dayStart, dayEnd);
-        // grand_total is rent net of discount plus deposit, enforced by receipts_grand_total_check,
-        // so it is exactly the full amount collected from the customer at checkout time.
-        int cancellationRefunds = receiptsCancelled.stream().mapToInt(Receipt::getGrandTotal).sum();
+        int cancellationRefunds = sumCancellationRefunds(receiptsCancelled);
 
         // rentCollected stays gross so the label stays truthful; discountsGiven is netted
         // out separately so netFlow reflects cash actually received.
@@ -143,7 +141,7 @@ public class ReportingService {
                     .mapToInt(Invoice::getFinalAmount).sum();
             int lateFeeIncome = dayInvoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
             int damageIncome  = dayInvoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
-            int cancellationRefunds = dayCancellations.stream().mapToInt(Receipt::getGrandTotal).sum();
+            int cancellationRefunds = sumCancellationRefunds(dayCancellations);
             int netFlow = rentCollected - discountsGiven + depositsCollected + collectedFromCustomers
                     - depositsRefunded - cancellationRefunds;
 
@@ -167,7 +165,7 @@ public class ReportingService {
                 .mapToInt(Invoice::getFinalAmount).sum();
         int totalLateFeeIncome = invoices.stream().mapToInt(Invoice::getTotalLateFee).sum();
         int totalDamageIncome  = invoices.stream().mapToInt(Invoice::getTotalDamageCost).sum();
-        int totalCancellationRefunds = cancellations.stream().mapToInt(Receipt::getGrandTotal).sum();
+        int totalCancellationRefunds = sumCancellationRefunds(cancellations);
         int totalNetFlow = totalRentCollected - totalDiscountsGiven + totalDepositsCollected
                 + totalCollectedFromCustomers - totalDepositsRefunded - totalCancellationRefunds;
 
@@ -236,5 +234,11 @@ public class ReportingService {
         }).toList();
 
         return new OverdueRentalsResponse(items.size(), items);
+    }
+
+    // grand_total is rent net of discount plus deposit (receipts_grand_total_check), so it is
+    // exactly the full amount collected at checkout — which is what a cancellation refunds.
+    private static int sumCancellationRefunds(List<Receipt> cancelledReceipts) {
+        return cancelledReceipts.stream().mapToInt(Receipt::getGrandTotal).sum();
     }
 }

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Empty, Space, Tabs, Tag, Typography } from 'antd'
 import PageHeader from '../../components/common/PageHeader'
+import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -84,19 +85,19 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
 }
 
 export default function ReceiptsPage() {
-  const { data: receipts = [], isLoading } = useQuery({
+  const { data: receipts = [], isLoading: isActiveLoading, isError: isActiveError } = useQuery({
     queryKey: ['receipts', 'active'],
     queryFn: () => receiptsApi.list({ status: 'GIVEN' }),
   })
 
-  const { data: cancelled = [] } = useQuery({
+  const { data: cancelled = [], isLoading: isCancelledLoading, isError: isCancelledError } = useQuery({
     queryKey: ['receipts', 'cancelled'],
     queryFn: () => receiptsApi.list({ status: 'CANCELLED' }),
   })
 
   const overdue = receipts.filter(r => r.isOverdue)
 
-  if (isLoading) {
+  if (isActiveLoading || isCancelledLoading) {
     return <Typography.Text>Loading...</Typography.Text>
   }
 
@@ -108,7 +109,9 @@ export default function ReceiptsPage() {
           <span style={{ paddingRight: 8 }}>All Active</span>
         </Badge>
       ),
-      children: receipts.length === 0
+      children: isActiveError
+        ? <ErrorMessage message="Failed to load active rentals. Please try again." />
+        : receipts.length === 0
         ? <Empty description="No active rentals" />
         : receipts.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
@@ -119,7 +122,9 @@ export default function ReceiptsPage() {
           <span style={{ paddingRight: 8 }}>Overdue</span>
         </Badge>
       ),
-      children: overdue.length === 0
+      children: isActiveError
+        ? <ErrorMessage message="Failed to load overdue rentals. Please try again." />
+        : overdue.length === 0
         ? <Empty description="No overdue rentals" />
         : overdue.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
@@ -127,11 +132,13 @@ export default function ReceiptsPage() {
       key: 'cancelled',
       label: (
         <Badge count={cancelled.length} size="small" color="red">
-          <span style={{ paddingRight: 8 }}>Cancelled</span>
+          <span style={{ paddingRight: 8 }}>Cancelled (last 7 days)</span>
         </Badge>
       ),
-      children: cancelled.length === 0
-        ? <Empty description="No cancelled receipts" />
+      children: isCancelledError
+        ? <ErrorMessage message="Failed to load cancelled receipts. Please try again." />
+        : cancelled.length === 0
+        ? <Empty description="No receipts cancelled in the last 7 days" />
         : cancelled.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
   ]

@@ -49,8 +49,9 @@ public class ReceiptCancellationService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         assertCancellable(receipt, now);
 
+        // The JWT filter loads only active users (UserDetailsConfig), so a miss here is an invariant breach.
         AppUser actingUser = appUserRepository.findByUsernameAndIsActiveTrue(actingUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + actingUsername));
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + actingUsername));
 
         String detail = request.reason() == Receipt.CancellationReason.OTHER
                 ? request.reasonDetail().strip()
@@ -65,17 +66,16 @@ public class ReceiptCancellationService {
     private void assertCancellable(Receipt receipt, OffsetDateTime now) {
         String number = receipt.getReceiptNumber();
 
-        if (receipt.getStatus() == Receipt.Status.CANCELLED) {
-            throw new ConflictException("Receipt " + number + " has already been cancelled");
-        }
-        if (receipt.getStatus() == Receipt.Status.RETURNED) {
-            throw new ConflictException("Receipt " + number + " has already been returned and cannot be cancelled");
+        if (receipt.getStatus() != Receipt.Status.GIVEN) {
+            throw new ConflictException(
+                    "Receipt " + number + " is " + receipt.getStatus() + " and can no longer be cancelled");
         }
         if (!receipt.getEndDatetime().isAfter(now)) {
             throw new ConflictException("Receipt " + number + " is overdue and cannot be cancelled");
         }
         if (!receipt.getEndDatetime().isAfter(now.plus(CANCELLATION_CUTOFF))) {
-            throw new ConflictException("Receipt " + number + " ends within 12 hours and can no longer be cancelled");
+            throw new ConflictException("Receipt " + number + " ends within " + CANCELLATION_CUTOFF.toHours()
+                    + " hours and can no longer be cancelled");
         }
     }
 }

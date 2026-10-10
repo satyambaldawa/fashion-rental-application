@@ -271,6 +271,7 @@ function MonthlyRevenueTab() {
     'Rent': d.rentCollected,
     'Deposit In': d.depositsCollected,
     'Late Fee + Damage': d.lateFeeIncome + d.damageIncome,
+    'Cancellation Refunds': d.cancellationRefunds,
     'Total': d.netFlow,
   })) ?? []
 
@@ -392,6 +393,7 @@ function MonthlyRevenueTab() {
                 <Bar dataKey="Rent" stackId="a" fill="#52c41a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="Deposit In" stackId="a" fill="#C2185B" />
                 <Bar dataKey="Late Fee + Damage" stackId="a" fill="#fa8c16" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Cancellation Refunds" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>

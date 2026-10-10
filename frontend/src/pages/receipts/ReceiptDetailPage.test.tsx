@@ -265,14 +265,6 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
   // Far enough in the future to always be well clear of the 12-hour cutoff, in CI or locally.
   const FAR_FUTURE = dayjs().add(13, 'hour').toISOString()
 
-  // The reason modal's OK button is also labelled "Cancel receipt", same as the page's
-  // trigger button underneath it — the modal's copy (rendered into a portal) is the last
-  // one in the DOM.
-  function reasonModalSubmitButton() {
-    const buttons = screen.getAllByRole('button', { name: 'Cancel receipt' })
-    return buttons[buttons.length - 1]
-  }
-
   it('shows the Cancel receipt button for an OWNER viewing an eligible GIVEN receipt', async () => {
     asOwner()
     server.use(http.get('*/api/receipts/rcpt-1', () =>
@@ -421,7 +413,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     await screen.findByText('Why is this receipt being cancelled?')
 
     await user.click(screen.getByRole('radio', { name: 'Other' }))
-    await user.click(reasonModalSubmitButton())
+    await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
 
     expect(await screen.findByText('Please describe the reason')).toBeInTheDocument()
     expect(cancelCalled).toBe(false)
@@ -444,7 +436,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Other' }))
     await user.type(screen.getByPlaceholderText('Describe the reason'), '   ')
-    await user.click(reasonModalSubmitButton())
+    await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
 
     expect(await screen.findByText('Please describe the reason')).toBeInTheDocument()
     expect(cancelCalled).toBe(false)
@@ -472,7 +464,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     await screen.findByText('Why is this receipt being cancelled?')
 
     await user.click(screen.getByRole('radio', { name: 'Wrong order' }))
-    await user.click(reasonModalSubmitButton())
+    await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
     await flush()
 
     expect(capturedBody).toEqual({ reason: 'WRONG_ORDER', reasonDetail: null })
@@ -503,7 +495,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Other' }))
     await user.type(screen.getByPlaceholderText('Describe the reason'), 'customer moved cities')
-    await user.click(reasonModalSubmitButton())
+    await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
     await flush()
 
     expect(capturedBody).toEqual({ reason: 'OTHER', reasonDetail: 'customer moved cities' })
@@ -529,7 +521,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     await screen.findByText('Why is this receipt being cancelled?')
 
     await user.click(screen.getByRole('radio', { name: 'Wrong order' }))
-    await user.click(reasonModalSubmitButton())
+    await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
 
     expect(await screen.findByText('Receipt R-2026-0001 has already been cancelled')).toBeInTheDocument()
     // The reason dialog stays open on error.
