@@ -8,6 +8,9 @@ import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import { useAuth } from '../../hooks/useAuth'
+import { isReceiptCancellable } from '../../utils/receiptCancellation'
+import CancelReceiptFlow from './CancelReceiptFlow'
 import dayjs from 'dayjs'
 
 const VIEW_BUTTON_THEME: ThemeConfig = {
@@ -28,8 +31,8 @@ const VIEW_BUTTON_THEME: ThemeConfig = {
   },
 }
 
-// 44px minimum tap target for the Android tablet (#168).
-const CARD_ACTION_STYLE = { minHeight: 44, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }
+// Tablet tap target (#168); the card's Cancel and View buttons share it so they line up.
+const CARD_ACTION_HEIGHT = 44
 
 function formatOverdue(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min overdue`
@@ -41,6 +44,7 @@ function formatOverdue(hours: number): string {
 
 function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
   const navigate = useNavigate()
+  const { isOwner } = useAuth()
 
   return (
     <div
@@ -108,12 +112,19 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
             <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
           </div>
           <div style={{ marginTop: 8 }}>
-            <Space wrap style={{ justifyContent: 'flex-end' }}>
+            <Space wrap align="center" style={{ justifyContent: 'flex-end' }}>
+              {isOwner && isReceiptCancellable(receipt) && (
+                <CancelReceiptFlow
+                  receipt={receipt}
+                  trigger="icon"
+                  triggerStyle={{ height: CARD_ACTION_HEIGHT, width: CARD_ACTION_HEIGHT }}
+                />
+              )}
               <ConfigProvider theme={VIEW_BUTTON_THEME}>
                 <Button
                   icon={<RightOutlined />}
                   iconPosition="end"
-                  style={{ ...CARD_ACTION_STYLE, minWidth: 104 }}
+                  style={{ minHeight: CARD_ACTION_HEIGHT, minWidth: 104, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }}
                   onClick={() => navigate(`/receipts/${receipt.id}`)}
                 >
                   View

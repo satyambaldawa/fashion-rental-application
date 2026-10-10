@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { flush, screen, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
@@ -185,5 +186,69 @@ describe('ReceiptsPage cancelled tab (#166)', () => {
 
     expect(await screen.findByText('Failed to load cancelled receipts. Please try again.')).toBeInTheDocument()
     expect(screen.queryByText('No receipts cancelled in the last 7 days')).not.toBeInTheDocument()
+  })
+})
+
+describe('ReceiptsPage cancel from the Active Rentals card', () => {
+  // Well clear of the 12-hour cutoff whenever the suite runs.
+  const ELIGIBLE_END = dayjs().add(2, 'day').toISOString()
+
+  it('offers a red bin Cancel receipt button, as tall as View, to an OWNER on an eligible card', async () => {
+    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: ELIGIBLE_END })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByRole('button', { name: 'Cancel receipt' })).toHaveStyle({ height: '44px' })
+  })
+
+  it('hides the Cancel receipt button from an EXECUTIVE', async () => {
+    useAuthStore.setState({ token: jwtWithRole('EXECUTIVE'), role: 'EXECUTIVE' })
+    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: ELIGIBLE_END })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /view/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
+  })
+
+  it('hides the Cancel receipt button when the rental ends within 12 hours', async () => {
+    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: dayjs().add(11, 'hour').toISOString() })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /view/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
+  })
+
+  it('cancels from the card and moves the receipt to the Cancelled tab', async () => {
+    const summary = f.aReceiptSummary({ id: 'rcpt-7', receiptNumber: 'R-2026-0007', endDatetime: ELIGIBLE_END })
+    let isCancelled = false
+    server.use(
+      http.get('*/api/receipts', ({ request }) => {
+        const wantsCancelled = new URL(request.url).searchParams.get('status') === 'CANCELLED'
+        if (wantsCancelled) return ok(isCancelled ? [{ ...summary, status: 'CANCELLED' }] : [])
+        return ok(isCancelled ? [] : [summary])
+      }),
+      http.post('*/api/receipts/rcpt-7/cancel', () => {
+        isCancelled = true
+        return ok(f.aReceipt({ id: 'rcpt-7', status: 'CANCELLED', cancellation: f.aReceiptCancellation() }))
+      }),
+    )
+    const user = userEvent.setup()
+    renderReceiptsPage()
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel receipt' }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, money returned. Continue' }))
+    await user.click(await screen.findByRole('radio', { name: 'Wrong order' }))
+    await user.click(await screen.findByRole('button', { name: 'Confirm cancellation' }))
+    await flush()
+
+    expect(await screen.findByText('No active rentals')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
+    expect(await within(screen.getByRole('tabpanel')).findByText('R-2026-0007')).toBeInTheDocument()
   })
 })
