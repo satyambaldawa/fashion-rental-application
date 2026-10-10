@@ -1,11 +1,31 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import { Badge, Button, ConfigProvider, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import type { ThemeConfig } from 'antd'
+import { RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import dayjs from 'dayjs'
+
+const VIEW_BUTTON_THEME: ThemeConfig = {
+  components: {
+    Button: {
+      defaultBg: '#A81259',
+      defaultBorderColor: '#A81259',
+      defaultColor: '#ffffff',
+      defaultHoverBg: '#6E0B37',
+      defaultHoverBorderColor: '#6E0B37',
+      defaultHoverColor: '#ffffff',
+      defaultActiveBg: '#33101F',
+      defaultActiveBorderColor: '#33101F',
+      defaultActiveColor: '#ffffff',
+      fontWeight: 500,
+      defaultShadow: 'none',
+    },
+  },
+}
 
 function formatOverdue(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min overdue`
@@ -21,11 +41,13 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
   return (
     <div
       style={{
-        border: '1px solid #f0f0f0',
-        borderLeft: receipt.isOverdue ? '4px solid #ff4d4f' : '1px solid #f0f0f0',
-        borderRadius: 8,
+        background: '#ffffff',
+        border: '1px solid #eed6e0',
+        borderLeft: receipt.isOverdue ? '4px solid #ff4d4f' : '1px solid #eed6e0',
+        borderRadius: 14,
+        boxShadow: '0 6px 20px -12px rgba(110,11,55,0.35)',
         padding: 16,
-        marginBottom: 12,
+        marginBottom: 16,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
@@ -81,9 +103,16 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
             <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
           </div>
           <div style={{ marginTop: 8 }}>
-            <Button size="large" style={{ minHeight: 44, minWidth: 120 }} onClick={() => navigate(`/receipts/${receipt.id}`)}>
-              View
-            </Button>
+            <ConfigProvider theme={VIEW_BUTTON_THEME}>
+              <Button
+                icon={<RightOutlined />}
+                iconPosition="end"
+                style={{ minHeight: 44, minWidth: 104, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }}
+                onClick={() => navigate(`/receipts/${receipt.id}`)}
+              >
+                View
+              </Button>
+            </ConfigProvider>
           </div>
         </div>
       </div>
