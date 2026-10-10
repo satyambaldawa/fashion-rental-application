@@ -28,8 +28,8 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
         marginBottom: 12,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <Space wrap>
             <Typography.Text strong>{receipt.receiptNumber}</Typography.Text>
             {receipt.isOverdue && receipt.overdueHours !== null && (
@@ -62,18 +62,27 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
           </div>
         </div>
 
-        <div style={{ textAlign: 'right', marginLeft: 16 }}>
+        <div style={{ textAlign: 'right' }}>
           <div>
-            <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
+            <Typography.Text type="secondary">Rent </Typography.Text>
+            <Typography.Text>{formatCurrency(receipt.totalRent)}</Typography.Text>
+          </div>
+          <div>
+            <Typography.Text type="secondary">Deposit </Typography.Text>
+            <Typography.Text>{formatCurrency(receipt.totalDeposit)}</Typography.Text>
           </div>
           {receipt.couponCode && (
             <Tag color="green" style={{ marginTop: 4 }}>
               {receipt.couponCode} −{formatCurrency(receipt.discountAmount)}
             </Tag>
           )}
+          <div>
+            <Typography.Text type="secondary">Total </Typography.Text>
+            <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
+          </div>
           <div style={{ marginTop: 8 }}>
-            <Button size="small" onClick={() => navigate(`/receipts/${receipt.id}`)}>
-              Process Return
+            <Button size="large" style={{ minHeight: 44, minWidth: 120 }} onClick={() => navigate(`/receipts/${receipt.id}`)}>
+              View
             </Button>
           </div>
         </div>
