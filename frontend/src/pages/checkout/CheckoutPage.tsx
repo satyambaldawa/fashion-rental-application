@@ -53,6 +53,7 @@ import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
 import EligibleCouponList from './EligibleCouponList'
+import CustomerCartBanner from './CustomerCartBanner'
 import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 import { CATEGORY_OPTIONS } from '../../constants/categories'
@@ -98,6 +99,8 @@ export default function CheckoutPage() {
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
+  const pinnedCustomer = cart?.customer ?? null
+
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
 
@@ -105,6 +108,11 @@ export default function CheckoutPage() {
   useEffect(() => {
     const newCustomerId = searchParams.get('newCustomerId')
     if (newCustomerId) {
+      if (pinnedCustomer) {
+        // Why: a stale or hand-edited URL must not override the customer the cart pinned.
+        setSearchParams({}, { replace: true })
+        return
+      }
       customersApi.get(newCustomerId).then(customer => {
         setSelectedCustomer({
           id: customer.id,
@@ -119,7 +127,7 @@ export default function CheckoutPage() {
       }).catch(() => {})
       setSearchParams({}, { replace: true })
     }
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, pinnedCustomer])
 
   // Create cart modal
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -331,6 +339,7 @@ export default function CheckoutPage() {
 
   function handleDeleteCart() {
     clearCart()
+    setSelectedCustomer(null)
     setScreen('home')
   }
 
@@ -409,9 +418,10 @@ export default function CheckoutPage() {
   // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
   // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
   function handleConfirmReceipt() {
-    if (!selectedCustomer) return
+    const customerId = pinnedCustomer?.id ?? selectedCustomer?.id
+    if (!customerId) return
     setConflictError(null)
-    createMutation.mutate(buildRequest(selectedCustomer.id))
+    createMutation.mutate(buildRequest(customerId))
   }
 
   // --- Render helpers ---
@@ -477,6 +487,8 @@ export default function CheckoutPage() {
             </Space>
           }
         />
+
+        {pinnedCustomer && <CustomerCartBanner customer={pinnedCustomer} />}
 
         {/* Filters */}
         <div style={{ marginBottom: 16 }}>
@@ -864,6 +876,8 @@ export default function CheckoutPage() {
       <div style={{ maxWidth: 920, width: '100%' }}>
         <PageHeader label="New Rental" title="Order" accent="Preview" />
 
+        {pinnedCustomer && <CustomerCartBanner customer={pinnedCustomer} />}
+
         <Descriptions size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Start">{dayjs(cart!.startDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
           <Descriptions.Item label="End">{dayjs(cart!.endDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
@@ -970,24 +984,42 @@ export default function CheckoutPage() {
 
     return (
       <div style={{ maxWidth: 560 }}>
-        <PageHeader label="New Rental" title="Select" accent="Customer" />
+        {pinnedCustomer ? (
+          <PageHeader label="New Rental" title="Confirm" accent="Rental" />
+        ) : (
+          <PageHeader label="New Rental" title="Select" accent="Customer" />
+        )}
 
-        <Typography.Paragraph type="secondary">
-          Search by phone number or name. If the customer is new, register them first.
-        </Typography.Paragraph>
+        {pinnedCustomer ? (
+          <>
+            <CustomerCartBanner customer={pinnedCustomer} />
+            <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="Name">{pinnedCustomer.name}</Descriptions.Item>
+                <Descriptions.Item label="Phone">{pinnedCustomer.phone}</Descriptions.Item>
+              </Descriptions>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Typography.Paragraph type="secondary">
+              Search by phone number or name. If the customer is new, register them first.
+            </Typography.Paragraph>
 
-        <CustomerSearch onSelect={setSelectedCustomer} placeholder="Search by phone or name..." />
+            <CustomerSearch onSelect={setSelectedCustomer} placeholder="Search by phone or name..." />
 
-        {selectedCustomer && (
-          <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="Name">{selectedCustomer.name}</Descriptions.Item>
-              <Descriptions.Item label="Phone">{selectedCustomer.phone}</Descriptions.Item>
-              {selectedCustomer.organizationName && (
-                <Descriptions.Item label="Organisation">{selectedCustomer.organizationName}</Descriptions.Item>
-              )}
-            </Descriptions>
-          </Card>
+            {selectedCustomer && (
+              <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Name">{selectedCustomer.name}</Descriptions.Item>
+                  <Descriptions.Item label="Phone">{selectedCustomer.phone}</Descriptions.Item>
+                  {selectedCustomer.organizationName && (
+                    <Descriptions.Item label="Organisation">{selectedCustomer.organizationName}</Descriptions.Item>
+                  )}
+                </Descriptions>
+              </Card>
+            )}
+          </>
         )}
 
         <Divider />
@@ -1012,10 +1044,12 @@ export default function CheckoutPage() {
 
         <Space>
           <Button onClick={() => setScreen('preview')}>Back</Button>
-          <Button onClick={() => navigate('/customers/register?returnTo=checkout')}>New Customer</Button>
+          {!pinnedCustomer && (
+            <Button onClick={() => navigate('/customers/register?returnTo=checkout')}>New Customer</Button>
+          )}
           <Button
             type="primary"
-            disabled={!selectedCustomer}
+            disabled={!(pinnedCustomer ?? selectedCustomer)}
             loading={createMutation.isPending}
             onClick={handleConfirmReceipt}
           >

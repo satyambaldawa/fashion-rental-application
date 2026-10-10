@@ -162,10 +162,24 @@ export interface AppliedCouponPreview {
   grandTotal: number
 }
 
+export interface CartCustomer {
+  id: string
+  name: string
+  phone: string
+}
+
 export interface Cart {
   startDatetime: string   // ISO 8601 with IST offset
   endDatetime: string     // ISO 8601 with IST offset
   rentalDays: number
   items: CartItem[]
   appliedCoupon?: AppliedCouponPreview | null
+  customer?: CartCustomer | null
+}
+
+export interface CustomerCartSeed {
+  customer: CartCustomer
+  startDatetime: string
+  endDatetime: string
+  rentalDays: number
 }

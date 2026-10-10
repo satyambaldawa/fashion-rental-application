@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { AppliedCouponPreview, Cart, CartItem } from '../types/receipt'
+import type { AppliedCouponPreview, Cart, CartItem, CustomerCartSeed } from '../types/receipt'
 
 export type { Cart, CartItem }
 
@@ -16,6 +16,10 @@ interface LoadedCart {
   // Non-null only on the render where loadCart() itself dropped a coupon that was present
   // in storage — lets the caller warn once, the same way a mid-session cart edit does.
   droppedCouponCode: string | null
+}
+
+function hasMalformedCustomer(cart: Cart): boolean {
+  return !!cart.customer && typeof cart.customer.id !== 'string'
 }
 
 function loadCart(): LoadedCart {
@@ -49,10 +53,12 @@ function loadCart(): LoadedCart {
     // coupon mutation racing a clearCart() (see applyCoupon/removeCoupon below).
     if (!Array.isArray(cart.items)) return { cart: null, droppedCouponCode: null }
 
-    if (cart.appliedCoupon && isNewBrowserSession) {
-      return { cart: { ...cart, appliedCoupon: null }, droppedCouponCode: cart.appliedCoupon.couponCode }
+    const loaded = hasMalformedCustomer(cart) ? { ...cart, customer: null } : cart
+
+    if (loaded.appliedCoupon && isNewBrowserSession) {
+      return { cart: { ...loaded, appliedCoupon: null }, droppedCouponCode: loaded.appliedCoupon.couponCode }
     }
-    return { cart, droppedCouponCode: null }
+    return { cart: loaded, droppedCouponCode: null }
   } catch {
     return { cart: null, droppedCouponCode: null }
   }
@@ -64,6 +70,24 @@ function saveCart(cart: Cart | null) {
   } else {
     localStorage.removeItem(STORAGE_KEY)
   }
+}
+
+// Deliberately plain functions, not hooks: mounting useCart() from another page would write
+// SESSION_MARKER_KEY, and CheckoutPage's later loadCart() would then trust a stored coupon
+// it should have dropped on a fresh tab.
+export function peekPersistedCart(): Cart | null {
+  return loadCart().cart
+}
+
+export function startCustomerCart(seed: CustomerCartSeed): void {
+  saveCart({
+    startDatetime: seed.startDatetime,
+    endDatetime: seed.endDatetime,
+    rentalDays: seed.rentalDays,
+    items: [],
+    appliedCoupon: null,
+    customer: seed.customer,
+  })
 }
 
 export function useCart() {
