@@ -99,9 +99,7 @@ export default function CheckoutPage() {
 
   const [screen, setScreen] = useState<Screen>(cart ? 'browse' : 'home')
 
-  // Set only when this cart was started from "Add items" on a receipt (#165) — the
-  // customer is then fixed for the whole flow and customer selection is skipped.
-  const cartCustomer = cart?.customer ?? null
+  const pinnedCustomer = cart?.customer ?? null
 
   // Customer selection — declared before the useEffect that references setSelectedCustomer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
@@ -110,9 +108,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     const newCustomerId = searchParams.get('newCustomerId')
     if (newCustomerId) {
-      if (cartCustomer) {
-        // This flow cannot reach the register page itself, but a stale or manually edited
-        // URL must never override a customer the cart has already fixed.
+      if (pinnedCustomer) {
+        // Why: a stale or hand-edited URL must not override the customer the cart pinned.
         setSearchParams({}, { replace: true })
         return
       }
@@ -130,7 +127,7 @@ export default function CheckoutPage() {
       }).catch(() => {})
       setSearchParams({}, { replace: true })
     }
-  }, [searchParams, setSearchParams, cartCustomer])
+  }, [searchParams, setSearchParams, pinnedCustomer])
 
   // Create cart modal
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -421,7 +418,7 @@ export default function CheckoutPage() {
   // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
   // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
   function handleConfirmReceipt() {
-    const customerId = cartCustomer?.id ?? selectedCustomer?.id
+    const customerId = pinnedCustomer?.id ?? selectedCustomer?.id
     if (!customerId) return
     setConflictError(null)
     createMutation.mutate(buildRequest(customerId))
@@ -491,7 +488,7 @@ export default function CheckoutPage() {
           }
         />
 
-        {cartCustomer && <CustomerCartBanner customer={cartCustomer} />}
+        {pinnedCustomer && <CustomerCartBanner customer={pinnedCustomer} />}
 
         {/* Filters */}
         <div style={{ marginBottom: 16 }}>
@@ -879,7 +876,7 @@ export default function CheckoutPage() {
       <div style={{ maxWidth: 920, width: '100%' }}>
         <PageHeader label="New Rental" title="Order" accent="Preview" />
 
-        {cartCustomer && <CustomerCartBanner customer={cartCustomer} />}
+        {pinnedCustomer && <CustomerCartBanner customer={pinnedCustomer} />}
 
         <Descriptions size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Start">{dayjs(cart!.startDatetime).format('DD MMM YYYY HH:mm')}</Descriptions.Item>
@@ -987,19 +984,19 @@ export default function CheckoutPage() {
 
     return (
       <div style={{ maxWidth: 560 }}>
-        {cartCustomer ? (
+        {pinnedCustomer ? (
           <PageHeader label="New Rental" title="Confirm" accent="Rental" />
         ) : (
           <PageHeader label="New Rental" title="Select" accent="Customer" />
         )}
 
-        {cartCustomer ? (
+        {pinnedCustomer ? (
           <>
-            <CustomerCartBanner customer={cartCustomer} />
+            <CustomerCartBanner customer={pinnedCustomer} />
             <Card size="small" style={{ marginTop: 16, marginBottom: 24 }}>
               <Descriptions column={1} size="small">
-                <Descriptions.Item label="Name">{cartCustomer.name}</Descriptions.Item>
-                <Descriptions.Item label="Phone">{cartCustomer.phone}</Descriptions.Item>
+                <Descriptions.Item label="Name">{pinnedCustomer.name}</Descriptions.Item>
+                <Descriptions.Item label="Phone">{pinnedCustomer.phone}</Descriptions.Item>
               </Descriptions>
             </Card>
           </>
@@ -1047,12 +1044,12 @@ export default function CheckoutPage() {
 
         <Space>
           <Button onClick={() => setScreen('preview')}>Back</Button>
-          {!cartCustomer && (
+          {!pinnedCustomer && (
             <Button onClick={() => navigate('/customers/register?returnTo=checkout')}>New Customer</Button>
           )}
           <Button
             type="primary"
-            disabled={!(cartCustomer ?? selectedCustomer)}
+            disabled={!(pinnedCustomer ?? selectedCustomer)}
             loading={createMutation.isPending}
             onClick={handleConfirmReceipt}
           >

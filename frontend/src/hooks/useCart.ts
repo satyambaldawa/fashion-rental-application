@@ -72,17 +72,13 @@ function saveCart(cart: Cart | null) {
   }
 }
 
-// Plain functions (not hooks) for use outside CheckoutPage — e.g. ReceiptDetailPage's
-// "Add items" action. They must never mount useCart() itself: doing so would run the
-// effect that writes SESSION_MARKER_KEY, and if the tab is fresh, CheckoutPage's later
-// loadCart() would then wrongly see the marker and trust a stored coupon it should drop.
-
-/** Reads the persisted cart without marking this browser tab session as touched. */
+// Deliberately plain functions, not hooks: mounting useCart() from another page would write
+// SESSION_MARKER_KEY, and CheckoutPage's later loadCart() would then trust a stored coupon
+// it should have dropped on a fresh tab.
 export function peekPersistedCart(): Cart | null {
   return loadCart().cart
 }
 
-/** Starts a fresh cart pinned to a customer carried over from a receipt (#165). */
 export function startCustomerCart(seed: CustomerCartSeed): void {
   saveCart({
     startDatetime: seed.startDatetime,
