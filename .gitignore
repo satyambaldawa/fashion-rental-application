@@ -129,3 +129,6 @@ postgres_data/
 .ionide/
 
 Neon Console Environment.txt
+
+# Marketing outreach lists (contain third-party contact details)
+marketing/
