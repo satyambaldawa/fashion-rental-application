@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Form, Input, message, Modal, Radio } from 'antd'
+import { Button, Form, Input, message, Modal, Radio, Tooltip } from 'antd'
+import { DeleteOutlined } from '@ant-design/icons'
 import { receiptsApi } from '../../api/receipts'
 import type { CancelReceiptRequest, CancellationReason, Receipt } from '../../types/receipt'
 import { CANCELLATION_REASON_LABELS } from '../../utils/receiptCancellation'
@@ -12,12 +13,16 @@ interface ReasonFormValues {
 }
 
 interface CancelReceiptFlowProps {
-  receipt: Receipt
+  // Only what the flow uses, so both the detail page (Receipt) and list cards (ReceiptSummary) can pass theirs.
+  receipt: Pick<Receipt, 'id' | 'receiptNumber' | 'grandTotal'>
+  // 'icon' is the compact bin button used on list cards; 'button' is the labelled one on the detail page.
+  trigger?: 'button' | 'icon'
+  triggerStyle?: CSSProperties
 }
 
 type Step = 'idle' | 'confirm' | 'reason'
 
-export default function CancelReceiptFlow({ receipt }: CancelReceiptFlowProps) {
+export default function CancelReceiptFlow({ receipt, trigger = 'button', triggerStyle }: CancelReceiptFlowProps) {
   const [step, setStep] = useState<Step>('idle')
   const [form] = Form.useForm<ReasonFormValues>()
   const queryClient = useQueryClient()
@@ -62,14 +67,27 @@ export default function CancelReceiptFlow({ receipt }: CancelReceiptFlowProps) {
 
   return (
     <>
-      <Button danger size="large" onClick={() => setStep('confirm')}>
-        Cancel receipt
-      </Button>
+      {trigger === 'icon' ? (
+        <Tooltip title="Cancel receipt">
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            aria-label="Cancel receipt"
+            style={triggerStyle}
+            onClick={() => setStep('confirm')}
+          />
+        </Tooltip>
+      ) : (
+        <Button danger size="large" onClick={() => setStep('confirm')}>
+          Cancel receipt
+        </Button>
+      )}
 
       <Modal
         title="Cancel this receipt?"
         open={step === 'confirm'}
         okText="Yes, money returned. Continue"
+        okButtonProps={{ danger: true }}
         cancelText="No"
         onOk={() => setStep('reason')}
         onCancel={() => setStep('idle')}

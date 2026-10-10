@@ -1,12 +1,38 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import { Badge, Button, ConfigProvider, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import type { ThemeConfig } from 'antd'
+import { RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
+import { useAuth } from '../../hooks/useAuth'
+import { isReceiptCancellable } from '../../utils/receiptCancellation'
+import CancelReceiptFlow from './CancelReceiptFlow'
 import dayjs from 'dayjs'
+
+const VIEW_BUTTON_THEME: ThemeConfig = {
+  components: {
+    Button: {
+      defaultBg: '#A81259',
+      defaultBorderColor: '#A81259',
+      defaultColor: '#ffffff',
+      defaultHoverBg: '#6E0B37',
+      defaultHoverBorderColor: '#6E0B37',
+      defaultHoverColor: '#ffffff',
+      defaultActiveBg: '#33101F',
+      defaultActiveBorderColor: '#33101F',
+      defaultActiveColor: '#ffffff',
+      fontWeight: 500,
+      defaultShadow: 'none',
+    },
+  },
+}
+
+// Tablet tap target (#168); the card's Cancel and View buttons share it so they line up.
+const CARD_ACTION_HEIGHT = 44
 
 function formatOverdue(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min overdue`
@@ -18,19 +44,22 @@ function formatOverdue(hours: number): string {
 
 function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
   const navigate = useNavigate()
+  const { isOwner } = useAuth()
 
   return (
     <div
       style={{
-        border: '1px solid #f0f0f0',
-        borderLeft: receipt.isOverdue ? '4px solid #ff4d4f' : '1px solid #f0f0f0',
-        borderRadius: 8,
+        background: '#ffffff',
+        border: '1px solid #eed6e0',
+        borderLeft: receipt.isOverdue ? '4px solid #ff4d4f' : '1px solid #eed6e0',
+        borderRadius: 14,
+        boxShadow: '0 6px 20px -12px rgba(110,11,55,0.35)',
         padding: 16,
-        marginBottom: 12,
+        marginBottom: 16,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <Space wrap>
             <Typography.Text strong>{receipt.receiptNumber}</Typography.Text>
             {receipt.status === 'CANCELLED' && <Tag color="red">Cancelled</Tag>}
@@ -64,19 +93,44 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
           </div>
         </div>
 
-        <div style={{ textAlign: 'right', marginLeft: 16 }}>
+        <div style={{ textAlign: 'right' }}>
           <div>
-            <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
+            <Typography.Text type="secondary">Rent </Typography.Text>
+            <Typography.Text>{formatCurrency(receipt.totalRent)}</Typography.Text>
+          </div>
+          <div>
+            <Typography.Text type="secondary">Deposit </Typography.Text>
+            <Typography.Text>{formatCurrency(receipt.totalDeposit)}</Typography.Text>
           </div>
           {receipt.couponCode && (
             <Tag color="green" style={{ marginTop: 4 }}>
               {receipt.couponCode} −{formatCurrency(receipt.discountAmount)}
             </Tag>
           )}
+          <div>
+            <Typography.Text type="secondary">Total </Typography.Text>
+            <Typography.Text strong>{formatCurrency(receipt.grandTotal)}</Typography.Text>
+          </div>
           <div style={{ marginTop: 8 }}>
-            <Button size="small" onClick={() => navigate(`/receipts/${receipt.id}`)}>
-              {receipt.status === 'GIVEN' ? 'Process Return' : 'View'}
-            </Button>
+            <Space wrap align="center" style={{ justifyContent: 'flex-end' }}>
+              {isOwner && isReceiptCancellable(receipt) && (
+                <CancelReceiptFlow
+                  receipt={receipt}
+                  trigger="icon"
+                  triggerStyle={{ height: CARD_ACTION_HEIGHT, width: CARD_ACTION_HEIGHT }}
+                />
+              )}
+              <ConfigProvider theme={VIEW_BUTTON_THEME}>
+                <Button
+                  icon={<RightOutlined />}
+                  iconPosition="end"
+                  style={{ minHeight: CARD_ACTION_HEIGHT, minWidth: 104, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }}
+                  onClick={() => navigate(`/receipts/${receipt.id}`)}
+                >
+                  View
+                </Button>
+              </ConfigProvider>
+            </Space>
           </div>
         </div>
       </div>
