@@ -11,11 +11,21 @@ export const LEGACY_STORAGE_KEY = 'rental_cart'
 // is what should invalidate an applied coupon.
 export const SESSION_MARKER_KEY = 'rental_cart_session_marker'
 
+// A saved cart untouched for longer than this is discarded when New Rental is opened (#172).
+// Not user-configurable by design.
+export const STALE_CART_THRESHOLD_MS = 60 * 60 * 1000
+
 interface LoadedCart {
   cart: Cart | null
   // Non-null only on the render where loadCart() itself dropped a coupon that was present
   // in storage — lets the caller warn once, the same way a mid-session cart edit does.
   droppedCouponCode: string | null
+}
+
+export function isCartStale(cart: Cart, now: number = Date.now()): boolean {
+  const changedAt = cart.lastChangedAt ? Date.parse(cart.lastChangedAt) : NaN
+  // Written as "not fresh" so a missing or unparseable timestamp (NaN) counts as stale.
+  return !(now - changedAt <= STALE_CART_THRESHOLD_MS)
 }
 
 function hasMalformedCustomer(cart: Cart): boolean {
@@ -64,12 +74,16 @@ function loadCart(): LoadedCart {
   }
 }
 
-function saveCart(cart: Cart | null) {
-  if (cart) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cart))
-  } else {
+function saveCart(cart: Cart | null): Cart | null {
+  if (!cart) {
     localStorage.removeItem(STORAGE_KEY)
+    return null
   }
+  // Stamped here, the one place every mutator writes through, so "last changed" always
+  // reflects a real cart edit without each mutator having to remember to set it (#172).
+  const stamped = { ...cart, lastChangedAt: new Date().toISOString() }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stamped))
+  return stamped
 }
 
 // Deliberately plain functions, not hooks: mounting useCart() from another page would write
@@ -90,8 +104,29 @@ export function startCustomerCart(seed: CustomerCartSeed): void {
   })
 }
 
+interface InitialCart extends LoadedCart {
+  // True only when loadCartForNewRental() itself discarded a stale cart — lets the effect
+  // below know it still needs to clear storage, without re-running the staleness check on
+  // every render.
+  discardedStale: boolean
+}
+
+// Pure: reads the clock but writes nothing, so it stays safe as a useState lazy initializer
+// (React may call it more than once per mount under StrictMode). The actual storage removal
+// happens in the effect below, not here — see loadCart()'s isNewBrowserSession comment for
+// why a lazy initializer must never write.
+function loadCartForNewRental(): InitialCart {
+  const loaded = loadCart()
+  if (loaded.cart && isCartStale(loaded.cart)) {
+    // A discarded cart shows as empty. droppedCouponCode is forced to null so no
+    // "coupon not carried over" warning appears for a cart that no longer exists.
+    return { cart: null, droppedCouponCode: null, discardedStale: true }
+  }
+  return { ...loaded, discardedStale: false }
+}
+
 export function useCart() {
-  const [{ cart: initialCart, droppedCouponCode }] = useState(loadCart)
+  const [{ cart: initialCart, droppedCouponCode, discardedStale }] = useState(loadCartForNewRental)
   const [cart, setCartState] = useState<Cart | null>(initialCart)
 
   // Marks this browser tab session as touched, for the next mount's loadCart() to see.
@@ -102,9 +137,19 @@ export function useCart() {
     sessionStorage.setItem(SESSION_MARKER_KEY, '1')
   }, [])
 
+  // Removes the stale cart from storage. Done here, not in the lazy initializer above,
+  // for the same reason as the session marker: the initializer can run twice per mount
+  // under StrictMode and must stay a pure read. The stored cart is checked again before
+  // removal, so a fresh cart written since then (a child effect or a fast first edit)
+  // is never deleted. Running twice under StrictMode is also safe.
+  useEffect(() => {
+    if (!discardedStale) return
+    const stored = loadCart().cart
+    if (stored && isCartStale(stored)) saveCart(null)
+  }, [discardedStale])
+
   const setCart = useCallback((next: Cart | null) => {
-    saveCart(next)
-    setCartState(next)
+    setCartState(saveCart(next))
   }, [])
 
   const createCart = useCallback((startDatetime: string, endDatetime: string, rentalDays: number) => {

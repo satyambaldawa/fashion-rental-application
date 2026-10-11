@@ -41,6 +41,7 @@ function seedCart(items: CartItem[], overrides: Partial<Pick<Cart, 'rentalDays' 
     endDatetime: overrides.endDatetime ?? '2026-04-19T10:00:00+05:30',
     rentalDays: overrides.rentalDays ?? 1,
     items,
+    lastChangedAt: new Date().toISOString(),
   }
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
 }
@@ -56,6 +57,7 @@ function seedCustomerCart(
     rentalDays: overrides.rentalDays ?? 1,
     items,
     customer,
+    lastChangedAt: new Date().toISOString(),
   }
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
 }
@@ -494,6 +496,7 @@ describe('CheckoutPage coupons', () => {
       appliedCoupon: {
         couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240,
       },
+      lastChangedAt: new Date().toISOString(),
     }
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
   }

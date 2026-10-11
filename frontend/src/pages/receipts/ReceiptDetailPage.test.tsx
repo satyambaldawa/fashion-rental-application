@@ -147,6 +147,7 @@ describe('ReceiptDetailPage "Add items" (#165)', () => {
       items: [],
       appliedCoupon: null,
       customer: { id: 'cust-9', name: 'Priya', phone: '9900011122' },
+      lastChangedAt: '2026-04-18T06:30:00.000Z',
     })
   })
 
