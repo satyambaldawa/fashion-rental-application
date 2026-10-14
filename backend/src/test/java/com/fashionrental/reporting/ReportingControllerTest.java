@@ -138,6 +138,59 @@ class ReportingControllerTest {
                 .andExpect(status().isOk());
     }
 
+    // ─── GET /api/reports/invoices ───────────────────────────────────────────
+
+    private static final int TOTAL_REVENUE = 1550;
+
+    private static InvoicesReportResponse invoicesReport(LocalDate from, LocalDate to, int totalRevenue) {
+        return new InvoicesReportResponse(from, to, null, 0, 20, 0, 0, 0, 0, 0, 0, 0, totalRevenue, List.of());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_pass_explicit_range_min_revenue_and_page_to_invoices_report() throws Exception {
+        LocalDate from = LocalDate.of(2026, 4, 1);
+        LocalDate to = LocalDate.of(2026, 4, 18);
+        when(reportingService.getInvoicesReport(from, to, 500, 2, 20))
+                .thenReturn(invoicesReport(from, to, TOTAL_REVENUE));
+
+        mockMvc.perform(get("/api/reports/invoices")
+                        .param("from", "2026-04-01").param("to", "2026-04-18").param("minRevenue", "500").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalRevenue").value(TOTAL_REVENUE));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_default_invoices_range_to_last_7_days_in_ist_and_first_page_of_20() throws Exception {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        when(reportingService.getInvoicesReport(today.minusDays(6), today, null, 0, 20))
+                .thenReturn(invoicesReport(today.minusDays(6), today, 0));
+
+        mockMvc.perform(get("/api/reports/invoices"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.from").value(today.minusDays(6).toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_anchor_default_invoices_start_on_a_lone_past_end_date() throws Exception {
+        LocalDate to = LocalDate.of(2026, 3, 31);
+        when(reportingService.getInvoicesReport(LocalDate.of(2026, 3, 25), to, null, 0, 20))
+                .thenReturn(invoicesReport(LocalDate.of(2026, 3, 25), to, 0));
+
+        mockMvc.perform(get("/api/reports/invoices").param("to", "2026-03-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.from").value("2026-03-25"));
+    }
+
+    @Test
+    @WithMockUser(roles = "EXECUTIVE")
+    void should_return_403_when_executive_requests_invoices_report() throws Exception {
+        mockMvc.perform(get("/api/reports/invoices"))
+                .andExpect(status().isForbidden());
+    }
+
     // ─── GET /api/reports/overdue-rentals ────────────────────────────────────
 
     @Test

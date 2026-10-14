@@ -3,12 +3,16 @@ package com.fashionrental.reporting;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.customer.Customer;
 import com.fashionrental.invoice.Invoice;
+import com.fashionrental.invoice.InvoiceReportTotals;
 import com.fashionrental.invoice.InvoiceRepository;
 import com.fashionrental.receipt.Receipt;
+import com.fashionrental.receipt.ReceiptItemCount;
 import com.fashionrental.receipt.ReceiptRepository;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueSummary;
 import com.fashionrental.reporting.model.response.DiscountsGivenResponse;
+import com.fashionrental.reporting.model.response.InvoiceListItem;
+import com.fashionrental.reporting.model.response.InvoicesReportResponse;
 import com.fashionrental.reporting.model.response.MonthlyRevenueResponse;
 import com.fashionrental.reporting.model.response.OutstandingDepositsResponse;
 import com.fashionrental.reporting.model.response.OverdueRentalsResponse;
@@ -19,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -27,7 +33,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -364,6 +372,113 @@ class ReportingServiceTest {
     void getDiscountsGiven_rejects_a_reversed_range() {
         assertThatThrownBy(() -> reportingService.getDiscountsGiven(
                 LocalDate.of(2026, 4, 30), LocalDate.of(2026, 4, 1)))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+    }
+
+    // ─── getInvoicesReport() ────────────────────────────────────────────────
+
+    // Mirrors ReturnService: the invoice stores rent already net of the receipt's coupon.
+    private Invoice settledInvoice(int grossRent, int discount, int lateFee, int damage) {
+        Receipt receipt = TestData.receipt(TestData.customer("Ravi", "9800000000"),
+                receiptA.getStartDatetime(), receiptA.getEndDatetime());
+        receipt.setTotalRent(grossRent);
+        receipt.setDiscountAmount(discount);
+        Invoice invoice = TestData.invoice(Invoice.TransactionType.REFUND, 0, lateFee, damage);
+        invoice.setInvoiceNumber("INV-TEST");
+        invoice.setReceipt(receipt);
+        invoice.setCustomer(receipt.getCustomer());
+        invoice.setTotalRent(grossRent - discount);
+        invoice.setTotalDepositCollected(2000);
+        return invoice;
+    }
+
+    private void givenReportPage(List<Invoice> invoices, InvoiceReportTotals totals, long totalItems) {
+        when(invoiceRepository.findReportPage(any(), any(), anyInt(), any()))
+                .thenReturn(new PageImpl<>(invoices, PageRequest.of(0, 20), invoices.size()));
+        when(invoiceRepository.sumReportTotals(any(), any(), anyInt())).thenReturn(totals);
+        when(invoiceRepository.sumReportItemsRented(any(), any(), anyInt())).thenReturn(totalItems);
+    }
+
+    @Test
+    void getInvoicesReport_row_revenue_counts_the_coupon_discount_once_and_excludes_deposit() {
+        Invoice invoice = settledInvoice(1200, 100, 150, 300);
+        givenReportPage(List.of(invoice), new InvoiceReportTotals(1, 1200, 100, 150, 300), 2);
+        when(receiptRepository.countItemsRentedByReceipt(any()))
+                .thenReturn(List.of(new ReceiptItemCount(invoice.getReceipt().getId(), 2)));
+
+        InvoicesReportResponse report = reportingService.getInvoicesReport(
+                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 7), null, 0, 20);
+
+        InvoiceListItem row = report.invoices().get(0);
+        assertThat(row.rent()).isEqualTo(1200);
+        assertThat(row.discount()).isEqualTo(100);
+        assertThat(row.revenue()).isEqualTo(1550);
+        assertThat(row.items()).isEqualTo(2);
+        assertThat(row.customerName()).isEqualTo("Ravi");
+    }
+
+    @Test
+    void getInvoicesReport_total_revenue_is_derived_from_the_range_wide_sums_not_the_page() {
+        final int rangeInvoiceCount = 42;
+        final int rangeItemsRented = 57;
+        final int rangeRent = 18400;
+        final int rangeDiscount = 900;
+        final int rangeLateFee = 600;
+        final int rangeDamage = 300;
+        givenReportPage(List.of(),
+                new InvoiceReportTotals(rangeInvoiceCount, rangeRent, rangeDiscount, rangeLateFee, rangeDamage),
+                rangeItemsRented);
+
+        InvoicesReportResponse report = reportingService.getInvoicesReport(
+                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 7), null, 0, 20);
+
+        assertThat(report.invoiceCount()).isEqualTo(rangeInvoiceCount);
+        assertThat(report.totalItems()).isEqualTo(rangeItemsRented);
+        assertThat(report.totalRevenue()).isEqualTo(rangeRent - rangeDiscount + rangeLateFee + rangeDamage);
+    }
+
+    @Test
+    void getInvoicesReport_treats_no_minimum_as_a_minimum_of_zero() {
+        givenReportPage(List.of(), new InvoiceReportTotals(0, 0, 0, 0, 0), 0);
+
+        reportingService.getInvoicesReport(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 7), null, 0, 20);
+
+        verify(invoiceRepository).sumReportTotals(any(), any(), eq(0));
+    }
+
+    @Test
+    void getInvoicesReport_rejects_to_before_from() {
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(
+                LocalDate.of(2026, 4, 7), LocalDate.of(2026, 4, 1), null, 0, 20))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+    }
+
+    @Test
+    void getInvoicesReport_accepts_exactly_366_days_but_rejects_367() {
+        givenReportPage(List.of(), new InvoiceReportTotals(0, 0, 0, 0, 0), 0);
+        LocalDate from = LocalDate.of(2026, 1, 1);
+
+        reportingService.getInvoicesReport(from, from.plusDays(365), null, 0, 20);
+
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(from, from.plusDays(366), null, 0, 20))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+    }
+
+    @Test
+    void getInvoicesReport_rejects_negative_min_revenue() {
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(
+                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 7), -1, 0, 20))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+    }
+
+    @Test
+    void getInvoicesReport_rejects_negative_page_and_out_of_bounds_page_size() {
+        LocalDate day = LocalDate.of(2026, 4, 1);
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(day, day, null, -1, 20))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(day, day, null, 0, 0))
+                .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
+        assertThatThrownBy(() -> reportingService.getInvoicesReport(day, day, null, 0, 101))
                 .isInstanceOf(com.fashionrental.common.exception.ValidationException.class);
     }
 }

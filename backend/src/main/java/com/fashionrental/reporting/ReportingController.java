@@ -3,6 +3,7 @@ package com.fashionrental.reporting;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
 import com.fashionrental.reporting.model.response.DiscountsGivenResponse;
+import com.fashionrental.reporting.model.response.InvoicesReportResponse;
 import com.fashionrental.reporting.model.response.MonthlyRevenueResponse;
 import com.fashionrental.reporting.model.response.OutstandingDepositsResponse;
 import com.fashionrental.reporting.model.response.OverdueRentalsResponse;
@@ -27,6 +28,7 @@ public class ReportingController {
     // default zone, which is wrong for "today" in a shop that operates on IST regardless of
     // where the server happens to run.
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    private static final int DEFAULT_INVOICE_RANGE_DAYS = 7;
 
     private final ReportingService reportingService;
 
@@ -68,6 +70,22 @@ public class ReportingController {
         LocalDate effectiveFrom = from != null ? from : today.withDayOfMonth(1);
         LocalDate effectiveTo = to != null ? to : today;
         return ResponseEntity.ok(ApiResponse.ok(reportingService.getDiscountsGiven(effectiveFrom, effectiveTo)));
+    }
+
+    @GetMapping("/invoices")
+    @Operation(summary = "Invoices generated within a date range, with total earned revenue")
+    public ResponseEntity<ApiResponse<InvoicesReportResponse>> getInvoicesReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Integer minRevenue,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        LocalDate today = LocalDate.now(IST);
+        LocalDate effectiveTo = to != null ? to : today;
+        // Anchored on the end date, not today, so a lone past 'to' still yields a valid range.
+        LocalDate effectiveFrom = from != null ? from : effectiveTo.minusDays(DEFAULT_INVOICE_RANGE_DAYS - 1);
+        return ResponseEntity.ok(ApiResponse.ok(
+                reportingService.getInvoicesReport(effectiveFrom, effectiveTo, minRevenue, page, size)));
     }
 
     @GetMapping("/overdue-rentals")

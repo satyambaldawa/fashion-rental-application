@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Alert,
@@ -39,6 +39,7 @@ import type {
   OutstandingDepositItem,
   OverdueRentalItem,
 } from '../../types/reports'
+import InvoicesTab from './InvoicesTab'
 
 function formatOverdueDuration(hours: number): string {
   if (hours < 24) return `${Math.floor(hours)} hr${Math.floor(hours) !== 1 ? 's' : ''}`
@@ -480,16 +481,23 @@ function DiscountsGivenTab() {
   )
 }
 
+const DEFAULT_REPORT_TAB = 'monthly-revenue'
+
 export default function ReportsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') ?? DEFAULT_REPORT_TAB
+
   return (
     <div>
       <PageHeader label="Reports" title="Revenue &" accent="Insights" />
       <Tabs
-        defaultActiveKey="monthly-revenue"
+        activeKey={activeTab}
+        onChange={key => setSearchParams({ tab: key }, { replace: true })}
         items={[
           { key: 'monthly-revenue', label: 'Monthly Revenue', children: <MonthlyRevenueTab /> },
           { key: 'daily-revenue', label: 'Daily Revenue', children: <DailyRevenueTab /> },
           { key: 'discounts-given', label: 'Discounts Given', children: <DiscountsGivenTab /> },
+          { key: 'invoices', label: 'Invoices', children: <InvoicesTab /> },
           { key: 'outstanding-deposits', label: 'Outstanding Deposits', children: <OutstandingDepositsTab /> },
           { key: 'overdue-rentals', label: 'Overdue Rentals', children: <OverdueRentalsTab /> },
         ]}

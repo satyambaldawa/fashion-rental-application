@@ -75,3 +75,9 @@ export interface Invoice {
   lineItems: InvoiceLineItem[]
   createdAt: string
 }
+
+/** Router state a page passes when opening an invoice, so its back button returns there. */
+export interface InvoiceBackLink {
+  backTo: string
+  backLabel: string
+}

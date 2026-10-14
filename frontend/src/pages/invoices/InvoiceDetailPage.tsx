@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
@@ -13,7 +13,8 @@ import {
 import { ArrowLeftOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { invoicesApi } from '../../api/invoices'
-import type { InvoiceLineItem } from '../../types/invoice'
+import type { InvoiceBackLink, InvoiceLineItem } from '../../types/invoice'
+import { isInvoiceBackLink } from '../../utils/invoiceBackLink'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
@@ -59,9 +60,13 @@ function formatCategory(cat: string | null): string {
   return cat.charAt(0) + cat.slice(1).toLowerCase()
 }
 
+const DEFAULT_BACK_LINK: InvoiceBackLink = { backTo: '/receipts', backLabel: 'Back to Active Rentals' }
+
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const locationState: unknown = useLocation().state
+  const backLink = isInvoiceBackLink(locationState) ? locationState : DEFAULT_BACK_LINK
 
   const { data: invoice, isLoading, isError } = useQuery({
     queryKey: ['invoice', id],
@@ -81,8 +86,8 @@ export default function InvoiceDetailPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '80px 0' }}>
         <Typography.Text type="danger">Invoice not found.</Typography.Text>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/receipts')}>
-          Back to Active Rentals
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(backLink.backTo)}>
+          {backLink.backLabel}
         </Button>
       </div>
     )
@@ -167,10 +172,10 @@ export default function InvoiceDetailPage() {
             type="link"
             size="large"
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/receipts')}
+            onClick={() => navigate(backLink.backTo)}
             style={{ padding: 0 }}
           >
-            Back to Active Rentals
+            {backLink.backLabel}
           </Button>
           <Space wrap>
             <Button size="large" icon={<PrinterOutlined />} onClick={() => window.print()}>
