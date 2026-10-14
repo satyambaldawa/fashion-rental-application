@@ -1,6 +1,6 @@
 import client from './client'
 import type { ApiResponse } from '../types/api'
-import type { DailyRevenue, DiscountsGiven, MonthlyRevenue, OutstandingDeposits, OverdueRentals } from '../types/reports'
+import type { DailyRevenue, DiscountsGiven, InvoicesReport, InvoicesReportQuery, MonthlyRevenue, OutstandingDeposits, OverdueRentals } from '../types/reports'
 
 export const reportsApi = {
   getDailyRevenue: (date?: string): Promise<DailyRevenue> =>
@@ -21,5 +21,9 @@ export const reportsApi = {
 
   getDiscountsGiven: (from?: string, to?: string): Promise<DiscountsGiven> =>
     client.get<ApiResponse<DiscountsGiven>>('/reports/discounts-given', { params: { from, to } })
+      .then(r => r.data.data!),
+
+  getInvoices: (query: InvoicesReportQuery): Promise<InvoicesReport> =>
+    client.get<ApiResponse<InvoicesReport>>('/reports/invoices', { params: query })
       .then(r => r.data.data!),
 }

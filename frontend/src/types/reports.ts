@@ -86,3 +86,42 @@ export interface DiscountsGiven {
   receiptsWithCoupon: number
   byCoupon: CouponDiscountSummary[]
 }
+
+export interface InvoiceListItem {
+  invoiceId: string
+  invoiceNumber: string
+  invoiceDate: string
+  customerName: string
+  receiptNumber: string
+  items: number
+  rent: number
+  discount: number
+  lateFee: number
+  damage: number
+  revenue: number
+}
+
+export interface InvoicesReport {
+  from: string
+  to: string
+  minRevenue: number | null
+  page: number
+  pageSize: number
+  totalPages: number
+  invoiceCount: number
+  totalItems: number
+  totalRent: number
+  totalDiscount: number
+  totalLateFee: number
+  totalDamage: number
+  totalRevenue: number
+  invoices: InvoiceListItem[]
+}
+
+export interface InvoicesReportQuery {
+  from: string
+  to: string
+  minRevenue?: number
+  page: number
+  size: number
+}

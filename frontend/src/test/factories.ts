@@ -5,7 +5,7 @@ import type { ItemSummary, ItemDetail } from '../types/inventory'
 import type { GalleryImage } from '../types/gallery'
 import type { Receipt, ReceiptSummary, ReceiptCancellation, CheckoutPreview, EligibleCoupon, CartCustomer, CatalogueCartItem } from '../types/receipt'
 import type { Invoice, ReturnPreview } from '../types/invoice'
-import type { DailyRevenue, DiscountsGiven, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
+import type { DailyRevenue, DiscountsGiven, InvoiceListItem, InvoicesReport, OutstandingDeposits, OverdueRentals, MonthlyRevenue } from '../types/reports'
 import type { LateFeeRule } from '../types/config'
 import type { UserRecord, LoginResponse } from '../types/auth'
 import type { Coupon } from '../types/coupons'
@@ -192,4 +192,17 @@ export const anAdminReview: Partialize<AdminReview> = (o = {}) => ({
   id: 'review-1', reviewerName: 'Priya S', phone: '9876543210', itemDescription: 'Red bridal lehenga',
   rating: 5, reviewText: 'Beautiful outfit.', status: 'PENDING',
   createdAt: '2026-09-20T14:30:00+05:30', moderatedAt: null, images: [], ...o,
+})
+
+export const anInvoiceListItem: Partialize<InvoiceListItem> = (o = {}) => ({
+  invoiceId: 'inv-1', invoiceNumber: 'INV-0042', invoiceDate: '2026-04-15T12:00:00+05:30',
+  customerName: 'Ravi Kumar', receiptNumber: 'R-0042', items: 2,
+  rent: 1200, discount: 100, lateFee: 150, damage: 300, revenue: 1550, ...o,
+})
+
+export const anInvoicesReport: Partialize<InvoicesReport> = (o = {}) => ({
+  from: '2026-04-09', to: '2026-04-15', minRevenue: null,
+  page: 0, pageSize: 20, totalPages: 1, invoiceCount: 1, totalItems: 2,
+  totalRent: 1200, totalDiscount: 100, totalLateFee: 150, totalDamage: 300, totalRevenue: 1550,
+  invoices: [anInvoiceListItem()], ...o,
 })

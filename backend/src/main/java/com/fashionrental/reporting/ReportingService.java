@@ -3,18 +3,25 @@ package com.fashionrental.reporting;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.invoice.Invoice;
+import com.fashionrental.invoice.InvoiceReportTotals;
 import com.fashionrental.invoice.InvoiceRepository;
+import com.fashionrental.invoice.ReceiptItemCount;
 import com.fashionrental.receipt.Receipt;
 import com.fashionrental.receipt.ReceiptRepository;
 import com.fashionrental.reporting.model.response.CouponDiscountSummary;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueSummary;
 import com.fashionrental.reporting.model.response.DiscountsGivenResponse;
+import com.fashionrental.reporting.model.response.InvoiceListItem;
+import com.fashionrental.reporting.model.response.InvoicesReportResponse;
 import com.fashionrental.reporting.model.response.MonthlyRevenueResponse;
 import com.fashionrental.reporting.model.response.OutstandingDepositItem;
 import com.fashionrental.reporting.model.response.OutstandingDepositsResponse;
 import com.fashionrental.reporting.model.response.OverdueRentalItem;
 import com.fashionrental.reporting.model.response.OverdueRentalsResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +35,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +43,11 @@ import java.util.stream.Collectors;
 public class ReportingService {
 
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    // Caps the unpaged invoices list at a year so the response stays small.
+    static final int MAX_INVOICE_REPORT_DAYS = 366;
+    static final int MAX_INVOICE_REPORT_PAGE_SIZE = 100;
+    // id breaks ties so invoices created in the same instant never repeat or vanish across pages.
+    private static final Sort NEWEST_INVOICE_FIRST = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
 
     private final ReceiptRepository receiptRepository;
     private final InvoiceRepository invoiceRepository;
@@ -216,6 +229,64 @@ public class ReportingService {
         return new DiscountsGivenResponse(from, to, totalDiscountGiven, withCoupon.size(), byCoupon);
     }
 
+    public InvoicesReportResponse getInvoicesReport(LocalDate from, LocalDate to, Integer minRevenue,
+                                                    int page, int pageSize) {
+        if (to.isBefore(from)) {
+            throw new ValidationException("'to' must not be before 'from'.");
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_INVOICE_REPORT_DAYS) {
+            throw new ValidationException("Date range must not exceed " + MAX_INVOICE_REPORT_DAYS + " days.");
+        }
+        if (minRevenue != null && minRevenue < 0) {
+            throw new ValidationException("'minRevenue' must not be negative.");
+        }
+        if (page < 0) {
+            throw new ValidationException("'page' must not be negative.");
+        }
+        if (pageSize < 1 || pageSize > MAX_INVOICE_REPORT_PAGE_SIZE) {
+            throw new ValidationException("'size' must be between 1 and " + MAX_INVOICE_REPORT_PAGE_SIZE + ".");
+        }
+
+        OffsetDateTime rangeStart = from.atStartOfDay(IST).toOffsetDateTime();
+        OffsetDateTime rangeEnd   = to.plusDays(1).atStartOfDay(IST).toOffsetDateTime();
+        // Revenue is never negative (discount ≤ rent, fees ≥ 0), so "no minimum" is a minimum of 0.
+        int effectiveMinRevenue = minRevenue != null ? minRevenue : 0;
+
+        Page<Invoice> invoicePage = invoiceRepository.findReportPage(
+                rangeStart, rangeEnd, effectiveMinRevenue, PageRequest.of(page, pageSize, NEWEST_INVOICE_FIRST));
+        Map<UUID, Long> itemsByReceipt = itemsRentedByReceipt(invoicePage.getContent());
+        List<InvoiceListItem> rows = invoicePage.getContent().stream()
+                .map(invoice -> toInvoiceListItem(invoice,
+                        itemsByReceipt.getOrDefault(invoice.getReceipt().getId(), 0L)))
+                .toList();
+
+        InvoiceReportTotals totals = invoiceRepository.sumReportTotals(rangeStart, rangeEnd, effectiveMinRevenue);
+        long totalItems = invoiceRepository.sumReportItemsRented(rangeStart, rangeEnd, effectiveMinRevenue);
+        long totalRevenue = totals.totalRent() - totals.totalDiscount() + totals.totalLateFee() + totals.totalDamage();
+
+        return new InvoicesReportResponse(
+                from, to, minRevenue,
+                page, pageSize, invoicePage.getTotalPages(),
+                Math.toIntExact(totals.invoiceCount()),
+                Math.toIntExact(totalItems),
+                Math.toIntExact(totals.totalRent()),
+                Math.toIntExact(totals.totalDiscount()),
+                Math.toIntExact(totals.totalLateFee()),
+                Math.toIntExact(totals.totalDamage()),
+                Math.toIntExact(totalRevenue),
+                rows
+        );
+    }
+
+    private Map<UUID, Long> itemsRentedByReceipt(List<Invoice> invoices) {
+        if (invoices.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> receiptIds = invoices.stream().map(i -> i.getReceipt().getId()).toList();
+        return invoiceRepository.countItemsRentedByReceipt(receiptIds).stream()
+                .collect(Collectors.toMap(ReceiptItemCount::receiptId, ReceiptItemCount::itemCount));
+    }
+
     public OverdueRentalsResponse getOverdueRentals() {
         OffsetDateTime now = OffsetDateTime.now();
         List<Receipt> overdueReceipts = receiptRepository
@@ -234,6 +305,23 @@ public class ReportingService {
         }).toList();
 
         return new OverdueRentalsResponse(items.size(), items);
+    }
+
+    // Rent is read gross from the receipt because invoices.total_rent is already net of the
+    // coupon (ReturnService) — subtracting the discount from it would count the coupon twice.
+    // Deposits are held and refunded, never revenue, so neither total_deposit_collected nor
+    // the settlement final_amount belongs in this figure.
+    private static InvoiceListItem toInvoiceListItem(Invoice invoice, long itemsRented) {
+        Receipt receipt = invoice.getReceipt();
+        int grossRent = receipt.getTotalRent();
+        int discount = receipt.getDiscountAmount();
+        int revenue = grossRent - discount + invoice.getTotalLateFee() + invoice.getTotalDamageCost();
+        return new InvoiceListItem(
+                invoice.getId(), invoice.getInvoiceNumber(), invoice.getCreatedAt(),
+                invoice.getCustomer().getName(), receipt.getReceiptNumber(),
+                Math.toIntExact(itemsRented), grossRent, discount, invoice.getTotalLateFee(), invoice.getTotalDamageCost(),
+                revenue
+        );
     }
 
     // grand_total is rent net of discount plus deposit (receipts_grand_total_check), so it is

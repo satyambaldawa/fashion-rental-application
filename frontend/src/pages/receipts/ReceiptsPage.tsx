@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, ConfigProvider, Empty, Space, Tabs, Tag, Typography } from 'antd'
-import type { ThemeConfig } from 'antd'
-import { RightOutlined } from '@ant-design/icons'
+import { Badge, Empty, Space, Tabs, Tag, Typography } from 'antd'
 import PageHeader from '../../components/common/PageHeader'
+import ViewButton, { VIEW_BUTTON_HEIGHT } from '../../components/common/ViewButton'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { receiptsApi } from '../../api/receipts'
 import type { ReceiptSummary } from '../../types/receipt'
@@ -13,26 +12,8 @@ import { isReceiptCancellable } from '../../utils/receiptCancellation'
 import CancelReceiptFlow from './CancelReceiptFlow'
 import dayjs from 'dayjs'
 
-const VIEW_BUTTON_THEME: ThemeConfig = {
-  components: {
-    Button: {
-      defaultBg: '#A81259',
-      defaultBorderColor: '#A81259',
-      defaultColor: '#ffffff',
-      defaultHoverBg: '#6E0B37',
-      defaultHoverBorderColor: '#6E0B37',
-      defaultHoverColor: '#ffffff',
-      defaultActiveBg: '#33101F',
-      defaultActiveBorderColor: '#33101F',
-      defaultActiveColor: '#ffffff',
-      fontWeight: 500,
-      defaultShadow: 'none',
-    },
-  },
-}
-
 // Tablet tap target (#168); the card's Cancel and View buttons share it so they line up.
-const CARD_ACTION_HEIGHT = 44
+const CARD_ACTION_HEIGHT = VIEW_BUTTON_HEIGHT
 
 function formatOverdue(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min overdue`
@@ -120,16 +101,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
                   triggerStyle={{ height: CARD_ACTION_HEIGHT, width: CARD_ACTION_HEIGHT }}
                 />
               )}
-              <ConfigProvider theme={VIEW_BUTTON_THEME}>
-                <Button
-                  icon={<RightOutlined />}
-                  iconPosition="end"
-                  style={{ minHeight: CARD_ACTION_HEIGHT, minWidth: 104, fontFamily: '"Jost", system-ui, sans-serif', letterSpacing: '0.01em' }}
-                  onClick={() => navigate(`/receipts/${receipt.id}`)}
-                >
-                  View
-                </Button>
-              </ConfigProvider>
+              <ViewButton onClick={() => navigate(`/receipts/${receipt.id}`)} />
             </Space>
           </div>
         </div>

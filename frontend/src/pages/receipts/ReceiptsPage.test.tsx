@@ -46,7 +46,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     })])))
 
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     expect(within(screen.getByText('Rent').parentElement!).getByText('₹300')).toBeInTheDocument()
     expect(within(screen.getByText('Deposit').parentElement!).getByText('₹1,000')).toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     })])))
 
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     expect(within(screen.getByText('Rent').parentElement!).getByText('₹1,000')).toBeInTheDocument()
     expect(within(screen.getByText('Deposit').parentElement!).getByText('₹500')).toBeInTheDocument()
@@ -74,7 +74,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     })])))
 
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     expect(within(screen.getByText('Total').parentElement!).getByText('₹1,250')).toBeInTheDocument()
     expect(screen.queryByText('₹1,300')).not.toBeInTheDocument()
@@ -88,7 +88,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
 
     const user = userEvent.setup()
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     await user.click(screen.getByRole('tab', { name: /overdue/i }))
 
@@ -102,7 +102,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary()])))
 
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     expect(screen.queryByRole('button', { name: /process return/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /view/i })).toBeInTheDocument()
@@ -113,7 +113,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
 
     const user = userEvent.setup()
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     await user.click(screen.getByRole('button', { name: /view/i }))
 
@@ -136,7 +136,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
     server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary()])))
 
     renderReceiptsPage()
-    await flush()
+    await screen.findByText('Rent')
 
     expect(screen.getByRole('button', { name: /view/i })).toHaveStyle({ minHeight: '44px' })
   })

@@ -3,7 +3,10 @@ import { http, HttpResponse } from 'msw'
 import { renderWithProviders, flush, screen } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
+import { Route, Routes } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
 import { useAuthStore } from '../../store/authStore'
+import type { InvoiceBackLink } from '../../types/invoice'
 import InvoiceDetailPage from './InvoiceDetailPage'
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
@@ -58,5 +61,32 @@ describe('InvoiceDetailPage "Add items" (#165)', () => {
 
     expect(await screen.findByText('Rent Charged')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add items' })).not.toBeInTheDocument()
+  })
+})
+
+describe('InvoiceDetailPage back link', () => {
+  it('returns to Active Rentals when opened without a back link', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))
+
+    await renderInvoice()
+
+    expect(await screen.findByRole('button', { name: /Back to Active Rentals/ })).toBeInTheDocument()
+  })
+
+  it('offers the back link handed over by the page that opened it', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))
+    const backLink: InvoiceBackLink = { backTo: '/reports?tab=invoices', backLabel: 'Back to Invoices' }
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/reports" element={<div>Invoices report</div>} />
+      </Routes>,
+      { route: '/invoices/inv-1', state: backLink },
+    )
+    await flush()
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Back to Invoices/ }))
+
+    expect(await screen.findByText('Invoices report')).toBeInTheDocument()
   })
 })
