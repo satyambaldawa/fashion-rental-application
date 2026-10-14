@@ -47,4 +47,14 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     List<Receipt> findByCancelledAtBetweenOrderByCancelledAtAsc(OffsetDateTime from, OffsetDateTime to);
 
     Optional<Receipt> findByShareToken(String shareToken);
+
+    // Package component lines are reserved at ₹0/₹0 and are not separately rented items.
+    String BILLED_LINE_ITEM = " (li.rateSnapshot > 0 or li.depositSnapshot > 0) ";
+
+    @Query("""
+            select new com.fashionrental.receipt.ReceiptItemCount(li.receipt.id, sum(li.quantity))
+            from ReceiptLineItem li
+            where li.receipt.id in :receiptIds and
+            """ + BILLED_LINE_ITEM + " group by li.receipt.id")
+    List<ReceiptItemCount> countItemsRentedByReceipt(@Param("receiptIds") List<UUID> receiptIds);
 }

@@ -5,8 +5,8 @@ import com.fashionrental.customer.Customer;
 import com.fashionrental.invoice.Invoice;
 import com.fashionrental.invoice.InvoiceReportTotals;
 import com.fashionrental.invoice.InvoiceRepository;
-import com.fashionrental.invoice.ReceiptItemCount;
 import com.fashionrental.receipt.Receipt;
+import com.fashionrental.receipt.ReceiptItemCount;
 import com.fashionrental.receipt.ReceiptRepository;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
 import com.fashionrental.reporting.model.response.DailyRevenueSummary;
@@ -403,7 +403,7 @@ class ReportingServiceTest {
     void getInvoicesReport_row_revenue_counts_the_coupon_discount_once_and_excludes_deposit() {
         Invoice invoice = settledInvoice(1200, 100, 150, 300);
         givenReportPage(List.of(invoice), new InvoiceReportTotals(1, 1200, 100, 150, 300), 2);
-        when(invoiceRepository.countItemsRentedByReceipt(any()))
+        when(receiptRepository.countItemsRentedByReceipt(any()))
                 .thenReturn(List.of(new ReceiptItemCount(invoice.getReceipt().getId(), 2)));
 
         InvoicesReportResponse report = reportingService.getInvoicesReport(
@@ -419,14 +419,22 @@ class ReportingServiceTest {
 
     @Test
     void getInvoicesReport_total_revenue_is_derived_from_the_range_wide_sums_not_the_page() {
-        givenReportPage(List.of(), new InvoiceReportTotals(42, 18400, 900, 600, 300), 57);
+        final int rangeInvoiceCount = 42;
+        final int rangeItemsRented = 57;
+        final int rangeRent = 18400;
+        final int rangeDiscount = 900;
+        final int rangeLateFee = 600;
+        final int rangeDamage = 300;
+        givenReportPage(List.of(),
+                new InvoiceReportTotals(rangeInvoiceCount, rangeRent, rangeDiscount, rangeLateFee, rangeDamage),
+                rangeItemsRented);
 
         InvoicesReportResponse report = reportingService.getInvoicesReport(
                 LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 7), null, 0, 20);
 
-        assertThat(report.invoiceCount()).isEqualTo(42);
-        assertThat(report.totalItems()).isEqualTo(57);
-        assertThat(report.totalRevenue()).isEqualTo(18400 - 900 + 600 + 300);
+        assertThat(report.invoiceCount()).isEqualTo(rangeInvoiceCount);
+        assertThat(report.totalItems()).isEqualTo(rangeItemsRented);
+        assertThat(report.totalRevenue()).isEqualTo(rangeRent - rangeDiscount + rangeLateFee + rangeDamage);
     }
 
     @Test

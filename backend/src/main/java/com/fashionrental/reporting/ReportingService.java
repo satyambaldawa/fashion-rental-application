@@ -5,8 +5,8 @@ import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.invoice.Invoice;
 import com.fashionrental.invoice.InvoiceReportTotals;
 import com.fashionrental.invoice.InvoiceRepository;
-import com.fashionrental.invoice.ReceiptItemCount;
 import com.fashionrental.receipt.Receipt;
+import com.fashionrental.receipt.ReceiptItemCount;
 import com.fashionrental.receipt.ReceiptRepository;
 import com.fashionrental.reporting.model.response.CouponDiscountSummary;
 import com.fashionrental.reporting.model.response.DailyRevenueResponse;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 public class ReportingService {
 
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
-    // Caps the unpaged invoices list at a year so the response stays small.
+    // Bounds how far back a single invoices report can reach.
     static final int MAX_INVOICE_REPORT_DAYS = 366;
     static final int MAX_INVOICE_REPORT_PAGE_SIZE = 100;
     // id breaks ties so invoices created in the same instant never repeat or vanish across pages.
@@ -231,21 +231,7 @@ public class ReportingService {
 
     public InvoicesReportResponse getInvoicesReport(LocalDate from, LocalDate to, Integer minRevenue,
                                                     int page, int pageSize) {
-        if (to.isBefore(from)) {
-            throw new ValidationException("'to' must not be before 'from'.");
-        }
-        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_INVOICE_REPORT_DAYS) {
-            throw new ValidationException("Date range must not exceed " + MAX_INVOICE_REPORT_DAYS + " days.");
-        }
-        if (minRevenue != null && minRevenue < 0) {
-            throw new ValidationException("'minRevenue' must not be negative.");
-        }
-        if (page < 0) {
-            throw new ValidationException("'page' must not be negative.");
-        }
-        if (pageSize < 1 || pageSize > MAX_INVOICE_REPORT_PAGE_SIZE) {
-            throw new ValidationException("'size' must be between 1 and " + MAX_INVOICE_REPORT_PAGE_SIZE + ".");
-        }
+        validateInvoicesReportRequest(from, to, minRevenue, page, pageSize);
 
         OffsetDateTime rangeStart = from.atStartOfDay(IST).toOffsetDateTime();
         OffsetDateTime rangeEnd   = to.plusDays(1).atStartOfDay(IST).toOffsetDateTime();
@@ -262,7 +248,7 @@ public class ReportingService {
 
         InvoiceReportTotals totals = invoiceRepository.sumReportTotals(rangeStart, rangeEnd, effectiveMinRevenue);
         long totalItems = invoiceRepository.sumReportItemsRented(rangeStart, rangeEnd, effectiveMinRevenue);
-        long totalRevenue = totals.totalRent() - totals.totalDiscount() + totals.totalLateFee() + totals.totalDamage();
+        long totalRevenue = revenueOf(totals.totalRent(), totals.totalDiscount(), totals.totalLateFee(), totals.totalDamage());
 
         return new InvoicesReportResponse(
                 from, to, minRevenue,
@@ -278,12 +264,31 @@ public class ReportingService {
         );
     }
 
+    private static void validateInvoicesReportRequest(LocalDate from, LocalDate to, Integer minRevenue,
+                                                      int page, int pageSize) {
+        if (to.isBefore(from)) {
+            throw new ValidationException("'to' must not be before 'from'.");
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_INVOICE_REPORT_DAYS) {
+            throw new ValidationException("Date range must not exceed " + MAX_INVOICE_REPORT_DAYS + " days.");
+        }
+        if (minRevenue != null && minRevenue < 0) {
+            throw new ValidationException("'minRevenue' must not be negative.");
+        }
+        if (page < 0) {
+            throw new ValidationException("'page' must not be negative.");
+        }
+        if (pageSize < 1 || pageSize > MAX_INVOICE_REPORT_PAGE_SIZE) {
+            throw new ValidationException("'size' must be between 1 and " + MAX_INVOICE_REPORT_PAGE_SIZE + ".");
+        }
+    }
+
     private Map<UUID, Long> itemsRentedByReceipt(List<Invoice> invoices) {
         if (invoices.isEmpty()) {
             return Map.of();
         }
         List<UUID> receiptIds = invoices.stream().map(i -> i.getReceipt().getId()).toList();
-        return invoiceRepository.countItemsRentedByReceipt(receiptIds).stream()
+        return receiptRepository.countItemsRentedByReceipt(receiptIds).stream()
                 .collect(Collectors.toMap(ReceiptItemCount::receiptId, ReceiptItemCount::itemCount));
     }
 
@@ -309,19 +314,25 @@ public class ReportingService {
 
     // Rent is read gross from the receipt because invoices.total_rent is already net of the
     // coupon (ReturnService) — subtracting the discount from it would count the coupon twice.
-    // Deposits are held and refunded, never revenue, so neither total_deposit_collected nor
-    // the settlement final_amount belongs in this figure.
     private static InvoiceListItem toInvoiceListItem(Invoice invoice, long itemsRented) {
         Receipt receipt = invoice.getReceipt();
         int grossRent = receipt.getTotalRent();
         int discount = receipt.getDiscountAmount();
-        int revenue = grossRent - discount + invoice.getTotalLateFee() + invoice.getTotalDamageCost();
+        int revenue = Math.toIntExact(
+                revenueOf(grossRent, discount, invoice.getTotalLateFee(), invoice.getTotalDamageCost()));
         return new InvoiceListItem(
                 invoice.getId(), invoice.getInvoiceNumber(), invoice.getCreatedAt(),
                 invoice.getCustomer().getName(), receipt.getReceiptNumber(),
                 Math.toIntExact(itemsRented), grossRent, discount, invoice.getTotalLateFee(), invoice.getTotalDamageCost(),
                 revenue
         );
+    }
+
+    // Earned income only. Deposits are held and refunded, never revenue, so neither
+    // total_deposit_collected nor the settlement final_amount belongs here. The invoices
+    // report's SQL filter (InvoiceRepository.REPORT_FILTER) repeats this expression.
+    private static long revenueOf(long grossRent, long discount, long lateFee, long damage) {
+        return grossRent - discount + lateFee + damage;
     }
 
     // grand_total is rent net of discount plus deposit (receipts_grand_total_check), so it is

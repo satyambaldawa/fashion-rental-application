@@ -1,4 +1,4 @@
-package com.fashionrental.invoice;
+package com.fashionrental.receipt;
 
 import java.util.UUID;
 

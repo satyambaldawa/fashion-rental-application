@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Button, Card, Space, Spin, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { customersApi } from '../../api/customers'
 import { AmountDisplay } from '../../components/common/AmountDisplay'
 import type { CustomerReceipt, CustomerType } from '../../types/customer'
+import type { InvoiceBackLink } from '../../types/invoice'
 
 const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
   STUDENT: 'Student',
@@ -32,6 +33,8 @@ function formatDatetime(value: string): string {
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backToThisCustomer: InvoiceBackLink = { backTo: location.pathname, backLabel: 'Back to Customer' }
 
   const { data: customer, isLoading, isError } = useQuery({
     queryKey: ['customers', id, 'history'],
@@ -146,7 +149,7 @@ export default function CustomerDetailPage() {
                   <Button
                     type="link"
                     style={{ padding: 0, height: 'auto' }}
-                    onClick={() => navigate(`/invoices/${receipt.invoice!.id}`)}
+                    onClick={() => navigate(`/invoices/${receipt.invoice!.id}`, { state: backToThisCustomer })}
                   >
                     View Invoice
                   </Button>

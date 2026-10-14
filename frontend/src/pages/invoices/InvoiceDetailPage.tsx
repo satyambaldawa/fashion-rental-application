@@ -14,6 +14,7 @@ import { ArrowLeftOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-desig
 import dayjs from 'dayjs'
 import { invoicesApi } from '../../api/invoices'
 import type { InvoiceBackLink, InvoiceLineItem } from '../../types/invoice'
+import { isInvoiceBackLink } from '../../utils/invoiceBackLink'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
@@ -64,7 +65,8 @@ const DEFAULT_BACK_LINK: InvoiceBackLink = { backTo: '/receipts', backLabel: 'Ba
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const backLink = (useLocation().state as InvoiceBackLink | null) ?? DEFAULT_BACK_LINK
+  const locationState: unknown = useLocation().state
+  const backLink = isInvoiceBackLink(locationState) ? locationState : DEFAULT_BACK_LINK
 
   const { data: invoice, isLoading, isError } = useQuery({
     queryKey: ['invoice', id],

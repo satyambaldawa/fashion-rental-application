@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import type { InvoiceBackLink } from '../../types/invoice'
 import { renderWithProviders, flush, screen } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
@@ -16,6 +17,11 @@ const renderPage = () =>
     path: '/customers/:id',
   })
 
+function InvoiceDetailStub() {
+  const backLink = useLocation().state as InvoiceBackLink | null
+  return <div>Invoice Detail Page, back to {backLink?.backTo} ({backLink?.backLabel})</div>
+}
+
 // Mounts a real /invoices/:id route so a test can confirm the invoice link
 // actually navigates there, rather than just not-crashing.
 const renderPageWithInvoiceRoute = () => {
@@ -26,7 +32,7 @@ const renderPageWithInvoiceRoute = () => {
         <MemoryRouter initialEntries={['/customers/cust-1']}>
           <Routes>
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/invoices/:id" element={<div>Invoice Detail Page</div>} />
+            <Route path="/invoices/:id" element={<InvoiceDetailStub />} />
           </Routes>
         </MemoryRouter>
       </ConfigProvider>
@@ -119,7 +125,8 @@ describe('CustomerDetailPage', () => {
     expect(await screen.findByText(/INV-20260412-001/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'View Invoice' }))
 
-    expect(await screen.findByText('Invoice Detail Page')).toBeInTheDocument()
+    expect(await screen.findByText('Invoice Detail Page, back to /customers/cust-1 (Back to Customer)'))
+      .toBeInTheDocument()
   })
 
   it('shows no invoice link for a GIVEN receipt', async () => {

@@ -73,6 +73,17 @@ describe('InvoiceDetailPage back link', () => {
     expect(await screen.findByRole('button', { name: /Back to Active Rentals/ })).toBeInTheDocument()
   })
 
+  it('falls back to Active Rentals when the router state is not a back link', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))
+
+    renderWithProviders(<InvoiceDetailPage />, {
+      route: '/invoices/inv-1', path: '/invoices/:id', state: { somethingElse: true },
+    })
+    await flush()
+
+    expect(await screen.findByRole('button', { name: /Back to Active Rentals/ })).toBeInTheDocument()
+  })
+
   it('offers the back link handed over by the page that opened it', async () => {
     server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))
     const backLink: InvoiceBackLink = { backTo: '/reports?tab=invoices', backLabel: 'Back to Invoices' }

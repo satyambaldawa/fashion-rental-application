@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Alert,
   Badge,
@@ -9,8 +9,6 @@ import {
   Col,
   DatePicker,
   Descriptions,
-  Empty,
-  InputNumber,
   Row,
   Space,
   Spin,
@@ -22,7 +20,6 @@ import {
 } from 'antd'
 import { PhoneOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
-import ViewButton from '../../components/common/ViewButton'
 import {
   Bar,
   BarChart,
@@ -34,18 +31,15 @@ import {
   YAxis,
 } from 'recharts'
 import dayjs, { type Dayjs } from 'dayjs'
-import axios from 'axios'
-import { useDebounce } from '../../hooks/useDebounce'
 import { reportsApi } from '../../api/reports'
 import { formatCurrency } from '../../utils/currency'
 import type {
   CouponDiscountSummary,
   DailyRevenueSummary,
-  InvoiceListItem,
   OutstandingDepositItem,
   OverdueRentalItem,
 } from '../../types/reports'
-import type { InvoiceBackLink } from '../../types/invoice'
+import InvoicesTab from './InvoicesTab'
 
 function formatOverdueDuration(hours: number): string {
   if (hours < 24) return `${Math.floor(hours)} hr${Math.floor(hours) !== 1 ? 's' : ''}`
@@ -481,173 +475,6 @@ function DiscountsGivenTab() {
               pagination={false}
             />
           )}
-        </>
-      )}
-    </div>
-  )
-}
-
-// Mirrors ReportingService.MAX_INVOICE_REPORT_DAYS; the backend rejects longer ranges.
-const MAX_INVOICE_RANGE_DAYS = 366
-const INVOICES_PAGE_SIZE = 20
-const MIN_REVENUE_DEBOUNCE_MS = 400
-const DEFAULT_INVOICE_RANGE_DAYS = 7
-const URL_DATE_FORMAT = 'YYYY-MM-DD'
-const URL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-
-function parseUrlDate(value: string | null, fallback: Dayjs): Dayjs {
-  return value && URL_DATE_PATTERN.test(value) && dayjs(value).isValid() ? dayjs(value) : fallback
-}
-
-function parseUrlPositiveInt(value: string | null): number | null {
-  const parsed = Number(value)
-  return value !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null
-}
-
-// Filters and page live in the URL so the browser's back button, and the invoice page's
-// "Back to Invoices", return to exactly this view.
-function InvoicesTab() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  const today = dayjs()
-  const rangeFrom = parseUrlDate(searchParams.get('from'), today.subtract(DEFAULT_INVOICE_RANGE_DAYS - 1, 'day'))
-  const rangeTo = parseUrlDate(searchParams.get('to'), today)
-  const minRevenue = parseUrlPositiveInt(searchParams.get('min'))
-  const page = Math.max(parseUrlPositiveInt(searchParams.get('page')) ?? 1, 1)
-  const debouncedMinRevenue = useDebounce(minRevenue, MIN_REVENUE_DEBOUNCE_MS)
-
-  const updateParams = (changes: Record<string, string | null>) => {
-    setSearchParams(current => {
-      const next = new URLSearchParams(current)
-      Object.entries(changes).forEach(([key, value]) => (value === null ? next.delete(key) : next.set(key, value)))
-      return next
-    }, { replace: true })
-  }
-
-  const from = rangeFrom.format(URL_DATE_FORMAT)
-  const to = rangeTo.format(URL_DATE_FORMAT)
-  const { data, isLoading, isFetching, isError, error } = useQuery({
-    queryKey: ['reports', 'invoices', from, to, debouncedMinRevenue, page],
-    queryFn: () => reportsApi.getInvoices({
-      from, to, minRevenue: debouncedMinRevenue ?? undefined, page: page - 1, size: INVOICES_PAGE_SIZE,
-    }),
-    placeholderData: keepPreviousData,
-  })
-
-  const openInvoice = (invoiceId: string) => {
-    const backLink: InvoiceBackLink = { backTo: location.pathname + location.search, backLabel: 'Back to Invoices' }
-    navigate(`/invoices/${invoiceId}`, { state: backLink })
-  }
-
-  const columns = [
-    { title: 'Invoice', dataIndex: 'invoiceNumber', key: 'invoiceNumber' },
-    {
-      title: 'Invoiced on',
-      dataIndex: 'invoiceDate',
-      key: 'invoiceDate',
-      render: (v: string) => dayjs(v).format('DD MMM YYYY'),
-    },
-    { title: 'Customer', dataIndex: 'customerName', key: 'customerName' },
-    { title: 'Receipt', dataIndex: 'receiptNumber', key: 'receiptNumber' },
-    { title: 'Items', dataIndex: 'items', key: 'items', align: 'right' as const },
-    {
-      title: 'Revenue',
-      dataIndex: 'revenue',
-      key: 'revenue',
-      align: 'right' as const,
-      render: (v: number) => <Typography.Text strong>{formatCurrency(v)}</Typography.Text>,
-    },
-    {
-      title: '',
-      key: 'view',
-      align: 'right' as const,
-      render: (_: unknown, record: InvoiceListItem) => (
-        <ViewButton ariaLabel={`View ${record.invoiceNumber}`} onClick={() => openInvoice(record.invoiceId)} />
-      ),
-    },
-  ]
-
-  return (
-    <div style={{ maxWidth: 1000 }}>
-      <Space wrap style={{ marginBottom: 20 }}>
-        <Typography.Text strong>Range:</Typography.Text>
-        <DatePicker.RangePicker
-          value={[rangeFrom, rangeTo]}
-          onChange={v => v && v[0] && v[1] && updateParams({
-            from: v[0].format(URL_DATE_FORMAT), to: v[1].format(URL_DATE_FORMAT), page: null,
-          })}
-          disabledDate={(current, { from: start }) =>
-            !!start && Math.abs(current.diff(start, 'day')) >= MAX_INVOICE_RANGE_DAYS}
-          format="DD MMM YYYY"
-          allowClear={false}
-        />
-        <InputNumber
-          aria-label="Min revenue"
-          placeholder="Min revenue"
-          prefix="₹"
-          min={0}
-          precision={0}
-          value={minRevenue}
-          onChange={v => updateParams({ min: v === null ? null : String(v), page: null })}
-          style={{ width: 160 }}
-        />
-        {minRevenue !== null && <Button onClick={() => updateParams({ min: null, page: null })}>Clear</Button>}
-      </Space>
-
-      {isLoading && <Spin />}
-      {isError && (
-        <Alert
-          type="error"
-          message={(axios.isAxiosError(error) && error.response?.data?.error) || 'Failed to load invoices.'}
-        />
-      )}
-
-      {data && (
-        <>
-          {data.invoiceCount === 0 ? (
-            <Empty description="No invoices for these filters" />
-          ) : (
-            <Table<InvoiceListItem>
-              columns={columns}
-              dataSource={data.invoices}
-              rowKey="invoiceId"
-              loading={isFetching}
-              scroll={{ x: 'max-content' }}
-              pagination={{
-                current: page,
-                pageSize: INVOICES_PAGE_SIZE,
-                total: data.invoiceCount,
-                showSizeChanger: false,
-                hideOnSinglePage: true,
-                onChange: next => updateParams({ page: next === 1 ? null : String(next) }),
-              }}
-            />
-          )}
-
-          <Card style={{ marginTop: 20 }}>
-            <Typography.Text type="secondary">
-              {data.invoiceCount} invoice{data.invoiceCount !== 1 ? 's' : ''}
-            </Typography.Text>
-            <Descriptions column={1} size="small" style={{ marginTop: 8 }}>
-              <Descriptions.Item label="Total items rented">{data.totalItems}</Descriptions.Item>
-              <Descriptions.Item label="Rent">{formatCurrency(data.totalRent)}</Descriptions.Item>
-              <Descriptions.Item label="Discounts">−{formatCurrency(data.totalDiscount)}</Descriptions.Item>
-              <Descriptions.Item label="Late fees">{formatCurrency(data.totalLateFee)}</Descriptions.Item>
-              <Descriptions.Item label="Damage">{formatCurrency(data.totalDamage)}</Descriptions.Item>
-            </Descriptions>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <Typography.Text strong style={{ fontSize: 16 }}>Total revenue</Typography.Text>
-              <Typography.Title level={4} style={{ margin: 0 }}>
-                {formatCurrency(data.totalRevenue)}
-              </Typography.Title>
-            </div>
-            <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
-              Revenue is counted on the invoice date. Rent is paid at checkout, so this can differ
-              from Monthly and Daily Revenue.
-            </Typography.Text>
-          </Card>
         </>
       )}
     </div>
