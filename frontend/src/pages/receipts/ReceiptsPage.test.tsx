@@ -16,6 +16,10 @@ import ReceiptsPage from './ReceiptsPage'
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
 const failure = () => HttpResponse.json({ success: false, data: null, error: 'boom' }, { status: 500 })
 
+// Picked up today, so the card sits in the "Today" pickup-date group that is open by default.
+const aSummary = (o: Parameters<typeof f.aReceiptSummary>[0] = {}) =>
+  f.aReceiptSummary({ startDatetime: dayjs().toISOString(), ...o })
+
 beforeEach(() => useAuthStore.setState({ token: jwtWithRole('OWNER'), role: 'OWNER' }))
 
 function renderReceiptsPage(detailElement: React.ReactNode = <h1>Receipt detail stub</h1>) {
@@ -41,7 +45,7 @@ function ReceiptIdStub() {
 
 describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   it('shows Rent, Deposit and Total separately when there is no coupon', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({
+    server.use(http.get('*/api/receipts', () => ok([aSummary({
       totalRent: 300, totalDeposit: 1000, grandTotal: 1300, couponCode: null, discountAmount: 0,
     })])))
 
@@ -55,7 +59,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('shows the pre-discount Rent, the coupon tag and the backend grandTotal when a coupon is applied', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({
+    server.use(http.get('*/api/receipts', () => ok([aSummary({
       totalRent: 1000, discountAmount: 100, couponCode: 'SAVE100', totalDeposit: 500, grandTotal: 1400,
     })])))
 
@@ -69,7 +73,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('shows grandTotal exactly as returned, even when it is not Rent + Deposit', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({
+    server.use(http.get('*/api/receipts', () => ok([aSummary({
       totalRent: 300, totalDeposit: 1000, grandTotal: 1250, couponCode: null, discountAmount: 0,
     })])))
 
@@ -81,7 +85,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('shows correct labelled amounts on the Overdue tab', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({
+    server.use(http.get('*/api/receipts', () => ok([aSummary({
       id: 'rcpt-overdue', isOverdue: true, overdueHours: 5,
       totalRent: 450, totalDeposit: 800, grandTotal: 1250, couponCode: null, discountAmount: 0,
     })])))
@@ -99,7 +103,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('replaces Process Return with a View button', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary()])))
+    server.use(http.get('*/api/receipts', () => ok([aSummary()])))
 
     renderReceiptsPage()
     await screen.findByText('Rent')
@@ -109,7 +113,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('navigates to the receipt detail page when View is clicked', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({ id: 'rcpt-42' })])))
+    server.use(http.get('*/api/receipts', () => ok([aSummary({ id: 'rcpt-42' })])))
 
     const user = userEvent.setup()
     renderReceiptsPage()
@@ -121,7 +125,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('navigates to that specific receipt\'s id, not just any detail route', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary({ id: 'rcpt-99' })])))
+    server.use(http.get('*/api/receipts', () => ok([aSummary({ id: 'rcpt-99' })])))
 
     const user = userEvent.setup()
     renderReceiptsPage(<ReceiptIdStub />)
@@ -133,7 +137,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 
   it('gives the View button a 44px tap target', async () => {
-    server.use(http.get('*/api/receipts', () => ok([f.aReceiptSummary()])))
+    server.use(http.get('*/api/receipts', () => ok([aSummary()])))
 
     renderReceiptsPage()
     await screen.findByText('Rent')
@@ -142,7 +146,7 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
   })
 })
 
-function stubReceiptLists({ active = [f.aReceiptSummary()], cancelled = [] as unknown[] } = {}) {
+function stubReceiptLists({ active = [aSummary()], cancelled = [] as unknown[] } = {}) {
   server.use(http.get('*/api/receipts', ({ request }) => {
     const status = new URL(request.url).searchParams.get('status')
     return ok(status === 'CANCELLED' ? cancelled : active)
@@ -158,7 +162,7 @@ async function renderAndOpenCancelledTab() {
 describe('ReceiptsPage cancelled tab (#166)', () => {
   it('lists recently cancelled receipts with a Cancelled tag and a View button', async () => {
     stubReceiptLists({
-      cancelled: [f.aReceiptSummary({ id: 'rcpt-9', receiptNumber: 'R-2026-0009', status: 'CANCELLED' })],
+      cancelled: [aSummary({ id: 'rcpt-9', receiptNumber: 'R-2026-0009', status: 'CANCELLED' })],
     })
 
     await renderAndOpenCancelledTab()
@@ -180,7 +184,7 @@ describe('ReceiptsPage cancelled tab (#166)', () => {
 
   it('shows an error instead of an empty list when the cancelled receipts fail to load', async () => {
     server.use(http.get('*/api/receipts', ({ request }) =>
-      new URL(request.url).searchParams.get('status') === 'CANCELLED' ? failure() : ok([f.aReceiptSummary()])))
+      new URL(request.url).searchParams.get('status') === 'CANCELLED' ? failure() : ok([aSummary()])))
 
     await renderAndOpenCancelledTab()
 
@@ -194,7 +198,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
   const ELIGIBLE_END = dayjs().add(2, 'day').toISOString()
 
   it('offers a red bin Cancel receipt button, as tall as View, to an OWNER on an eligible card', async () => {
-    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: ELIGIBLE_END })] })
+    stubReceiptLists({ active: [aSummary({ endDatetime: ELIGIBLE_END })] })
 
     renderReceiptsPage()
     await flush()
@@ -204,7 +208,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
 
   it('hides the Cancel receipt button from an EXECUTIVE', async () => {
     useAuthStore.setState({ token: jwtWithRole('EXECUTIVE'), role: 'EXECUTIVE' })
-    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: ELIGIBLE_END })] })
+    stubReceiptLists({ active: [aSummary({ endDatetime: ELIGIBLE_END })] })
 
     renderReceiptsPage()
     await flush()
@@ -214,7 +218,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
   })
 
   it('hides the Cancel receipt button when the rental ends within 12 hours', async () => {
-    stubReceiptLists({ active: [f.aReceiptSummary({ endDatetime: dayjs().add(11, 'hour').toISOString() })] })
+    stubReceiptLists({ active: [aSummary({ endDatetime: dayjs().add(11, 'hour').toISOString() })] })
 
     renderReceiptsPage()
     await flush()
@@ -224,7 +228,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
   })
 
   it('cancels from the card and moves the receipt to the Cancelled tab', async () => {
-    const summary = f.aReceiptSummary({ id: 'rcpt-7', receiptNumber: 'R-2026-0007', endDatetime: ELIGIBLE_END })
+    const summary = aSummary({ id: 'rcpt-7', receiptNumber: 'R-2026-0007', endDatetime: ELIGIBLE_END })
     let isCancelled = false
     server.use(
       http.get('*/api/receipts', ({ request }) => {
@@ -250,5 +254,118 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
     expect(await screen.findByText('No active rentals')).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
     expect(await within(screen.getByRole('tabpanel')).findByText('R-2026-0007')).toBeInTheDocument()
+  })
+})
+
+describe('ReceiptsPage search by customer or costume name', () => {
+  async function renderAndSearch(query: string) {
+    const user = userEvent.setup()
+    renderReceiptsPage()
+    await flush()
+    await user.type(screen.getByRole('textbox', { name: 'Search rentals' }), query)
+    return user
+  }
+
+  it('keeps only the rentals whose customer name matches', async () => {
+    stubReceiptLists({ active: [
+      aSummary({ id: 'a', receiptNumber: 'R-1', customerName: 'Priya Sharma' }),
+      aSummary({ id: 'b', receiptNumber: 'R-2', customerName: 'Meera' }),
+    ] })
+
+    await renderAndSearch('priya')
+
+    expect(screen.getByText('R-1')).toBeInTheDocument()
+    expect(screen.queryByText('R-2')).not.toBeInTheDocument()
+  })
+
+  it('finds a rental by costume name, opening its pickup date even when that date starts folded', async () => {
+    stubReceiptLists({ active: [
+      aSummary({ id: 'a', receiptNumber: 'R-1', itemNames: ['Red Lehenga ×1'], startDatetime: dayjs().add(10, 'day').toISOString() }),
+      aSummary({ id: 'b', receiptNumber: 'R-2', itemNames: ['Royal Sherwani ×1'] }),
+    ] })
+
+    await renderAndSearch('lehenga')
+
+    expect(await screen.findByText('R-1')).toBeInTheDocument()
+    expect(screen.queryByText('R-2')).not.toBeInTheDocument()
+  })
+
+  it('applies the search to the Cancelled tab too', async () => {
+    stubReceiptLists({ active: [], cancelled: [
+      aSummary({ id: 'c1', receiptNumber: 'R-7', customerName: 'Priya', status: 'CANCELLED' }),
+      aSummary({ id: 'c2', receiptNumber: 'R-8', customerName: 'Meera', status: 'CANCELLED' }),
+    ] })
+
+    const user = await renderAndSearch('meera')
+    await user.click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
+
+    const panel = within(screen.getByRole('tabpanel'))
+    expect(await panel.findByText('R-8')).toBeInTheDocument()
+    expect(panel.queryByText('R-7')).not.toBeInTheDocument()
+  })
+
+  it('says nothing matched instead of claiming there are no active rentals', async () => {
+    stubReceiptLists({ active: [aSummary({ customerName: 'Meera' })] })
+
+    await renderAndSearch('anarkali')
+
+    expect(screen.getByText('No rentals match "anarkali"')).toBeInTheDocument()
+    expect(screen.queryByText('No active rentals')).not.toBeInTheDocument()
+  })
+})
+
+describe('ReceiptsPage groups active rentals by pickup date', () => {
+  it('shows a heading per pickup date, from past to future', async () => {
+    stubReceiptLists({ active: [
+      aSummary({ id: 'later', startDatetime: dayjs().add(5, 'day').toISOString() }),
+      aSummary({ id: 'today' }),
+      aSummary({ id: 'past', startDatetime: dayjs().subtract(3, 'day').toISOString() }),
+    ] })
+
+    renderReceiptsPage()
+    await flush()
+
+    const headings = screen.getAllByRole('button')
+      .filter(el => el.hasAttribute('aria-expanded'))
+      .map(el => el.textContent)
+    expect(headings[0]).toMatch(/picked up/)
+    expect(headings[1]).toMatch(/^Today/)
+    expect(headings).toHaveLength(3)
+  })
+
+  it("shows tomorrow's pickups straight away but keeps a later date folded", async () => {
+    stubReceiptLists({ active: [
+      aSummary({ id: 'tomorrow', receiptNumber: 'R-TOMORROW', startDatetime: dayjs().add(1, 'day').toISOString() }),
+      aSummary({ id: 'later', receiptNumber: 'R-LATER', startDatetime: dayjs().add(10, 'day').toISOString() }),
+    ] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(screen.getByText('R-TOMORROW')).toBeInTheDocument()
+    expect(screen.queryByText('R-LATER')).not.toBeInTheDocument()
+  })
+
+  it('keeps a past pickup date with an overdue rental open, so a late return is not hidden', async () => {
+    stubReceiptLists({ active: [aSummary({
+      receiptNumber: 'R-LATE', startDatetime: dayjs().subtract(4, 'day').toISOString(), isOverdue: true, overdueHours: 30,
+    })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(screen.getByText('R-LATE')).toBeInTheDocument()
+  })
+
+  it('opens a folded date when its heading is tapped', async () => {
+    const later = dayjs().add(10, 'day')
+    stubReceiptLists({ active: [aSummary({ receiptNumber: 'R-LATER', startDatetime: later.toISOString() })] })
+    const user = userEvent.setup()
+
+    renderReceiptsPage()
+    await flush()
+    await user.click(screen.getByText(new RegExp(later.format('D MMM'))))
+
+    expect(await screen.findByText('R-LATER')).toBeInTheDocument()
   })
 })

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Empty, Space, Tabs, Tag, Typography } from 'antd'
+import { Badge, Collapse, Empty, Input, Space, Tabs, Tag, Typography } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
 import ViewButton, { VIEW_BUTTON_HEIGHT } from '../../components/common/ViewButton'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
@@ -9,6 +11,7 @@ import type { ReceiptSummary } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../hooks/useAuth'
 import { isReceiptCancellable } from '../../utils/receiptCancellation'
+import { groupByPickupDate, matchesRentalSearch } from '../../utils/activeRentals'
 import CancelReceiptFlow from './CancelReceiptFlow'
 import dayjs from 'dayjs'
 
@@ -110,18 +113,47 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
   )
 }
 
+function RentalsByPickupDate({ receipts, isSearching }: { receipts: ReceiptSummary[]; isSearching: boolean }) {
+  const groups = groupByPickupDate(receipts)
+  const openKeys = groups.filter(g => isSearching || g.isOpenByDefault).map(g => g.dateKey)
+
+  return (
+    <Collapse
+      // Remount when the visible groups change so a new search re-applies which days start open.
+      key={openKeys.join('|') + String(isSearching)}
+      defaultActiveKey={openKeys}
+      items={groups.map(group => ({
+        key: group.dateKey,
+        label: (
+          <Space>
+            <Typography.Text strong>{group.label}</Typography.Text>
+            <Badge count={group.receipts.length} color="blue" />
+          </Space>
+        ),
+        children: group.receipts.map(r => <ReceiptCard key={r.id} receipt={r} />),
+      }))}
+    />
+  )
+}
+
 export default function ReceiptsPage() {
-  const { data: receipts = [], isLoading: isActiveLoading, isError: isActiveError } = useQuery({
+  const [searchQuery, setSearchQuery] = useState('')
+  const isSearching = searchQuery.trim() !== ''
+
+  const { data: allActive = [], isLoading: isActiveLoading, isError: isActiveError } = useQuery({
     queryKey: ['receipts', 'active'],
     queryFn: () => receiptsApi.list({ status: 'GIVEN' }),
   })
 
-  const { data: cancelled = [], isLoading: isCancelledLoading, isError: isCancelledError } = useQuery({
+  const { data: allCancelled = [], isLoading: isCancelledLoading, isError: isCancelledError } = useQuery({
     queryKey: ['receipts', 'cancelled'],
     queryFn: () => receiptsApi.list({ status: 'CANCELLED' }),
   })
 
+  const receipts = allActive.filter(r => matchesRentalSearch(r, searchQuery))
+  const cancelled = allCancelled.filter(r => matchesRentalSearch(r, searchQuery))
   const overdue = receipts.filter(r => r.isOverdue)
+  const noMatches = <Empty description={`No rentals match "${searchQuery.trim()}"`} />
 
   if (isActiveLoading || isCancelledLoading) {
     return <Typography.Text>Loading...</Typography.Text>
@@ -138,8 +170,8 @@ export default function ReceiptsPage() {
       children: isActiveError
         ? <ErrorMessage message="Failed to load active rentals. Please try again." />
         : receipts.length === 0
-        ? <Empty description="No active rentals" />
-        : receipts.map(r => <ReceiptCard key={r.id} receipt={r} />),
+        ? (isSearching ? noMatches : <Empty description="No active rentals" />)
+        : <RentalsByPickupDate receipts={receipts} isSearching={isSearching} />,
     },
     {
       key: 'overdue',
@@ -151,7 +183,7 @@ export default function ReceiptsPage() {
       children: isActiveError
         ? <ErrorMessage message="Failed to load overdue rentals. Please try again." />
         : overdue.length === 0
-        ? <Empty description="No overdue rentals" />
+        ? (isSearching ? noMatches : <Empty description="No overdue rentals" />)
         : overdue.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
     {
@@ -164,7 +196,7 @@ export default function ReceiptsPage() {
       children: isCancelledError
         ? <ErrorMessage message="Failed to load cancelled receipts. Please try again." />
         : cancelled.length === 0
-        ? <Empty description="No receipts cancelled in the last 7 days" />
+        ? (isSearching ? noMatches : <Empty description="No receipts cancelled in the last 7 days" />)
         : cancelled.map(r => <ReceiptCard key={r.id} receipt={r} />),
     },
   ]
@@ -172,6 +204,16 @@ export default function ReceiptsPage() {
   return (
     <div>
       <PageHeader label="Rentals" title="Active" accent="Rentals" />
+      <Input
+        allowClear
+        size="large"
+        prefix={<SearchOutlined />}
+        placeholder="Search by customer or costume name"
+        aria-label="Search rentals"
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        style={{ marginBottom: 8 }}
+      />
       <Tabs items={tabs} />
     </div>
   )
