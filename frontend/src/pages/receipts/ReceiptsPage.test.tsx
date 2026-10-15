@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { flush, screen, within } from '../../test/render'
+import { flush, screen, waitFor, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
@@ -129,9 +129,8 @@ describe('ReceiptsPage Active Rentals card amounts (#168)', () => {
 
     const user = userEvent.setup()
     renderReceiptsPage(<ReceiptIdStub />)
-    await flush()
 
-    await user.click(screen.getByRole('button', { name: /view/i }))
+    await user.click(await screen.findByRole('button', { name: /view/i }))
 
     expect(await screen.findByRole('heading', { name: 'Receipt detail: rcpt-99' })).toBeInTheDocument()
   })
@@ -155,8 +154,7 @@ function stubReceiptLists({ active = [aSummary()], cancelled = [] as unknown[] }
 
 async function renderAndOpenCancelledTab() {
   renderReceiptsPage()
-  await flush()
-  await userEvent.setup().click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
+  await userEvent.setup().click(await screen.findByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
 }
 
 describe('ReceiptsPage cancelled tab (#166)', () => {
@@ -261,8 +259,7 @@ describe('ReceiptsPage search by customer or costume name', () => {
   async function renderAndSearch(query: string) {
     const user = userEvent.setup()
     renderReceiptsPage()
-    await flush()
-    await user.type(screen.getByRole('textbox', { name: 'Search rentals' }), query)
+    await user.type(await screen.findByRole('textbox', { name: 'Search rentals' }), query)
     return user
   }
 
@@ -323,14 +320,14 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     ] })
 
     renderReceiptsPage()
-    await flush()
 
-    const headings = screen.getAllByRole('button')
-      .filter(el => el.hasAttribute('aria-expanded'))
-      .map(el => el.textContent)
+    const headings = await waitFor(() => {
+      const dateHeadings = screen.getAllByRole('button').filter(el => el.hasAttribute('aria-expanded'))
+      expect(dateHeadings).toHaveLength(3)
+      return dateHeadings.map(el => el.textContent)
+    })
     expect(headings[0]).toMatch(/picked up/)
     expect(headings[1]).toMatch(/^Today/)
-    expect(headings).toHaveLength(3)
   })
 
   it("shows tomorrow's pickups straight away but keeps a later date folded", async () => {
@@ -340,9 +337,8 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     ] })
 
     renderReceiptsPage()
-    await flush()
 
-    expect(screen.getByText('R-TOMORROW')).toBeInTheDocument()
+    expect(await screen.findByText('R-TOMORROW')).toBeInTheDocument()
     expect(screen.queryByText('R-LATER')).not.toBeInTheDocument()
   })
 
@@ -352,9 +348,8 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     })] })
 
     renderReceiptsPage()
-    await flush()
 
-    expect(screen.getByText('R-LATE')).toBeInTheDocument()
+    expect(await screen.findByText('R-LATE')).toBeInTheDocument()
   })
 
   it('opens a folded date when its heading is tapped', async () => {
@@ -363,8 +358,7 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     const user = userEvent.setup()
 
     renderReceiptsPage()
-    await flush()
-    await user.click(screen.getByText(new RegExp(later.format('D MMM'))))
+    await user.click(await screen.findByText(new RegExp(later.format('D MMM'))))
 
     expect(await screen.findByText('R-LATER')).toBeInTheDocument()
   })

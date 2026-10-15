@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render } from '@testing-library/react'
-import { renderWithProviders, flush, screen } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import EditCustomerPage from './EditCustomerPage'
@@ -58,13 +58,12 @@ describe('EditCustomerPage', () => {
     await user.type(nameInput, 'Meera Updated')
 
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    await flush()
 
-    expect(capturedBody).toMatchObject({
+    await waitFor(() => expect(capturedBody).toMatchObject({
       name: 'Meera Updated',
       phone: '9811122233',
       customerType: 'MISC',
-    })
+    }))
   })
 
   it('shows the server error message when the phone conflicts with another customer', async () => {

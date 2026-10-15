@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { renderWithProviders, flush, screen, within } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
@@ -465,9 +465,8 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Wrong order' }))
     await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
-    await flush()
 
-    expect(capturedBody).toEqual({ reason: 'WRONG_ORDER', reasonDetail: null })
+    await waitFor(() => expect(capturedBody).toEqual({ reason: 'WRONG_ORDER', reasonDetail: null }))
     expect(await screen.findByText('This receipt was cancelled')).toBeInTheDocument()
     expect(screen.getByText('Wrong order')).toBeInTheDocument()
   })
@@ -496,9 +495,8 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     await user.click(screen.getByRole('radio', { name: 'Other' }))
     await user.type(screen.getByPlaceholderText('Describe the reason'), 'customer moved cities')
     await user.click(screen.getByRole('button', { name: 'Confirm cancellation' }))
-    await flush()
 
-    expect(capturedBody).toEqual({ reason: 'OTHER', reasonDetail: 'customer moved cities' })
+    await waitFor(() => expect(capturedBody).toEqual({ reason: 'OTHER', reasonDetail: 'customer moved cities' }))
     expect(await screen.findByText('customer moved cities')).toBeInTheDocument()
   })
 

@@ -189,12 +189,11 @@ describe('GalleryPage unauthenticated access', () => {
   it('renders gallery content with no auth token and never redirects to login', async () => {
     useAuthStore.setState({ token: null, role: null })
 
-    const { getByText } = renderWithProviders(<GalleryPage />, { route: '/gallery' })
-    await flush()
+    const { findByText } = renderWithProviders(<GalleryPage />, { route: '/gallery' })
 
     // Proves the page actually loaded data over the unauthenticated client, not just
     // an empty shell — a redirect-to-login would never let this content render.
-    expect(getByText('Royal Sherwani')).toBeInTheDocument()
+    expect(await findByText('Royal Sherwani')).toBeInTheDocument()
     expect(window.location.pathname).not.toBe('/login')
   })
 
@@ -202,8 +201,8 @@ describe('GalleryPage unauthenticated access', () => {
     useAuthStore.setState({ token: 'existing-owner-token', role: 'OWNER' })
     server.use(http.get('*/api/public/gallery', () => new HttpResponse(null, { status: 401 })))
 
-    renderWithProviders(<GalleryPage />, { route: '/gallery' })
-    await flush()
+    const { findByText } = renderWithProviders(<GalleryPage />, { route: '/gallery' })
+    await findByText('No images to show')
 
     // The authenticated client (client.ts) clears the token and redirects on 401.
     // publicClient has no such interceptor — a 401 here must be a no-op for auth state.
@@ -216,10 +215,9 @@ describe('Reviews pages unauthenticated access', () => {
   it('ReviewsPage renders approved reviews with no auth token and never redirects to login', async () => {
     useAuthStore.setState({ token: null, role: null })
 
-    const { getByText } = renderWithProviders(<ReviewsPage />, { route: '/reviews' })
-    await flush()
+    const { findByText } = renderWithProviders(<ReviewsPage />, { route: '/reviews' })
 
-    expect(getByText('Priya S')).toBeInTheDocument()
+    expect(await findByText('Priya S')).toBeInTheDocument()
     expect(window.location.pathname).not.toBe('/login')
   })
 

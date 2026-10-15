@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render } from '@testing-library/react'
-import { renderWithProviders, flush, screen, within } from '../../../test/render'
+import { renderWithProviders, flush, screen, waitFor, within } from '../../../test/render'
 import { server } from '../../../test/server'
 import * as f from '../../../test/factories'
 import ItemDetailDrawer from './ItemDetailDrawer'
@@ -80,9 +80,8 @@ describe('ItemDetailDrawer', () => {
     await flush()
 
     await userEvent.click(await screen.findByRole('button', { name: /clone/i }))
-    await flush()
 
-    expect(onClose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
   it('navigates to the edit page when Edit Item is clicked', async () => {
@@ -124,9 +123,8 @@ describe('ItemDetailDrawer', () => {
 
     const confirmButtons = document.querySelector('.ant-modal-confirm-btns') as HTMLElement
     await userEvent.click(within(confirmButtons).getByRole('button', { name: 'Delete' }))
-    await flush()
 
-    expect(onClose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
   it('cancels deletion without calling onClose when Cancel is clicked', async () => {
@@ -159,8 +157,8 @@ describe('ItemDetailDrawer', () => {
     await screen.findAllByText('Delete Item')
     const confirmButtons = document.querySelector('.ant-modal-confirm-btns') as HTMLElement
     await userEvent.click(within(confirmButtons).getByRole('button', { name: 'Delete' }))
-    await flush()
 
+    expect(await screen.findByText('Item is referenced by an active receipt')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 })
