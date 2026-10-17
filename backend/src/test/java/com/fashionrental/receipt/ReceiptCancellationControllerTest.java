@@ -45,6 +45,7 @@ class ReceiptCancellationControllerTest {
     @MockitoBean private CheckoutService checkoutService;
     @MockitoBean private ReceiptService receiptService;
     @MockitoBean private ReceiptCancellationService receiptCancellationService;
+    @MockitoBean private ReceiptGivenService receiptGivenService;
     @MockitoBean private JwtConfig jwtConfig;
 
     private static final OffsetDateTime START = OffsetDateTime.parse("2026-04-21T10:00:00+05:30");

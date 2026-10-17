@@ -10,19 +10,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * Cancelling is a separate state change from checkout (CheckoutService) and returning
- * (ReturnService), with its own eligibility window and audit trail — kept in its own
+ * (ReturnService), with its own eligibility rule (only before handover) and audit trail — kept in its own
  * class per the single-responsibility rule in CLAUDE.md.
  */
 @Service
 public class ReceiptCancellationService {
-
-    static final Duration CANCELLATION_CUTOFF = Duration.ofHours(12);
 
     private final ReceiptRepository receiptRepository;
     private final AppUserRepository appUserRepository;
@@ -47,7 +44,7 @@ public class ReceiptCancellationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        assertCancellable(receipt, now);
+        assertCancellable(receipt);
 
         // The JWT filter loads only active users (UserDetailsConfig), so a miss here is an invariant breach.
         AppUser actingUser = appUserRepository.findByUsernameAndIsActiveTrue(actingUsername)
@@ -63,19 +60,10 @@ public class ReceiptCancellationService {
         return receiptMapper.toReceiptResponse(saved);
     }
 
-    private void assertCancellable(Receipt receipt, OffsetDateTime now) {
-        String number = receipt.getReceiptNumber();
-
-        if (receipt.getStatus() != Receipt.Status.GIVEN) {
-            throw new ConflictException(
-                    "Receipt " + number + " is " + receipt.getStatus() + " and can no longer be cancelled");
-        }
-        if (!receipt.getEndDatetime().isAfter(now)) {
-            throw new ConflictException("Receipt " + number + " is overdue and cannot be cancelled");
-        }
-        if (!receipt.getEndDatetime().isAfter(now.plus(CANCELLATION_CUTOFF))) {
-            throw new ConflictException("Receipt " + number + " ends within " + CANCELLATION_CUTOFF.toHours()
-                    + " hours and can no longer be cancelled");
+    private void assertCancellable(Receipt receipt) {
+        if (receipt.getStatus() != Receipt.Status.GENERATED) {
+            throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " is " + receipt.getStatus()
+                    + " and can no longer be cancelled");
         }
     }
 }

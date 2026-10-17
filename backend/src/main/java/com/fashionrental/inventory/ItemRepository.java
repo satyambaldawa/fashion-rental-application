@@ -26,7 +26,7 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
             FROM receipt_line_items rli
             JOIN receipts r ON rli.receipt_id = r.id
             WHERE rli.item_id = :itemId
-            AND r.status = 'GIVEN'
+            AND r.status IN ('GENERATED', 'GIVEN')
             """, nativeQuery = true)
     Integer countCurrentlyBookedUnits(@Param("itemId") UUID itemId);
 
@@ -35,7 +35,7 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
             FROM receipt_line_items rli
             JOIN receipts r ON rli.receipt_id = r.id
             WHERE rli.item_id = :itemId
-            AND r.status = 'GIVEN'
+            AND r.status IN ('GENERATED', 'GIVEN')
             AND r.start_datetime < :endDatetime
             AND r.end_datetime > :startDatetime
             """, nativeQuery = true)
@@ -50,7 +50,7 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
             FROM receipt_line_items rli
             JOIN receipts r ON rli.receipt_id = r.id
             WHERE rli.item_id IN :itemIds
-            AND r.status = 'GIVEN'
+            AND r.status IN ('GENERATED', 'GIVEN')
             GROUP BY rli.item_id
             """, nativeQuery = true)
     List<Object[]> batchCountCurrentlyBookedUnits(@Param("itemIds") List<UUID> itemIds);
@@ -60,7 +60,7 @@ public interface ItemRepository extends JpaRepository<Item, UUID>, JpaSpecificat
             FROM receipt_line_items rli
             JOIN receipts r ON rli.receipt_id = r.id
             WHERE rli.item_id IN :itemIds
-            AND r.status = 'GIVEN'
+            AND r.status IN ('GENERATED', 'GIVEN')
             AND r.start_datetime < :endDatetime
             AND r.end_datetime > :startDatetime
             GROUP BY rli.item_id

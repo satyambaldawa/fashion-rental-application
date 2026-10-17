@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, type CSSProperties } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Alert,
@@ -17,14 +17,16 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
-import type { Receipt, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
+import type { Receipt, ReceiptDetailLocationState, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
 import { peekPersistedCart, startCustomerCart } from '../../hooks/useCart'
 import { useAuth } from '../../hooks/useAuth'
 import { CANCELLATION_REASON_LABELS, isReceiptCancellable } from '../../utils/receiptCancellation'
+import { useMarkReceiptGiven } from '../../hooks/useMarkReceiptGiven'
 import CancelReceiptFlow from './CancelReceiptFlow'
+import MarkAsGivenButton from './MarkAsGivenButton'
 
 const PRINT_STYLES = `
 @media print {
@@ -70,11 +72,17 @@ function formatCategory(cat: string | null): string {
   return cat.charAt(0) + cat.slice(1).toLowerCase()
 }
 
+// A booking for a later day cannot already be with the customer, so there is nothing to ask.
+function isStartAfterToday(receipt: Receipt): boolean {
+  return dayjs(receipt.startDatetime).isAfter(dayjs(), 'day')
+}
+
 function canAddItems(receipt: Receipt): boolean {
-  return receipt.status === 'GIVEN' && dayjs(receipt.endDatetime).isAfter(dayjs())
+  return (receipt.status === 'GENERATED' || receipt.status === 'GIVEN') && dayjs(receipt.endDatetime).isAfter(dayjs())
 }
 
 const STATUS_TAG_STYLES: Record<ReceiptStatus, CSSProperties> = {
+  GENERATED: { background: '#fff7e6', color: '#ad6800', border: '1px solid #ffd591' },
   GIVEN: { background: '#6E0B37', color: '#fff', border: 'none' },
   RETURNED: { background: '#fff', color: '#7a5361', border: '1px solid #eed6e0' },
   CANCELLED: { background: '#fff', color: '#ff4d4f', border: '1px solid #ff4d4f' },
@@ -83,7 +91,13 @@ const STATUS_TAG_STYLES: Record<ReceiptStatus, CSSProperties> = {
 export default function ReceiptDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isOwner } = useAuth()
+  const markGiven = useMarkReceiptGiven(id ?? '')
+  // Set by checkout right after a receipt is created: ask once whether the dress already left with the customer.
+  const [isHandoverPromptPending, setIsHandoverPromptPending] = useState(
+    Boolean((location.state as ReceiptDetailLocationState | null)?.justCreated)
+  )
 
   const { data: receipt, isLoading, isError } = useQuery({
     queryKey: ['receipt', id],
@@ -108,6 +122,11 @@ export default function ReceiptDetailPage() {
         </Button>
       </div>
     )
+  }
+
+  const dismissHandoverPrompt = () => {
+    setIsHandoverPromptPending(false)
+    navigate(location.pathname, { replace: true, state: null })
   }
 
   const handleAddItems = () => {
@@ -225,6 +244,20 @@ export default function ReceiptDetailPage() {
     <>
       <style>{PRINT_STYLES}</style>
 
+      <Modal
+        open={isHandoverPromptPending && receipt.status === 'GENERATED' && !isStartAfterToday(receipt)}
+        title="Has the dress already been given to the customer?"
+        okText="Yes, mark as given"
+        cancelText="Not yet"
+        confirmLoading={markGiven.isPending}
+        closable={false}
+        maskClosable={false}
+        onOk={() => markGiven.mutate(undefined, { onSettled: dismissHandoverPrompt })}
+        onCancel={dismissHandoverPrompt}
+      >
+        Choose "Not yet" if the customer will collect it later. You can mark it as given from this page at any time.
+      </Modal>
+
       <div style={{ maxWidth: 900 }}>
         {/* Controls — hidden on print */}
         <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -256,6 +289,7 @@ export default function ReceiptDetailPage() {
                 Add items
               </Button>
             )}
+            {receipt.status === 'GENERATED' && <MarkAsGivenButton receiptId={receipt.id} />}
             {receipt.status === 'GIVEN' && (
               <Button size="large" type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>
                 Process Return

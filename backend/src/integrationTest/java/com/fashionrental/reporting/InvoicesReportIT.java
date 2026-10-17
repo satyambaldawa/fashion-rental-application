@@ -14,6 +14,7 @@ import com.fashionrental.invoice.model.request.ProcessReturnRequest;
 import com.fashionrental.invoice.model.request.ReturnLineItem;
 import com.fashionrental.invoice.model.response.InvoiceResponse;
 import com.fashionrental.receipt.CheckoutService;
+import com.fashionrental.receipt.ReceiptGivenService;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
@@ -52,6 +53,7 @@ class InvoicesReportIT extends AbstractIntegrationTest {
     @Autowired private ReportingService reportingService;
     @Autowired private CheckoutService checkoutService;
     @Autowired private ReturnService returnService;
+    @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private CouponRepository couponRepository;
@@ -167,6 +169,7 @@ class InvoicesReportIT extends AbstractIntegrationTest {
     }
 
     private InvoiceResponse processReturn(ReceiptResponse receipt) {
+        receiptGivenService.markGiven(receipt.id());
         List<ReturnLineItem> returnLines = receipt.lineItems().stream()
                 .map(li -> new ReturnLineItem(li.id(), false, null, null))
                 .toList();

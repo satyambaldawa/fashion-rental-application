@@ -99,11 +99,11 @@ public class ReportingService {
     }
 
     public OutstandingDepositsResponse getOutstandingDeposits() {
-        List<Receipt> activeReceipts = receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN);
+        List<Receipt> activeReceipts = receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE);
         int totalOutstanding = activeReceipts.stream().mapToInt(Receipt::getTotalDeposit).sum();
 
         List<OutstandingDepositItem> items = activeReceipts.stream().map(r -> {
-            int daysSinceRented = (int) ChronoUnit.DAYS.between(r.getStartDatetime(), OffsetDateTime.now());
+            int daysSinceRented = (int) Math.max(0, ChronoUnit.DAYS.between(r.getStartDatetime(), OffsetDateTime.now()));
             List<String> itemNames = r.getLineItems().stream()
                     .map(li -> li.getItem().getName() + " ×" + li.getQuantity())
                     .toList();

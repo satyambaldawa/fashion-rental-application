@@ -185,7 +185,7 @@ public class CheckoutService {
         receipt.setEndDatetime(end);
         receipt.setRentalDays(rentalDays);
         receipt.setNotes(request.notes());
-        receipt.setStatus(Receipt.Status.GIVEN);
+        receipt.setStatus(Receipt.Status.GENERATED);
         receipt.setShareToken(shareTokenService.generate());
 
         List<ReceiptLineItem> lineItems = new ArrayList<>();

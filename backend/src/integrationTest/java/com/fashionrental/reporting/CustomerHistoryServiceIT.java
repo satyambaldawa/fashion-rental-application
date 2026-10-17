@@ -12,6 +12,7 @@ import com.fashionrental.invoice.ReturnService;
 import com.fashionrental.invoice.model.request.ProcessReturnRequest;
 import com.fashionrental.invoice.model.request.ReturnLineItem;
 import com.fashionrental.receipt.CheckoutService;
+import com.fashionrental.receipt.ReceiptGivenService;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
@@ -38,6 +39,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
     @Autowired private CustomerHistoryService customerHistoryService;
     @Autowired private CheckoutService checkoutService;
     @Autowired private ReturnService returnService;
+    @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private PackageComponentRepository packageComponentRepository;
@@ -84,6 +86,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
         List<ReturnLineItem> returnLines = packageReceipt.lineItems().stream()
                 .map(li -> new ReturnLineItem(li.id(), false, null, null))
                 .toList();
+        receiptGivenService.markGiven(packageReceipt.id());
         returnService.processReturn(packageReceipt.id(), new ProcessReturnRequest(
                 end, returnLines, "CASH", null, null
         ));
@@ -110,7 +113,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
         assertThat(mostRecent.id()).isEqualTo(plainReceipt.id());
         assertThat(oldest.id()).isEqualTo(packageReceipt.id());
 
-        assertThat(mostRecent.status()).isEqualTo("GIVEN");
+        assertThat(mostRecent.status()).isEqualTo("GENERATED");
         assertThat(mostRecent.invoice()).isNull();
         assertThat(mostRecent.items()).extracting("itemName").containsExactly("Blue Sherwani");
 

@@ -250,6 +250,28 @@ class ReturnServiceTest {
     }
 
     @Test
+    void processReturn_rejects_receipt_not_yet_given_to_customer() {
+        receipt.setStatus(Receipt.Status.GENERATED);
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> returnService.processReturn(receipt.getId(), returnRequest(false)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has not been given to the customer yet");
+
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    @Test
+    void previewReturn_rejects_receipt_not_yet_given_to_customer() {
+        receipt.setStatus(Receipt.Status.GENERATED);
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> returnService.previewReturn(receipt.getId(), returnRequest(false)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has not been given to the customer yet");
+    }
+
+    @Test
     void previewReturn_rejects_cancelled_receipt() {
         receipt.setStatus(Receipt.Status.CANCELLED);
         when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));

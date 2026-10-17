@@ -48,6 +48,8 @@ class ReceiptCancellationServiceTest {
         OffsetDateTime end = NOW.plusDays(2);
         receipt = TestData.receipt(customer, start, end, TestData.receiptLineItem(TestData.item("Sherwani", 300, 1000), 1));
 
+        receipt.setStatus(Receipt.Status.GENERATED);
+
         owner = new AppUser();
         owner.setUsername("owner");
         owner.setRole(AppUser.Role.OWNER);
@@ -61,7 +63,7 @@ class ReceiptCancellationServiceTest {
     }
 
     @Test
-    void should_cancel_given_receipt_and_record_when_who_and_why() {
+    void should_cancel_generated_receipt_and_record_when_who_and_why() {
         when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(appUserRepository.findByUsernameAndIsActiveTrue("owner")).thenReturn(Optional.of(owner));
         when(receiptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -159,51 +161,40 @@ class ReceiptCancellationServiceTest {
     }
 
     @Test
-    void should_reject_when_receipt_overdue() {
-        receipt.setEndDatetime(NOW.minusHours(1));
+    void should_reject_when_receipt_already_given_to_customer() {
+        receipt.markGiven(NOW.minusHours(2));
         when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
 
         assertThatThrownBy(() -> service.cancelReceipt(
                 receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner"))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("overdue");
+                .hasMessageContaining("is GIVEN and can no longer be cancelled");
 
         verify(receiptRepository, never()).save(any());
     }
 
     @Test
-    void should_reject_when_end_is_exactly_12_hours_away() {
-        receipt.setEndDatetime(NOW.plusHours(12));
-        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
-
-        assertThatThrownBy(() -> service.cancelReceipt(
-                receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner"))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("within 12 hours");
-
-        verify(receiptRepository, never()).save(any());
-    }
-
-    @Test
-    void should_reject_when_end_is_less_than_12_hours_away() {
-        receipt.setEndDatetime(NOW.plusHours(11).plusMinutes(59));
-        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
-
-        assertThatThrownBy(() -> service.cancelReceipt(
-                receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner"))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("within 12 hours");
-    }
-
-    @Test
-    void should_allow_when_end_is_just_over_12_hours_away() {
-        receipt.setEndDatetime(NOW.plusHours(12).plusMinutes(1));
+    void should_allow_cancelling_generated_receipt_ending_within_12_hours() {
+        receipt.setEndDatetime(NOW.plusHours(1));
         when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
         when(appUserRepository.findByUsernameAndIsActiveTrue("owner")).thenReturn(Optional.of(owner));
         when(receiptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ReceiptResponse response = service.cancelReceipt(
                 receipt.getId(), request(Receipt.CancellationReason.WRONG_ORDER, null), "owner");
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void should_allow_cancelling_generated_receipt_whose_end_has_passed_because_customer_never_came() {
+        receipt.setEndDatetime(NOW.minusHours(5));
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(appUserRepository.findByUsernameAndIsActiveTrue("owner")).thenReturn(Optional.of(owner));
+        when(receiptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = service.cancelReceipt(
+                receipt.getId(), request(Receipt.CancellationReason.CUSTOMER_DOES_NOT_WANT, null), "owner");
 
         assertThat(response.status()).isEqualTo("CANCELLED");
     }

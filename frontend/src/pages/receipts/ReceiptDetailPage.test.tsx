@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
@@ -262,13 +262,12 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     useAuthStore.setState({ token: jwtWithRole('EXECUTIVE'), role: 'EXECUTIVE' })
   }
 
-  // Far enough in the future to always be well clear of the 12-hour cutoff, in CI or locally.
   const FAR_FUTURE = dayjs().add(13, 'hour').toISOString()
 
-  it('shows the Cancel receipt button for an OWNER viewing an eligible GIVEN receipt', async () => {
+  it('shows the Cancel receipt button for an OWNER viewing a GENERATED receipt', async () => {
     asOwner()
     server.use(http.get('*/api/receipts/rcpt-1', () =>
-      ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))))
+      ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))))
 
     await renderReceipt()
 
@@ -278,7 +277,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
   it('hides the Cancel receipt button for an EXECUTIVE', async () => {
     asExecutive()
     server.use(http.get('*/api/receipts/rcpt-1', () =>
-      ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))))
+      ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))))
 
     await renderReceipt()
 
@@ -308,33 +307,32 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
   })
 
-  it('hides the Cancel receipt button for an overdue GIVEN receipt', async () => {
-    asOwner()
+  it('hides the Cancel receipt button once the dress has been given to the customer', async () => {
     server.use(http.get('*/api/receipts/rcpt-1', () =>
-      ok(f.aReceipt({ status: 'GIVEN', endDatetime: dayjs().subtract(1, 'hour').toISOString() }))))
+      ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))))
 
+    asOwner()
     await renderReceipt()
 
-    expect(await screen.findByText('R-2026-0001')).toBeInTheDocument()
+    await screen.findByText('R-2026-0001')
     expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
   })
 
-  it('hides the Cancel receipt button when the receipt ends within 12 hours', async () => {
-    asOwner()
+  it('shows the Cancel receipt button for a GENERATED receipt even when it ends within 12 hours or has passed its end', async () => {
     server.use(http.get('*/api/receipts/rcpt-1', () =>
-      ok(f.aReceipt({ status: 'GIVEN', endDatetime: dayjs().add(11, 'hour').toISOString() }))))
+      ok(f.aReceipt({ status: 'GENERATED', endDatetime: dayjs().subtract(1, 'hour').toISOString() }))))
 
+    asOwner()
     await renderReceipt()
 
-    expect(await screen.findByText('R-2026-0001')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Cancel receipt' })).toBeInTheDocument()
   })
 
   it('step 1: opens the confirm dialog with the refunded amount, and No sends no request', async () => {
     asOwner()
     let cancelCalled = false
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE, grandTotal: 1300 }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE, grandTotal: 1300 }))),
       http.post('*/api/receipts/rcpt-1/cancel', () => { cancelCalled = true; return ok(f.aReceipt()) }),
     )
 
@@ -359,7 +357,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
   it('step 2: Yes opens the reason dialog with four radio options', async () => {
     asOwner()
     server.use(http.get('*/api/receipts/rcpt-1', () =>
-      ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))))
+      ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))))
 
     const user = userEvent.setup()
     await renderReceipt()
@@ -378,7 +376,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     asOwner()
     let cancelCalled = false
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', () => { cancelCalled = true; return ok(f.aReceipt()) }),
     )
 
@@ -401,7 +399,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     asOwner()
     let cancelCalled = false
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', () => { cancelCalled = true; return ok(f.aReceipt()) }),
     )
 
@@ -423,7 +421,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     asOwner()
     let cancelCalled = false
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', () => { cancelCalled = true; return ok(f.aReceipt()) }),
     )
 
@@ -446,7 +444,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     asOwner()
     let capturedBody: unknown = null
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', async ({ request }) => {
         capturedBody = await request.json()
         return ok(f.aReceipt({
@@ -476,7 +474,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     asOwner()
     let capturedBody: unknown = null
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', async ({ request }) => {
         capturedBody = await request.json()
         return ok(f.aReceipt({
@@ -505,7 +503,7 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
   it('shows the server error message when the server rejects the cancellation', async () => {
     asOwner()
     server.use(
-      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN', endDatetime: FAR_FUTURE }))),
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED', endDatetime: FAR_FUTURE }))),
       http.post('*/api/receipts/rcpt-1/cancel', () =>
         HttpResponse.json(
           { success: false, data: null, error: 'Receipt R-2026-0001 has already been cancelled' },
@@ -544,5 +542,126 @@ describe('ReceiptDetailPage cancel receipt flow (#166)', () => {
     expect(screen.getByText(dayjs(cancelledAt).format('DD MMM YYYY, h:mm A'))).toBeInTheDocument()
     expect(screen.getByText('owner')).toBeInTheDocument()
     expect(screen.getByText('Change order dates')).toBeInTheDocument()
+  })
+})
+
+describe('ReceiptDetailPage handover (Mark as Given)', () => {
+  it('shows Mark as Given and no Process Return for a GENERATED receipt', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED' }))))
+
+    await renderReceipt()
+
+    expect(await screen.findByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Process Return' })).not.toBeInTheDocument()
+  })
+
+  it('shows Process Return and no Mark as Given for a GIVEN receipt', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GIVEN' }))))
+
+    await renderReceipt()
+
+    expect(await screen.findByRole('button', { name: 'Process Return' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Mark as Given$/ })).not.toBeInTheDocument()
+  })
+
+  it('clicking Mark as Given sends the request and reveals Process Return', async () => {
+    let isGiven = false
+    server.use(
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: isGiven ? 'GIVEN' : 'GENERATED' }))),
+      http.post('*/api/receipts/rcpt-1/give', () => {
+        isGiven = true
+        return ok(f.aReceipt({ status: 'GIVEN' }))
+      }),
+    )
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+
+    expect(await screen.findByRole('button', { name: 'Process Return' })).toBeInTheDocument()
+  })
+
+  describe('prompt right after the receipt is created', () => {
+    function renderJustCreated() {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+      return render(
+        <QueryClientProvider client={queryClient}>
+          <ConfigProvider>
+            <MemoryRouter initialEntries={[{ pathname: '/receipts/rcpt-1', state: { justCreated: true } }]}>
+              <Routes>
+                <Route path="/receipts/:id" element={<ReceiptDetailPage />} />
+              </Routes>
+            </MemoryRouter>
+          </ConfigProvider>
+        </QueryClientProvider>,
+      )
+    }
+
+    it('does not ask when the booking starts on a later day, since the dress cannot be with the customer yet', async () => {
+      server.use(http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status: 'GENERATED', startDatetime: dayjs().add(2, 'day').toISOString() }))))
+      renderJustCreated()
+
+      await screen.findByRole('button', { name: /Mark as Given$/ })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('still asks when the booking starts later today', async () => {
+      server.use(http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status: 'GENERATED', startDatetime: dayjs().endOf('day').toISOString() }))))
+      renderJustCreated()
+
+      expect(await screen.findByText('Has the dress already been given to the customer?')).toBeInTheDocument()
+    })
+
+    it('asks whether the dress was already given, and Yes marks the receipt as given', async () => {
+      let isGiven = false
+      let giveRequests = 0
+      server.use(
+        http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: isGiven ? 'GIVEN' : 'GENERATED' }))),
+        http.post('*/api/receipts/rcpt-1/give', () => {
+          giveRequests += 1
+          isGiven = true
+          return ok(f.aReceipt({ status: 'GIVEN' }))
+        }),
+      )
+      const user = userEvent.setup()
+      renderJustCreated()
+
+      expect(await screen.findByText('Has the dress already been given to the customer?')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Yes, mark as given' }))
+
+      expect(await screen.findByRole('button', { name: 'Process Return' })).toBeInTheDocument()
+      expect(giveRequests).toBe(1)
+    })
+
+    it('Not yet leaves the receipt as generated and sends no request', async () => {
+      let giveRequests = 0
+      server.use(
+        http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED' }))),
+        http.post('*/api/receipts/rcpt-1/give', () => {
+          giveRequests += 1
+          return ok(f.aReceipt({ status: 'GIVEN' }))
+        }),
+      )
+      const user = userEvent.setup()
+      renderJustCreated()
+
+      await user.click(await screen.findByRole('button', { name: 'Not yet' }))
+
+      // antd keeps the closed modal's markup mounted (hidden) while its exit animation runs.
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
+      expect(giveRequests).toBe(0)
+    })
+
+    it('does not ask when the receipt is opened normally', async () => {
+      server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED' }))))
+
+      await renderReceipt()
+
+      await screen.findByRole('button', { name: /Mark as Given$/ })
+      expect(screen.queryByText('Has the dress already been given to the customer?')).not.toBeInTheDocument()
+    })
   })
 })

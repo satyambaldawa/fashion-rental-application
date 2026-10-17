@@ -44,8 +44,9 @@ import static org.mockito.Mockito.doAnswer;
 
 /**
  * Exercises receipt cancellation (#166) against real PostgreSQL: the migration's columns and
- * CHECK constraints, inventory release through the real availability queries, and the
- * cancel-vs-return row lock — none of which a mocked unit test can observe.
+ * CHECK constraints, inventory release through the real availability queries, and the row
+ * lock that serialises a cancel against a concurrent give or return — none of which a mocked
+ * unit test can observe.
  *
  * <p>Deliberately NOT @Transactional: the concurrency test needs two real transactions on
  * separate connections, and the constraint tests need statements to actually reach the DB.
@@ -57,6 +58,7 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
     @Autowired private CheckoutService checkoutService;
     @Autowired private ReceiptCancellationService receiptCancellationService;
     @Autowired private ReturnService returnService;
+    @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private AvailabilityService availabilityService;
     @Autowired private ReceiptRepository receiptRepository;
     @Autowired private InvoiceRepository invoiceRepository;
@@ -70,7 +72,6 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
     @Value("${app.auth.username}")
     private String ownerUsername;
 
-    // Relative to now: cancellation is only allowed more than 12 hours before the end.
     private final OffsetDateTime start = OffsetDateTime.now().plusDays(1).truncatedTo(ChronoUnit.SECONDS);
     private final OffsetDateTime end = start.plusDays(2);
 
@@ -168,9 +169,66 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
         ReceiptResponse receipt = checkout(newCustomer("Deepa", "9811100107"), sherwani);
         UUID lineItemId = receipt.lineItems().get(0).id();
 
-        // The cancel transaction pauses after taking the row lock (the mapper runs before commit)
-        // and only proceeds once Postgres reports the return's transaction waiting on a lock. With a
-        // plain read instead of findByIdForUpdate, the return never waits and this times out.
+        Exception returnFailure = runWhileCancelHoldsRowLock(receipt.id(), () ->
+                returnService.processReturn(receipt.id(), new ProcessReturnRequest(
+                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null)));
+
+        assertThat(returnFailure)
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has been cancelled and cannot be returned");
+        assertThat(receiptRepository.findById(receipt.id()).orElseThrow().getStatus())
+                .isEqualTo(Receipt.Status.CANCELLED);
+        assertThat(invoiceRepository.count()).isZero();
+    }
+
+    @Test
+    void a_give_racing_a_cancel_waits_for_the_row_lock_and_cannot_undo_the_cancellation() throws Exception {
+        Item sherwani = itemRepository.save(newIndividualItem("Royal Sherwani", 1));
+        ReceiptResponse receipt = checkout(newCustomer("Neha", "9811100108"), sherwani);
+
+        Exception giveFailure = runWhileCancelHoldsRowLock(receipt.id(),
+                () -> receiptGivenService.markGiven(receipt.id()));
+
+        assertThat(giveFailure)
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("is CANCELLED and cannot be marked as given");
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT status, given_at, cancelled_at FROM receipts WHERE id = ?", receipt.id());
+        assertThat(row.get("status")).isEqualTo("CANCELLED");
+        assertThat(row.get("given_at")).isNull();
+        assertThat(row.get("cancelled_at")).isNotNull();
+    }
+
+    @Test
+    void database_rejects_a_given_status_without_given_at() {
+        Item sherwani = itemRepository.save(newIndividualItem("Royal Sherwani", 1));
+        ReceiptResponse receipt = checkout(newCustomer("Ravi", "9811100109"), sherwani);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE receipts SET status = 'GIVEN' WHERE id = ?", receipt.id()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("receipts_given_at_check");
+    }
+
+    @Test
+    void database_rejects_given_at_on_a_receipt_that_is_still_generated() {
+        Item sherwani = itemRepository.save(newIndividualItem("Royal Sherwani", 1));
+        ReceiptResponse receipt = checkout(newCustomer("Sita", "9811100110"), sherwani);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE receipts SET given_at = now() WHERE id = ?", receipt.id()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("receipts_given_at_check");
+    }
+
+    /**
+     * The cancel transaction pauses after taking the row lock (the mapper runs before commit) and
+     * only proceeds once Postgres reports the contender's transaction waiting on a lock. With a plain
+     * read instead of findByIdForUpdate, the contender never waits and this times out.
+     *
+     * @return what the contender threw, or null if it succeeded
+     */
+    private Exception runWhileCancelHoldsRowLock(UUID receiptId, Runnable contender) throws Exception {
         CountDownLatch cancelHoldsLock = new CountDownLatch(1);
         doAnswer(invocation -> {
             cancelHoldsLock.countDown();
@@ -179,12 +237,11 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
         }).when(receiptMapper).toReceiptResponse(any());
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        Future<?> cancelling = pool.submit(() -> cancel(receipt.id()));
-        Future<Exception> returning = pool.submit(() -> {
+        Future<?> cancelling = pool.submit(() -> cancel(receiptId));
+        Future<Exception> contending = pool.submit(() -> {
             cancelHoldsLock.await(LOCK_WAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
             try {
-                returnService.processReturn(receipt.id(), new ProcessReturnRequest(
-                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null));
+                contender.run();
                 return null;
             } catch (Exception e) {
                 return e;
@@ -192,15 +249,9 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
         });
 
         cancelling.get(15, TimeUnit.SECONDS);
-        Exception returnFailure = returning.get(15, TimeUnit.SECONDS);
+        Exception contenderFailure = contending.get(15, TimeUnit.SECONDS);
         pool.shutdown();
-
-        assertThat(returnFailure)
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("has been cancelled and cannot be returned");
-        assertThat(receiptRepository.findById(receipt.id()).orElseThrow().getStatus())
-                .isEqualTo(Receipt.Status.CANCELLED);
-        assertThat(invoiceRepository.count()).isZero();
+        return contenderFailure;
     }
 
     private void awaitAnotherTransactionBlockedOnALock() throws InterruptedException {

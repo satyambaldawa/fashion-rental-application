@@ -113,7 +113,7 @@ class ReportingServiceTest {
 
     @Test
     void getOutstandingDeposits_sums_active_receipt_deposits() {
-        when(receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN))
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
                 .thenReturn(List.of(receiptA, receiptB));
 
         OutstandingDepositsResponse report = reportingService.getOutstandingDeposits();

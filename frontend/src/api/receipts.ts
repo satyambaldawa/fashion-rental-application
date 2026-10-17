@@ -27,6 +27,9 @@ export const receiptsApi = {
   get: (id: string): Promise<Receipt> =>
     client.get<ApiResponse<Receipt>>(`/receipts/${id}`).then(r => r.data.data!),
 
+  give: (id: string): Promise<Receipt> =>
+    client.post<ApiResponse<Receipt>>(`/receipts/${id}/give`).then(r => r.data.data!),
+
   cancel: (id: string, data: CancelReceiptRequest): Promise<Receipt> =>
     client.post<ApiResponse<Receipt>>(`/receipts/${id}/cancel`, data).then(r => r.data.data!),
 }

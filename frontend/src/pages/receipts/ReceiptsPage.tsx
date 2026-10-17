@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Collapse, Empty, Input, Space, Tabs, Tag, Typography } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Badge, Collapse, Empty, Input, Space, Tabs, Tag, Tooltip, Typography } from 'antd'
+import { CheckCircleFilled, SearchOutlined } from '@ant-design/icons'
 import PageHeader from '../../components/common/PageHeader'
 import ViewButton, { VIEW_BUTTON_HEIGHT } from '../../components/common/ViewButton'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
@@ -13,7 +13,11 @@ import { useAuth } from '../../hooks/useAuth'
 import { isReceiptCancellable } from '../../utils/receiptCancellation'
 import { groupByPickupDate, matchesRentalSearch } from '../../utils/activeRentals'
 import CancelReceiptFlow from './CancelReceiptFlow'
+import MarkAsGivenButton from './MarkAsGivenButton'
 import dayjs from 'dayjs'
+
+// Instagram-style verified blue, so a dress that has left the shop is recognisable at a glance.
+const GIVEN_TICK_COLOR = '#3897f0'
 
 // Tablet tap target (#168); the card's Cancel and View buttons share it so they line up.
 const CARD_ACTION_HEIGHT = VIEW_BUTTON_HEIGHT
@@ -46,6 +50,12 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <Space wrap>
             <Typography.Text strong>{receipt.receiptNumber}</Typography.Text>
+            {receipt.status === 'GIVEN' && (
+              <Tooltip title="Given to customer">
+                <CheckCircleFilled aria-label="Given to customer" style={{ color: GIVEN_TICK_COLOR, fontSize: 18 }} />
+              </Tooltip>
+            )}
+            {receipt.status === 'GENERATED' && <Tag color="gold">Booked</Tag>}
             {receipt.status === 'CANCELLED' && <Tag color="red">Cancelled</Tag>}
             {receipt.isOverdue && receipt.overdueHours !== null && (
               <Tag color="red">{formatOverdue(receipt.overdueHours)}</Tag>
@@ -104,6 +114,9 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
                   triggerStyle={{ height: CARD_ACTION_HEIGHT, width: CARD_ACTION_HEIGHT }}
                 />
               )}
+              {receipt.status === 'GENERATED' && (
+                <MarkAsGivenButton receiptId={receipt.id} size="middle" style={{ height: CARD_ACTION_HEIGHT }} />
+              )}
               <ViewButton onClick={() => navigate(`/receipts/${receipt.id}`)} />
             </Space>
           </div>
@@ -142,7 +155,7 @@ export default function ReceiptsPage() {
 
   const { data: allActive = [], isLoading: isActiveLoading, isError: isActiveError } = useQuery({
     queryKey: ['receipts', 'active'],
-    queryFn: () => receiptsApi.list({ status: 'GIVEN' }),
+    queryFn: () => receiptsApi.list(),
   })
 
   const { data: allCancelled = [], isLoading: isCancelledLoading, isError: isCancelledError } = useQuery({

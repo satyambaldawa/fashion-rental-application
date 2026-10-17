@@ -8,6 +8,7 @@ import com.fashionrental.inventory.ItemRepository;
 import com.fashionrental.invoice.InvoiceRepository;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
+import com.fashionrental.receipt.model.response.ReceiptResponse;
 import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
@@ -44,6 +45,7 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
 
     @Autowired private CheckoutService checkoutService;
     @Autowired private ReceiptService receiptService;
+    @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private ReceiptRepository receiptRepository;
@@ -96,11 +98,11 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
         OffsetDateTime overdueStart = OffsetDateTime.now().minusDays(3);
         OffsetDateTime overdueEnd = OffsetDateTime.now().minusDays(1);
 
-        createReceipt(persistCustomer("Divya", "9700011166"), item, overdueStart, overdueEnd);
+        createGivenReceipt(persistCustomer("Divya", "9700011166"), item, overdueStart, overdueEnd);
         long queriesForOneReceipt = countStatementsFor(this::listOverdueRentals);
 
-        createReceipt(persistCustomer("Farah", "9700011177"), item, overdueStart, overdueEnd);
-        createReceipt(persistCustomer("Ishita", "9700011188"), item, overdueStart, overdueEnd);
+        createGivenReceipt(persistCustomer("Farah", "9700011177"), item, overdueStart, overdueEnd);
+        createGivenReceipt(persistCustomer("Ishita", "9700011188"), item, overdueStart, overdueEnd);
         long queriesForThreeReceipts = countStatementsFor(this::listOverdueRentals);
 
         assertThat(queriesForThreeReceipts)
@@ -110,7 +112,7 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
     }
 
     private List<ReceiptSummaryResponse> listActiveRentals() {
-        return receiptService.listReceipts(Receipt.Status.GIVEN, null);
+        return receiptService.listReceipts(null, null);
     }
 
     private List<ReceiptSummaryResponse> listOverdueRentals() {
@@ -145,8 +147,12 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
         return itemRepository.save(item);
     }
 
-    private void createReceipt(Customer customer, Item item, OffsetDateTime start, OffsetDateTime end) {
-        checkoutService.createReceipt(new CheckoutRequest(
+    private void createGivenReceipt(Customer customer, Item item, OffsetDateTime start, OffsetDateTime end) {
+        receiptGivenService.markGiven(createReceipt(customer, item, start, end).id());
+    }
+
+    private ReceiptResponse createReceipt(Customer customer, Item item, OffsetDateTime start, OffsetDateTime end) {
+        return checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
                 List.of(),

@@ -27,15 +27,18 @@ public class ReceiptController {
     private final CheckoutService checkoutService;
     private final ReceiptService receiptService;
     private final ReceiptCancellationService receiptCancellationService;
+    private final ReceiptGivenService receiptGivenService;
 
     public ReceiptController(
             CheckoutService checkoutService,
             ReceiptService receiptService,
-            ReceiptCancellationService receiptCancellationService
+            ReceiptCancellationService receiptCancellationService,
+            ReceiptGivenService receiptGivenService
     ) {
         this.checkoutService = checkoutService;
         this.receiptService = receiptService;
         this.receiptCancellationService = receiptCancellationService;
+        this.receiptGivenService = receiptGivenService;
     }
 
     @Operation(summary = "Preview checkout totals and availability before creating a receipt")
@@ -78,12 +81,18 @@ public class ReceiptController {
         return ResponseEntity.ok(ApiResponse.ok(receiptService.getReceipt(id)));
     }
 
-    @Operation(summary = "Cancel a Given receipt more than 12 hours before its end (owner only); refunds the full amount collected")
+    @Operation(summary = "Cancel a Generated (not yet given) receipt (owner only); refunds the full amount collected")
     @PostMapping("/api/receipts/{id}/cancel")
     public ResponseEntity<ApiResponse<ReceiptResponse>> cancelReceipt(
             @PathVariable UUID id, @Valid @RequestBody CancelReceiptRequest request, Principal principal
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 receiptCancellationService.cancelReceipt(id, request, principal.getName())));
+    }
+
+    @Operation(summary = "Mark a Generated receipt as Given — the dress has been handed to the customer")
+    @PostMapping("/api/receipts/{id}/give")
+    public ResponseEntity<ApiResponse<ReceiptResponse>> markReceiptGiven(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(receiptGivenService.markGiven(id)));
     }
 }
