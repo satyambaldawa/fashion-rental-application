@@ -17,7 +17,7 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
-import type { Receipt, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
+import type { Receipt, ReceiptDetailLocationState, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
 import PageHeader from '../../components/common/PageHeader'
@@ -96,7 +96,7 @@ export default function ReceiptDetailPage() {
   const markGiven = useMarkReceiptGiven(id ?? '')
   // Set by checkout right after a receipt is created: ask once whether the dress already left with the customer.
   const [isHandoverPromptPending, setIsHandoverPromptPending] = useState(
-    Boolean((location.state as { justCreated?: boolean } | null)?.justCreated)
+    Boolean((location.state as ReceiptDetailLocationState | null)?.justCreated)
   )
 
   const { data: receipt, isLoading, isError } = useQuery({

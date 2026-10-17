@@ -11,6 +11,7 @@ export function useMarkReceiptGiven(receiptId: string) {
       queryClient.setQueryData(['receipt', receiptId], updated)
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       message.success('Marked as given')
     },
     onError: (err: unknown) => {

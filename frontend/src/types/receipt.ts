@@ -88,6 +88,11 @@ export type ReceiptStatus = 'GENERATED' | 'GIVEN' | 'RETURNED' | 'CANCELLED'
 
 export type CancellationReason = 'WRONG_ORDER' | 'CUSTOMER_DOES_NOT_WANT' | 'CHANGE_ORDER_DATES' | 'OTHER'
 
+// Router state checkout passes to the receipt page for a receipt it has just created.
+export interface ReceiptDetailLocationState {
+  justCreated?: boolean
+}
+
 export interface ReceiptCancellation {
   cancelledAt: string
   cancelledByUsername: string | null

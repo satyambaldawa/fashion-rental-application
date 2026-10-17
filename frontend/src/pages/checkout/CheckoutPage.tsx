@@ -48,6 +48,7 @@ import type {
   AdHocCartItem,
   CheckoutPreviewRequest,
   CheckoutRequest,
+  ReceiptDetailLocationState,
 } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
@@ -227,7 +228,8 @@ export default function CheckoutPage() {
     mutationFn: (req: CheckoutRequest) => receiptsApi.create(req),
     onSuccess: (receipt) => {
       clearCart()
-      navigate(`/receipts/${receipt.id}`, { state: { justCreated: true } })
+      const state: ReceiptDetailLocationState = { justCreated: true }
+      navigate(`/receipts/${receipt.id}`, { state })
     },
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }
