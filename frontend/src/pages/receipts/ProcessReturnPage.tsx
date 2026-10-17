@@ -87,6 +87,15 @@ export default function ProcessReturnPage() {
       </div>
     )
   }
+  if (receipt.status === 'GENERATED') {
+    return (
+      <div>
+        <Typography.Title level={4}>Not Given Yet</Typography.Title>
+        <Alert type="warning" message={`${receipt.receiptNumber} has not been given to the customer yet. Mark it as given first.`} style={{ marginBottom: 16 }} />
+        <Button onClick={() => navigate(`/receipts/${receipt.id}`)}>Back to Receipt</Button>
+      </div>
+    )
+  }
   if (receipt.status === 'CANCELLED') {
     return (
       <div>

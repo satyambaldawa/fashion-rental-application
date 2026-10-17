@@ -227,7 +227,7 @@ export default function CheckoutPage() {
     mutationFn: (req: CheckoutRequest) => receiptsApi.create(req),
     onSuccess: (receipt) => {
       clearCart()
-      navigate(`/receipts/${receipt.id}`)
+      navigate(`/receipts/${receipt.id}`, { state: { justCreated: true } })
     },
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }

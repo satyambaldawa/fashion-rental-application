@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,7 +17,7 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     long countByReceiptNumberStartingWith(String prefix);
 
-    // Closes the cancel-vs-return race: whichever transaction gets here first holds the row
+    // Closes the cancel/return/give races: whichever transaction gets here first holds the row
     // lock until commit, so the loser re-reads the post-commit status and hits its guard.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Receipt r where r.id = :id")
@@ -24,6 +25,9 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusOrderByEndDatetimeAsc(Receipt.Status status);
+
+    @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
+    List<Receipt> findByStatusInOrderByEndDatetimeAsc(Collection<Receipt.Status> statuses);
 
     @EntityGraph(Receipt.SUMMARY_ENTITY_GRAPH)
     List<Receipt> findByStatusAndCancelledAtGreaterThanEqualOrderByEndDatetimeAsc(

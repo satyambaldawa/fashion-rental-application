@@ -35,7 +35,10 @@ public class Receipt {
     public static final String SUMMARY_ENTITY_GRAPH = "Receipt.summary";
 
     public enum Status {
-        GIVEN, RETURNED, CANCELLED
+        GENERATED, GIVEN, RETURNED, CANCELLED;
+
+        /** Statuses that hold inventory: booked (GENERATED) or physically out (GIVEN). */
+        public static final List<Status> ACTIVE = List.of(GENERATED, GIVEN);
     }
 
     public enum CancellationReason {
@@ -82,7 +85,7 @@ public class Receipt {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status = Status.GIVEN;
+    private Status status = Status.GENERATED;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -92,6 +95,9 @@ public class Receipt {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Column(name = "given_at")
+    private OffsetDateTime givenAt;
 
     @Column(name = "cancelled_at")
     private OffsetDateTime cancelledAt;
@@ -153,10 +159,17 @@ public class Receipt {
     public List<ReceiptLineItem> getLineItems() { return lineItems; }
     public void setLineItems(List<ReceiptLineItem> lineItems) { this.lineItems = lineItems; }
 
+    public OffsetDateTime getGivenAt() { return givenAt; }
     public OffsetDateTime getCancelledAt() { return cancelledAt; }
     public AppUser getCancelledBy() { return cancelledBy; }
     public CancellationReason getCancellationReason() { return cancellationReason; }
     public String getCancellationReasonDetail() { return cancellationReasonDetail; }
+
+    /** The only way a receipt becomes GIVEN — keeps status and givenAt from drifting apart. */
+    public void markGiven(OffsetDateTime at) {
+        this.status = Status.GIVEN;
+        this.givenAt = at;
+    }
 
     /**
      * The only way a receipt becomes CANCELLED — keeps the four audit fields from being

@@ -42,7 +42,7 @@ class ReceiptServiceTest {
         OffsetDateTime end = NOW.minusHours(5);
         Receipt receipt = buildReceipt(end, Receipt.Status.GIVEN, "Sherwani", 1);
 
-        when(receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN))
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
                 .thenReturn(List.of(receipt));
         when(dateTimeUtil.calculateOverdueHours(eq(end), any())).thenReturn(5.0);
 
@@ -58,7 +58,7 @@ class ReceiptServiceTest {
         OffsetDateTime end = OffsetDateTime.now().plusDays(5);
         Receipt receipt = buildReceipt(end, Receipt.Status.GIVEN, "Red Saree", 1);
 
-        when(receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN))
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
                 .thenReturn(List.of(receipt));
 
         List<ReceiptSummaryResponse> result = receiptService.listReceipts(null, null);
@@ -69,8 +69,21 @@ class ReceiptServiceTest {
     }
 
     @Test
+    void should_not_mark_generated_receipt_as_overdue_even_when_past_end_datetime() {
+        Receipt receipt = buildReceipt(NOW.minusHours(5), Receipt.Status.GENERATED, "Sherwani", 1);
+
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
+                .thenReturn(List.of(receipt));
+
+        List<ReceiptSummaryResponse> result = receiptService.listReceipts(null, null);
+
+        assertThat(result.get(0).status()).isEqualTo("GENERATED");
+        assertThat(result.get(0).isOverdue()).isFalse();
+    }
+
+    @Test
     void should_return_empty_list_when_no_active_receipts() {
-        when(receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN))
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
                 .thenReturn(List.of());
 
         List<ReceiptSummaryResponse> result = receiptService.listReceipts(null, null);
@@ -83,7 +96,7 @@ class ReceiptServiceTest {
         OffsetDateTime end = NOW.plusDays(2);
         Receipt receipt = buildReceipt(end, Receipt.Status.GIVEN, "Blue Pagdi", 3);
 
-        when(receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN))
+        when(receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE))
                 .thenReturn(List.of(receipt));
 
         List<ReceiptSummaryResponse> result = receiptService.listReceipts(null, null);

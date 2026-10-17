@@ -198,7 +198,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
   const ELIGIBLE_END = dayjs().add(2, 'day').toISOString()
 
   it('offers a red bin Cancel receipt button, as tall as View, to an OWNER on an eligible card', async () => {
-    stubReceiptLists({ active: [aSummary({ endDatetime: ELIGIBLE_END })] })
+    stubReceiptLists({ active: [aSummary({ status: 'GENERATED', endDatetime: ELIGIBLE_END })] })
 
     renderReceiptsPage()
     await flush()
@@ -208,7 +208,7 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
 
   it('hides the Cancel receipt button from an EXECUTIVE', async () => {
     useAuthStore.setState({ token: jwtWithRole('EXECUTIVE'), role: 'EXECUTIVE' })
-    stubReceiptLists({ active: [aSummary({ endDatetime: ELIGIBLE_END })] })
+    stubReceiptLists({ active: [aSummary({ status: 'GENERATED', endDatetime: ELIGIBLE_END })] })
 
     renderReceiptsPage()
     await flush()
@@ -217,18 +217,27 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
     expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
   })
 
-  it('hides the Cancel receipt button when the rental ends within 12 hours', async () => {
-    stubReceiptLists({ active: [aSummary({ endDatetime: dayjs().add(11, 'hour').toISOString() })] })
+  it('hides the Cancel receipt button once the dress has been given to the customer', async () => {
+    stubReceiptLists({ active: [aSummary({ status: 'GIVEN', endDatetime: ELIGIBLE_END })] })
 
     renderReceiptsPage()
     await flush()
 
     expect(await screen.findByRole('button', { name: /view/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel receipt' })).not.toBeInTheDocument()
+  })
+
+  it('still offers Cancel receipt on a booking that ends within 12 hours, because the dress never left the shop', async () => {
+    stubReceiptLists({ active: [aSummary({ status: 'GENERATED', endDatetime: dayjs().add(1, 'hour').toISOString() })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByRole('button', { name: 'Cancel receipt' })).toBeInTheDocument()
   })
 
   it('cancels from the card and moves the receipt to the Cancelled tab', async () => {
-    const summary = aSummary({ id: 'rcpt-7', receiptNumber: 'R-2026-0007', endDatetime: ELIGIBLE_END })
+    const summary = aSummary({ id: 'rcpt-7', receiptNumber: 'R-2026-0007', status: 'GENERATED', endDatetime: ELIGIBLE_END })
     let isCancelled = false
     server.use(
       http.get('*/api/receipts', ({ request }) => {
@@ -254,6 +263,52 @@ describe('ReceiptsPage cancel from the Active Rentals card', () => {
     expect(await screen.findByText('No active rentals')).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /Cancelled \(last 7 days\)/ }))
     expect(await within(screen.getByRole('tabpanel')).findByText('R-2026-0007')).toBeInTheDocument()
+  })
+})
+
+describe('ReceiptsPage given / booked state on the Active Rentals card', () => {
+  it('shows a blue "Given to customer" tick on a GIVEN card and no Mark as Given button', async () => {
+    stubReceiptLists({ active: [aSummary({ status: 'GIVEN' })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByLabelText('Given to customer')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Mark as Given$/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Booked')).not.toBeInTheDocument()
+  })
+
+  it('shows a Booked tag and a Mark as Given button on a GENERATED card, with no tick', async () => {
+    stubReceiptLists({ active: [aSummary({ status: 'GENERATED' })] })
+
+    renderReceiptsPage()
+    await flush()
+
+    expect(await screen.findByText('Booked')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Given to customer')).not.toBeInTheDocument()
+  })
+
+  it('swaps the Booked tag for the tick after Mark as Given is clicked', async () => {
+    let isGiven = false
+    server.use(
+      http.get('*/api/receipts', ({ request }) => {
+        if (new URL(request.url).searchParams.get('status') === 'CANCELLED') return ok([])
+        return ok([aSummary({ status: isGiven ? 'GIVEN' : 'GENERATED' })])
+      }),
+      http.post('*/api/receipts/rcpt-1/give', () => {
+        isGiven = true
+        return ok(f.aReceipt({ status: 'GIVEN' }))
+      }),
+    )
+    const user = userEvent.setup()
+    renderReceiptsPage()
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+
+    expect(await screen.findByLabelText('Given to customer')).toBeInTheDocument()
+    expect(screen.queryByText('Booked')).not.toBeInTheDocument()
   })
 })
 

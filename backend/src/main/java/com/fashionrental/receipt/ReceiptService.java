@@ -49,7 +49,7 @@ public class ReceiptService {
         } else if (status != null) {
             receipts = receiptRepository.findByStatusOrderByEndDatetimeAsc(status);
         } else {
-            receipts = receiptRepository.findByStatusOrderByEndDatetimeAsc(Receipt.Status.GIVEN);
+            receipts = receiptRepository.findByStatusInOrderByEndDatetimeAsc(Receipt.Status.ACTIVE);
         }
 
         return receipts.stream()

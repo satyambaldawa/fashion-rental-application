@@ -37,7 +37,7 @@ public class CustomerHistoryService {
                         .collect(Collectors.toMap(invoice -> invoice.getReceipt().getId(), Function.identity()));
 
         int outstandingDeposit = receipts.stream()
-                .filter(r -> r.getStatus() == Receipt.Status.GIVEN)
+                .filter(r -> Receipt.Status.ACTIVE.contains(r.getStatus()))
                 .mapToInt(Receipt::getTotalDeposit)
                 .sum();
 

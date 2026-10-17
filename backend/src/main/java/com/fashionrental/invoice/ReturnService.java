@@ -175,6 +175,9 @@ public class ReturnService {
         if (receipt.getStatus() == Receipt.Status.CANCELLED) {
             throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has been cancelled and cannot be returned");
         }
+        if (receipt.getStatus() == Receipt.Status.GENERATED) {
+            throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has not been given to the customer yet");
+        }
         return receipt;
     }
 

@@ -84,7 +84,7 @@ export interface ReceiptLineItem {
   itemPurchaseRate: number | null  // null = no purchase cost recorded; disables damage-by-percentage
 }
 
-export type ReceiptStatus = 'GIVEN' | 'RETURNED' | 'CANCELLED'
+export type ReceiptStatus = 'GENERATED' | 'GIVEN' | 'RETURNED' | 'CANCELLED'
 
 export type CancellationReason = 'WRONG_ORDER' | 'CUSTOMER_DOES_NOT_WANT' | 'CHANGE_ORDER_DATES' | 'OTHER'
 

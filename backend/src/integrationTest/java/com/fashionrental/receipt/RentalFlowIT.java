@@ -38,6 +38,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
 
     @Autowired private CheckoutService checkoutService;
     @Autowired private ReturnService returnService;
+    @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
 
@@ -85,7 +86,10 @@ class RentalFlowIT extends AbstractIntegrationTest {
         ));
 
         assertThat(receipt.id()).isNotNull();
-        assertThat(receipt.status()).isEqualTo("GIVEN");
+        assertThat(receipt.status()).isEqualTo("GENERATED");
+
+        // ── hand the dress over; only then can it be returned ──
+        assertThat(receiptGivenService.markGiven(receipt.id()).status()).isEqualTo("GIVEN");
         assertThat(receipt.totalDeposit()).isEqualTo(1000);
         assertThat(receipt.lineItems()).hasSize(1);
         UUID receiptLineItemId = receipt.lineItems().get(0).id();
@@ -138,6 +142,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
         assertThat(receipt.totalDeposit()).isEqualTo(1000);
 
         // ── return on time → full deposit back, product name carries through to the invoice ──
+        receiptGivenService.markGiven(receipt.id());
         InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
                 end,
                 List.of(new ReturnLineItem(receipt.lineItems().get(0).id(), false, null, null)),

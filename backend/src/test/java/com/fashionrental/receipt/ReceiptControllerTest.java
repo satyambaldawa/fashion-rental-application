@@ -37,6 +37,7 @@ class ReceiptControllerTest {
     @MockitoBean CheckoutService checkoutService;
     @MockitoBean ReceiptService receiptService;
     @MockitoBean ReceiptCancellationService receiptCancellationService;
+    @MockitoBean ReceiptGivenService receiptGivenService;
 
     // Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest
     @MockitoBean com.fashionrental.config.JwtConfig jwtConfig;
@@ -183,5 +184,37 @@ class ReceiptControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].receiptNumber").value("R-20260421-001"))
                 .andExpect(jsonPath("$.data[0].isOverdue").value(false));
+    }
+
+    // ─── POST /api/receipts/{id}/give ─────────────────────────────────────────
+
+    @Test
+    @WithMockUser(roles = "EXECUTIVE")
+    void should_let_executive_mark_receipt_as_given() throws Exception {
+        UUID id = UUID.randomUUID();
+        ReceiptResponse given = new ReceiptResponse(
+                id, "R-20260421-001", "token", UUID.randomUUID(), "Ravi Sharma", "9876543210",
+                START, END, 3, 600, null, 0, 1000, 1600, "GIVEN", null, List.of(), START, null);
+        when(receiptGivenService.markGiven(id)).thenReturn(given);
+
+        mockMvc.perform(post("/api/receipts/{id}/give", id).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("GIVEN"));
+    }
+
+    @Test
+    void should_return_401_when_unauthenticated_user_marks_given() throws Exception {
+        mockMvc.perform(post("/api/receipts/{id}/give", UUID.randomUUID()).with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_return_409_when_receipt_cannot_be_marked_given() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(receiptGivenService.markGiven(id)).thenThrow(new ConflictException("Receipt is CANCELLED"));
+
+        mockMvc.perform(post("/api/receipts/{id}/give", id).with(csrf()))
+                .andExpect(status().isConflict());
     }
 }
