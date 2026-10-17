@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders, flush, screen, within } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import CheckoutPage from './CheckoutPage'
@@ -179,12 +179,11 @@ describe('CheckoutPage custom product entry', () => {
     await flush()
 
     await user.click(await screen.findByRole('button', { name: 'Create Receipt' }))
-    await flush()
 
-    expect(capturedBody).toMatchObject({
+    await waitFor(() => expect(capturedBody).toMatchObject({
       items: [{ itemId: 'item-1', quantity: 1 }],
       adHocItems: [{ name: 'Custom Lehenga', size: 'Free size', flatPrice: 500, deposit: 200, quantity: 2 }],
-    })
+    }))
   })
 
   it('surfaces the backend 400 when a non-owner submits a cart with an inherited ad-hoc line', async () => {
@@ -794,12 +793,13 @@ describe('CheckoutPage customer carried over from a receipt (#165)', () => {
     }))
 
     renderWithProviders(<CheckoutPage />)
-    await flush()
 
     expect(await screen.findByText(/Adding items for/)).toBeInTheDocument()
     expect(screen.getByText('Priya')).toBeInTheDocument()
-    expect(captured.params?.get('startDatetime')).toBe('2026-04-18T10:00:00+05:30')
-    expect(captured.params?.get('endDatetime')).toBe('2026-04-19T10:00:00+05:30')
+    await waitFor(() => {
+      expect(captured.params?.get('startDatetime')).toBe('2026-04-18T10:00:00+05:30')
+      expect(captured.params?.get('endDatetime')).toBe('2026-04-19T10:00:00+05:30')
+    })
   })
 
   it('AC6: the customer banner persists across browse, preview and confirm', async () => {
@@ -868,7 +868,8 @@ describe('CheckoutPage customer carried over from a receipt (#165)', () => {
     expect(screen.getByRole('button', { name: 'Create Receipt' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
-    await flush()
+
+    await waitFor(() => expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull())
 
     expect(capturedBody).toMatchObject({
       customerId: 'cust-9',
@@ -877,7 +878,6 @@ describe('CheckoutPage customer carried over from a receipt (#165)', () => {
       items: [{ itemId: 'item-1', quantity: 1 }],
     })
     expect(otherReceiptCallMade).toBe(false)
-    expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull()
   })
 
   it('AC12: the banner survives cancelling the ad-hoc modal, and a reload (remount)', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders, flush, screen } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { Route, Routes, useLocation } from 'react-router-dom'
@@ -115,12 +115,14 @@ describe('ReportsPage invoices tab', () => {
     await renderInvoicesTab(`${INVOICES_ROUTE}&from=2026-04-01&to=2026-04-30&min=500&page=3`)
     await flush(DEBOUNCE_SETTLE_MS)
 
-    const last = requests[requests.length - 1]
-    expect(last.get('from')).toBe('2026-04-01')
-    expect(last.get('to')).toBe('2026-04-30')
-    expect(last.get('minRevenue')).toBe('500')
-    expect(last.get('page')).toBe('2') // URL pages are 1-based, the API's are 0-based
-    expect(last.get('size')).toBe('20')
+    await waitFor(() => {
+      const last = requests[requests.length - 1]
+      expect(last.get('from')).toBe('2026-04-01')
+      expect(last.get('to')).toBe('2026-04-30')
+      expect(last.get('minRevenue')).toBe('500')
+      expect(last.get('page')).toBe('2') // URL pages are 1-based, the API's are 0-based
+      expect(last.get('size')).toBe('20')
+    })
   })
 
   it('re-queries with the minimum revenue once typed', async () => {
@@ -128,9 +130,8 @@ describe('ReportsPage invoices tab', () => {
 
     await renderInvoicesTab()
     await userEvent.setup().type(screen.getByRole('spinbutton', { name: 'Min revenue' }), '1000')
-    await flush(DEBOUNCE_SETTLE_MS)
 
-    expect(requests.map(r => r.get('minRevenue'))).toContain('1000')
+    await waitFor(() => expect(requests.map(r => r.get('minRevenue'))).toContain('1000'))
   })
 
   it('Clear drops the minimum and re-queries without it', async () => {
@@ -141,8 +142,10 @@ describe('ReportsPage invoices tab', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Clear' }))
     await flush(DEBOUNCE_SETTLE_MS)
 
-    expect(requests[0].get('minRevenue')).toBe('500')
-    expect(requests[requests.length - 1].get('minRevenue')).toBeNull()
+    await waitFor(() => {
+      expect(requests[0].get('minRevenue')).toBe('500')
+      expect(requests[requests.length - 1].get('minRevenue')).toBeNull()
+    })
     expect(screen.getByRole('spinbutton', { name: 'Min revenue' })).toHaveValue('')
   })
 
@@ -151,9 +154,8 @@ describe('ReportsPage invoices tab', () => {
 
     await renderInvoicesTab()
     await userEvent.setup().click(await screen.findByTitle('2'))
-    await flush()
 
-    expect(requests[requests.length - 1].get('page')).toBe('1')
+    await waitFor(() => expect(requests[requests.length - 1].get('page')).toBe('1'))
   })
 
   it('shows the backend validation message when the request is rejected', async () => {

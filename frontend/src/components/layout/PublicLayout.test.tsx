@@ -92,9 +92,8 @@ describe('PublicLayout', () => {
       useAuthStore.setState({ token: null, role: null })
 
       renderGalleryRoute()
-      await flush()
 
-      expect(screen.getByText('Royal Sherwani')).toBeInTheDocument()
+      expect(await screen.findByText('Royal Sherwani')).toBeInTheDocument()
       expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
     })
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders, flush, screen, within } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor, within } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
@@ -70,8 +70,7 @@ describe('CouponsPage', () => {
     // the confirm button is the one added to the DOM after the popup opens.
     const confirmButtons = await screen.findAllByRole('button', { name: 'Deactivate' })
     await user.click(confirmButtons[confirmButtons.length - 1])
-    await flush()
 
-    expect(capturedBody).toEqual({ isActive: false })
+    await waitFor(() => expect(capturedBody).toEqual({ isActive: false }))
   })
 })
