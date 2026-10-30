@@ -1,14 +1,14 @@
 import { useState, type CSSProperties } from 'react'
 import { Button, Modal } from 'antd'
 import { CheckOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import { useMarkReceiptGiven } from '../../hooks/useMarkReceiptGiven'
+import { formatDatetime } from '../../utils/datetime'
 import type { Receipt } from '../../types/receipt'
 
+type ReceiptOrSummaryForHandover = Pick<Receipt, 'id' | 'receiptNumber' | 'startDatetime'>
+
 interface MarkAsGivenButtonProps {
-  // Only what the confirmation needs, so both the detail page (Receipt) and list cards
-  // (ReceiptSummary) can pass theirs.
-  receipt: Pick<Receipt, 'id' | 'receiptNumber' | 'startDatetime'>
+  receipt: ReceiptOrSummaryForHandover
   size?: 'middle' | 'large'
   style?: CSSProperties
 }
@@ -41,7 +41,7 @@ export default function MarkAsGivenButton({ receipt, size = 'large', style }: Ma
         <p>
           Receipt <strong>{receipt.receiptNumber}</strong>
           <br />
-          Booked start: <strong>{dayjs(receipt.startDatetime).format('DD MMM YYYY, h:mm A')}</strong>
+          Booked start: <strong>{formatDatetime(receipt.startDatetime)}</strong>
         </p>
       </Modal>
     </>

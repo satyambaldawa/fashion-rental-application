@@ -12,10 +12,6 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/**
- * Handing the dress over is a state change distinct from checkout, cancelling and returning.
- * Undoing a hand-over is its inverse and lives here too, rather than in its own service.
- */
 @Service
 public class ReceiptGivenService {
 
@@ -38,10 +34,7 @@ public class ReceiptGivenService {
 
     @Transactional
     public ReceiptResponse markGiven(UUID receiptId) {
-        // Row lock: Receipt has no @Version, so an unlocked give could overwrite a concurrent
-        // cancellation's status and audit fields with stale values.
-        Receipt receipt = receiptRepository.findByIdForUpdate(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+        Receipt receipt = findReceiptLockedForUpdate(receiptId);
 
         if (receipt.getStatus() == Receipt.Status.GIVEN) {
             return receiptMapper.toReceiptResponse(receipt);
@@ -57,11 +50,7 @@ public class ReceiptGivenService {
 
     @Transactional
     public ReceiptResponse undoGiven(UUID receiptId, String actingUsername) {
-        // Same row lock as markGiven/cancel/return: whoever gets here first holds the row until
-        // commit, so the loser re-reads the post-commit status and hits a guard below instead of
-        // overwriting it (#179).
-        Receipt receipt = receiptRepository.findByIdForUpdate(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+        Receipt receipt = findReceiptLockedForUpdate(receiptId);
 
         if (receipt.getStatus() == Receipt.Status.GENERATED) {
             return receiptMapper.toReceiptResponse(receipt);
@@ -70,12 +59,21 @@ public class ReceiptGivenService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         assertGivenUndoable(receipt, now);
 
-        // The JWT filter loads only active users (UserDetailsConfig), so a miss here is an invariant breach.
-        AppUser actingUser = appUserRepository.findByUsernameAndIsActiveTrue(actingUsername)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + actingUsername));
-
-        receipt.revertGiven(actingUser, now);
+        receipt.revertGiven(loadAuthenticatedActiveUser(actingUsername), now);
         return receiptMapper.toReceiptResponse(receiptRepository.save(receipt));
+    }
+
+    // Receipt has no @Version, so without this row lock a give/undo could overwrite a concurrent
+    // cancel or return with stale status and audit fields. The loser of the race re-reads the
+    // committed status and hits a guard instead.
+    private Receipt findReceiptLockedForUpdate(UUID receiptId) {
+        return receiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+    }
+
+    private AppUser loadAuthenticatedActiveUser(String username) {
+        return appUserRepository.findByUsernameAndIsActiveTrue(username)
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + username));
     }
 
     private void assertGivenUndoable(Receipt receipt, OffsetDateTime now) {

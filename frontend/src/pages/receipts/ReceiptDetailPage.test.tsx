@@ -13,6 +13,7 @@ import { useAuthStore } from '../../store/authStore'
 import { jwtWithRole } from '../../test/auth'
 import { STORAGE_KEY as CART_STORAGE_KEY, SESSION_MARKER_KEY } from '../../hooks/useCart'
 import type { Cart } from '../../types/receipt'
+import { formatDatetime } from '../../utils/datetime'
 import ReceiptDetailPage from './ReceiptDetailPage'
 
 const ok = (data: unknown) => HttpResponse.json({ success: true, data, error: null })
@@ -573,7 +574,7 @@ describe('ReceiptDetailPage handover (Mark as Given)', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('R-2026-0001')).toBeInTheDocument()
-    expect(within(dialog).getByText(dayjs(receipt.startDatetime).format('DD MMM YYYY, h:mm A'))).toBeInTheDocument()
+    expect(within(dialog).getByText(formatDatetime(receipt.startDatetime))).toBeInTheDocument()
   })
 
   it('Go back on the confirm dialog sends no request', async () => {
@@ -700,6 +701,8 @@ describe('ReceiptDetailPage handover (Mark as Given)', () => {
 })
 
 describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
+  const UNDO_BUTTON_NAME = /Undo Mark as Given$/
+
   beforeEach(() => useAuthStore.setState({ token: jwtWithRole('OWNER'), role: 'OWNER' }))
 
   it('shows the undo button to an OWNER for a GIVEN receipt whose booked start is in the future', async () => {
@@ -708,7 +711,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
 
     await renderReceipt()
 
-    expect(await screen.findByRole('button', { name: /Undo Mark as Given$/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: UNDO_BUTTON_NAME })).toBeInTheDocument()
   })
 
   it('hides the undo button from an EXECUTIVE even for an undoable receipt', async () => {
@@ -719,7 +722,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
     await renderReceipt()
 
     await screen.findByRole('button', { name: 'Process Return' })
-    expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: UNDO_BUTTON_NAME })).not.toBeInTheDocument()
   })
 
   it('hides the undo button once the booked start has passed', async () => {
@@ -729,7 +732,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
     await renderReceipt()
 
     await screen.findByRole('button', { name: 'Process Return' })
-    expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: UNDO_BUTTON_NAME })).not.toBeInTheDocument()
   })
 
   it.each(['GENERATED', 'RETURNED', 'CANCELLED'] as const)(
@@ -741,7 +744,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
       await renderReceipt()
       await flush()
 
-      expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: UNDO_BUTTON_NAME })).not.toBeInTheDocument()
     },
   )
 
@@ -758,7 +761,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
     const user = userEvent.setup()
     await renderReceipt()
 
-    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: UNDO_BUTTON_NAME }))
     await user.click(await screen.findByRole('button', { name: 'Yes, undo' }))
 
     expect(await screen.findByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
@@ -779,7 +782,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
     const user = userEvent.setup()
     await renderReceipt()
 
-    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: UNDO_BUTTON_NAME }))
     await user.click(await screen.findByRole('button', { name: 'Go back' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -800,7 +803,7 @@ describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
     const user = userEvent.setup()
     await renderReceipt()
 
-    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: UNDO_BUTTON_NAME }))
     await user.click(await screen.findByRole('button', { name: 'Yes, undo' }))
 
     expect(await screen.findByText(/is RETURNED and its hand-over can no longer be undone/)).toBeInTheDocument()
