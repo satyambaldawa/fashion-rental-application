@@ -44,7 +44,6 @@ const PRINT_STYLES = `
 
 function buildReceiptWhatsAppUrl(receipt: import('../../types/receipt').Receipt): string {
   const publicUrl = `${window.location.origin}/public/receipts/${receipt.shareToken}`
-  const reviewUrl = `${window.location.origin}/review`
   const start = dayjs(receipt.startDatetime).format('DD MMM YYYY')
   const end = dayjs(receipt.endDatetime).format('DD MMM YYYY')
   const message = [
@@ -57,8 +56,6 @@ function buildReceiptWhatsAppUrl(receipt: import('../../types/receipt').Receipt)
     `Grand Total: ₹${receipt.grandTotal}`,
     '',
     `View full details: ${publicUrl}`,
-    '',
-    `Loved your outfit? Leave us a review: ${reviewUrl}`,
     '',
     "Thank you for choosing Manisha's Drapery!",
   ].join('\n')

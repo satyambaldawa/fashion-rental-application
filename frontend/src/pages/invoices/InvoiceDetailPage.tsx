@@ -35,6 +35,7 @@ const PRINT_STYLES = `
 
 function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice): string {
   const publicUrl = `${window.location.origin}/public/invoices/${invoice.shareToken}`
+  const reviewUrl = `${window.location.origin}/review`
   const action = invoice.transactionType === 'REFUND' ? 'Amount Refunded' : 'Amount Collected'
   const message = [
     `Hello ${invoice.customerName}!`,
@@ -47,6 +48,8 @@ function buildInvoiceWhatsAppUrl(invoice: import('../../types/invoice').Invoice)
     `${action}: ₹${invoice.finalAmount}`,
     '',
     `View full details: ${publicUrl}`,
+    '',
+    `Loved your outfit? Leave us a review: ${reviewUrl}`,
     '',
     "Thank you for choosing Manisha's Drapery!",
   ].join('\n')

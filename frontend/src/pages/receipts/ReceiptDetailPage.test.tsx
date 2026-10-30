@@ -65,7 +65,7 @@ describe('ReceiptDetailPage discount row', () => {
 })
 
 describe('ReceiptDetailPage WhatsApp share', () => {
-  it('includes a link to the review page in the WhatsApp message', async () => {
+  it('does not include the review link in the WhatsApp message', async () => {
     server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt())))
 
     await renderReceipt()
@@ -73,7 +73,7 @@ describe('ReceiptDetailPage WhatsApp share', () => {
     const link = await screen.findByRole('link', { name: /Send on WhatsApp/i })
     const decodedHref = decodeURIComponent(link.getAttribute('href') ?? '')
 
-    expect(decodedHref).toContain(`${window.location.origin}/review`)
+    expect(decodedHref).not.toContain('/review')
   })
 })
 
