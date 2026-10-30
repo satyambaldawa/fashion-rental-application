@@ -178,8 +178,14 @@ class ReceiptGivenUndoIT extends AbstractIntegrationTest {
                 "SELECT status, given_at, given_reverted_at FROM receipts WHERE id = ?", receipt.id());
         assertThat(row.get("status")).isEqualTo("GIVEN");
         assertThat(row.get("given_at")).isNotNull();
-        assertThat((OffsetDateTime) row.get("given_at")).isAfter(firstGivenAt);
         assertThat(row.get("given_reverted_at")).isNotNull();
+
+        // queryForMap's ColumnMapRowMapper returns the driver's native java.sql.Timestamp for a
+        // TIMESTAMPTZ column (no requiredType to convert through), so the "after" comparison needs
+        // the same typed queryForObject used for firstGivenAt above, not a cast on the map's value.
+        OffsetDateTime secondGivenAt = jdbcTemplate.queryForObject(
+                "SELECT given_at FROM receipts WHERE id = ?", OffsetDateTime.class, receipt.id());
+        assertThat(secondGivenAt).isAfter(firstGivenAt);
     }
 
     /**
