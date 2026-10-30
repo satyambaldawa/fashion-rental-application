@@ -457,7 +457,9 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     const user = userEvent.setup()
 
     renderReceiptsPage()
-    await user.click(await screen.findByText(new RegExp(later.format('D MMM'))))
+    // The page labels pickup dates in IST; formatting in the runner's zone (UTC on CI) names the
+    // wrong day between 18:30 and 24:00 UTC.
+    await user.click(await screen.findByText(new RegExp(later.tz('Asia/Kolkata').format('D MMM'))))
 
     expect(await screen.findByText('R-LATER')).toBeInTheDocument()
   })
