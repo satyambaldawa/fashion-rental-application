@@ -218,12 +218,13 @@ class CheckoutServiceTest {
     void should_refuse_upi_receipt_when_server_total_differs_from_amount_customer_paid() {
         UUID customerId = UUID.randomUUID();
         UUID itemId = UUID.randomUUID();
+        int amountPaidBeforeRateChange = UPI_CART_GRAND_TOTAL - 100;
         stubCreatableCart(customerId, itemId);
 
         assertThatThrownBy(() -> checkoutService.createReceipt(
-                upiRequest(customerId, itemId, UPI_CART_GRAND_TOTAL - 100, UUID.randomUUID())))
+                upiRequest(customerId, itemId, amountPaidBeforeRateChange, UUID.randomUUID())))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("paid ₹550");
+                .hasMessageContaining("paid ₹" + amountPaidBeforeRateChange);
         verify(receiptRepository, never()).save(any(Receipt.class));
     }
 

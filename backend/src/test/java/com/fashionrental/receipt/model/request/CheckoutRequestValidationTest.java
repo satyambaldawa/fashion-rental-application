@@ -157,4 +157,16 @@ class CheckoutRequestValidationTest {
         assertThat(violations).extracting(ConstraintViolation::getMessage)
                 .contains("UPI checkout must include the amount shown in the QR");
     }
+
+    @Test
+    void should_reject_upi_request_without_an_idempotency_key() {
+        CheckoutRequest request = new CheckoutRequest(UUID.randomUUID(), START, END,
+                List.of(new CheckoutLineItem(UUID.randomUUID(), 1)), List.of(), null, null,
+                ReceiptPaymentMethod.UPI, 650, null);
+
+        Set<ConstraintViolation<CheckoutRequest>> violations = validator.validate(request);
+
+        assertThat(violations).extracting(ConstraintViolation::getMessage)
+                .contains("UPI checkout must include an idempotency key");
+    }
 }

@@ -42,6 +42,14 @@ public record CheckoutRequest(
         return paymentMethod != ReceiptPaymentMethod.UPI || expectedGrandTotal != null;
     }
 
+    // Without a key, retrying "received" after a lost response would create a second receipt
+    // for a payment that was already collected once.
+    @JsonIgnore
+    @AssertTrue(message = "UPI checkout must include an idempotency key")
+    public boolean isIdempotencyKeyPresentForUpi() {
+        return paymentMethod != ReceiptPaymentMethod.UPI || idempotencyKey != null;
+    }
+
     // Jackson would otherwise serialise this as a request property and springdoc would publish it
     @JsonIgnore
     @AssertTrue(message = "A receipt needs at least one item")

@@ -26,8 +26,8 @@ public class ShopSettingsService {
             settings.setUpiVpa(null);
             settings.setUpiPayeeName(null);
         } else {
-            settings.setUpiVpa(request.upiVpa().trim());
-            settings.setUpiPayeeName(request.upiPayeeName().trim());
+            settings.setUpiVpa(request.upiVpa());
+            settings.setUpiPayeeName(request.upiPayeeName());
         }
         return toResponse(shopSettingsRepository.save(settings));
     }

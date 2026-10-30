@@ -88,6 +88,30 @@ class PaymentSettingsControllerTest {
 
     @Test
     @WithMockUser(roles = "OWNER")
+    void should_accept_a_upi_id_padded_with_spaces() throws Exception {
+        when(shopSettingsService.updatePaymentSettings(any())).thenReturn(CONFIGURED);
+
+        mockMvc.perform(put("/api/config/payment-settings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"upiVpa\":\"  shop@ybl \",\"upiPayeeName\":\" Shop \"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_treat_a_spaces_only_upi_id_as_disabling_upi() throws Exception {
+        when(shopSettingsService.updatePaymentSettings(any()))
+                .thenReturn(new PaymentSettingsResponse(false, null, null));
+
+        mockMvc.perform(put("/api/config/payment-settings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"upiVpa\":\"   \",\"upiPayeeName\":\"\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.upiEnabled").value(false));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
     void should_reject_upi_id_without_payee_name() throws Exception {
         mockMvc.perform(put("/api/config/payment-settings")
                         .contentType(MediaType.APPLICATION_JSON)
