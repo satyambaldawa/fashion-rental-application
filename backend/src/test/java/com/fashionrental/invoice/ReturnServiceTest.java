@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,10 +66,14 @@ class ReturnServiceTest {
     }
 
     private ProcessReturnRequest returnRequest(boolean damaged) {
+        return returnRequest(damaged, null);
+    }
+
+    private ProcessReturnRequest returnRequest(boolean damaged, Boolean applyLateFee) {
         return new ProcessReturnRequest(
                 OffsetDateTime.parse("2026-04-11T12:00:00+05:30"),
                 List.of(new ReturnLineItem(lineItem.getId(), damaged, null, null)),
-                "CASH", null, null
+                "CASH", null, null, applyLateFee
         );
     }
 
@@ -95,7 +100,7 @@ class ReturnServiceTest {
         ProcessReturnRequest strayLine = new ProcessReturnRequest(
                 OffsetDateTime.parse("2026-04-11T12:00:00+05:30"),
                 List.of(new ReturnLineItem(UUID.randomUUID(), false, null, null)),
-                "CASH", null, null
+                "CASH", null, null, null
         );
 
         ReturnPreviewResponse preview = returnService.previewReturn(receipt.getId(), strayLine);
@@ -128,6 +133,154 @@ class ReturnServiceTest {
         assertThat(response.totalDamageCost()).isEqualTo(damage);
         assertThat(response.finalAmount()).isEqualTo(expectedFinal);
         assertThat(response.transactionType()).isEqualTo(expectedType);
+    }
+
+    @Test
+    void processReturn_waives_late_fee_storing_zero_on_lines_and_full_amount_as_waived() {
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0100");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(billingService.calculateLateFee(any(), any(), anyInt(), anyInt(), any())).thenReturn(300);
+        when(billingService.calculateDamageCost(any(), any())).thenReturn(1200);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(true, Boolean.FALSE));
+
+        ArgumentCaptor<Invoice> captor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(captor.capture());
+        Invoice saved = captor.getValue();
+        assertThat(saved.getTotalLateFee()).isZero();
+        assertThat(saved.getWaivedLateFee()).isEqualTo(300);
+        assertThat(saved.getLineItems()).allSatisfy(li -> assertThat(li.getLateFee()).isZero());
+        assertThat(response.transactionType()).isEqualTo("COLLECT");
+        assertThat(response.finalAmount()).isEqualTo(200);
+        assertThat(response.waivedLateFee()).isEqualTo(300);
+    }
+
+    @Test
+    void processReturn_applies_late_fee_explicitly() {
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0101");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(billingService.calculateLateFee(any(), any(), anyInt(), anyInt(), any())).thenReturn(300);
+        when(billingService.calculateDamageCost(any(), any())).thenReturn(1200);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(true, Boolean.TRUE));
+
+        ArgumentCaptor<Invoice> captor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(captor.capture());
+        Invoice saved = captor.getValue();
+        assertThat(saved.getTotalLateFee()).isEqualTo(300);
+        assertThat(saved.getWaivedLateFee()).isZero();
+        assertThat(saved.getLineItems()).allSatisfy(li -> assertThat(li.getLateFee()).isEqualTo(300));
+        int sumOfLineFees = saved.getLineItems().stream().mapToInt(InvoiceLineItem::getLateFee).sum();
+        assertThat(saved.getTotalLateFee()).isEqualTo(sumOfLineFees);
+        assertThat(response.transactionType()).isEqualTo("COLLECT");
+        assertThat(response.finalAmount()).isEqualTo(500);
+        assertThat(response.waivedLateFee()).isZero();
+    }
+
+    @Test
+    void previewReturn_returns_calculated_applied_and_waived_late_fee_when_waived() {
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(billingService.calculateLateFee(any(), any(), anyInt(), anyInt(), any())).thenReturn(300);
+        when(billingService.calculateDamageCost(any(), any())).thenReturn(800);
+
+        ReturnPreviewResponse preview = returnService.previewReturn(receipt.getId(), returnRequest(true, Boolean.FALSE));
+
+        assertThat(preview.calculatedLateFee()).isEqualTo(300);
+        assertThat(preview.totalLateFee()).isZero();
+        assertThat(preview.waivedLateFee()).isEqualTo(300);
+        assertThat(preview.lineItems().get(0).lateFee()).isZero();
+        assertThat(preview.transactionType()).isEqualTo("REFUND");
+        assertThat(preview.finalAmount()).isEqualTo(200);
+    }
+
+    @Test
+    void previewReturn_applies_late_fee_when_flag_is_null() {
+        when(receiptRepository.findById(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(billingService.calculateLateFee(any(), any(), anyInt(), anyInt(), any())).thenReturn(300);
+        when(billingService.calculateDamageCost(any(), any())).thenReturn(0);
+
+        ReturnPreviewResponse preview = returnService.previewReturn(receipt.getId(), returnRequest(false, null));
+
+        assertThat(preview.calculatedLateFee()).isEqualTo(300);
+        assertThat(preview.totalLateFee()).isEqualTo(300);
+        assertThat(preview.waivedLateFee()).isZero();
+    }
+
+    // The two tests below pin down the aggregation behaviour raised in plan review: each line's
+    // *own* calculated late fee (not an equal share of the invoice-level total) is what gets
+    // charged or zeroed, and the invoice-level calculatedLateFee/appliedLateFee are the sum of
+    // the distinct per-line values rather than, say, the first line's value repeated.
+    private Receipt twoLineReceipt() {
+        Item secondItem = TestData.item("Lehenga", 500, 1500);
+        ReceiptLineItem secondLine = TestData.receiptLineItem(secondItem, 2);
+        OffsetDateTime start = OffsetDateTime.parse("2026-04-10T10:00:00+05:30");
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-11T10:00:00+05:30");
+        return TestData.receipt(customer, start, end, lineItem, secondLine);
+    }
+
+    private ProcessReturnRequest twoLineReturnRequest(Receipt tworeceipt, Boolean applyLateFee) {
+        List<ReturnLineItem> returnLines = tworeceipt.getLineItems().stream()
+                .map(rli -> new ReturnLineItem(rli.getId(), false, null, null))
+                .toList();
+        return new ProcessReturnRequest(
+                OffsetDateTime.parse("2026-04-11T12:00:00+05:30"), returnLines, "CASH", null, null, applyLateFee
+        );
+    }
+
+    @Test
+    void processReturn_sums_differing_per_line_late_fees_and_charges_each_lines_own_amount_when_applied() {
+        Receipt tworeceipt = twoLineReceipt();
+        when(receiptRepository.findByIdForUpdate(tworeceipt.getId())).thenReturn(Optional.of(tworeceipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0200");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(billingService.calculateLateFee(any(), any(), eq(300), eq(1), any())).thenReturn(150);
+        when(billingService.calculateLateFee(any(), any(), eq(500), eq(2), any())).thenReturn(450);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(
+                tworeceipt.getId(), twoLineReturnRequest(tworeceipt, Boolean.TRUE)
+        );
+
+        ArgumentCaptor<Invoice> captor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(captor.capture());
+        List<InvoiceLineItem> savedLines = captor.getValue().getLineItems();
+        assertThat(savedLines).hasSize(2);
+        assertThat(savedLines).extracting(InvoiceLineItem::getLateFee).containsExactlyInAnyOrder(150, 450);
+        assertThat(response.totalLateFee()).isEqualTo(600);
+        assertThat(response.waivedLateFee()).isZero();
+        int sumOfLineFees = savedLines.stream().mapToInt(InvoiceLineItem::getLateFee).sum();
+        assertThat(response.totalLateFee()).isEqualTo(sumOfLineFees);
+    }
+
+    @Test
+    void processReturn_zeroes_every_line_but_reports_the_summed_fee_as_waived_when_per_line_fees_differ() {
+        Receipt tworeceipt = twoLineReceipt();
+        when(receiptRepository.findByIdForUpdate(tworeceipt.getId())).thenReturn(Optional.of(tworeceipt));
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0201");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(billingService.calculateLateFee(any(), any(), eq(300), eq(1), any())).thenReturn(150);
+        when(billingService.calculateLateFee(any(), any(), eq(500), eq(2), any())).thenReturn(450);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvoiceResponse response = returnService.processReturn(
+                tworeceipt.getId(), twoLineReturnRequest(tworeceipt, Boolean.FALSE)
+        );
+
+        ArgumentCaptor<Invoice> captor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(captor.capture());
+        assertThat(captor.getValue().getLineItems()).allSatisfy(li -> assertThat(li.getLateFee()).isZero());
+        assertThat(response.totalLateFee()).isZero();
+        assertThat(response.waivedLateFee()).isEqualTo(600);
     }
 
     @Test
@@ -193,7 +346,7 @@ class ReturnServiceTest {
         ProcessReturnRequest request = new ProcessReturnRequest(
                 OffsetDateTime.parse("2026-04-11T12:00:00+05:30"),
                 List.of(new ReturnLineItem(lineItem.getId(), false, null, null)),
-                input, null, null
+                input, null, null, null
         );
 
         InvoiceResponse response = returnService.processReturn(receipt.getId(), request);

@@ -9,6 +9,7 @@ import com.fashionrental.invoice.model.response.InvoiceResponse;
 import com.fashionrental.invoice.model.response.ReturnPreviewResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -21,8 +22,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -49,7 +52,7 @@ class InvoiceControllerTest {
         return new ProcessReturnRequest(
                 OffsetDateTime.now(),
                 List.of(new ReturnLineItem(UUID.randomUUID(), false, null, null)),
-                "CASH", null, null
+                "CASH", null, null, null
         );
     }
 
@@ -57,7 +60,7 @@ class InvoiceControllerTest {
         return new InvoiceResponse(
                 id, "INV-0001", "share-token", UUID.randomUUID(), "R-0001",
                 UUID.randomUUID(), "Jane Doe", "9876543210", OffsetDateTime.now(),
-                1000, null, 0, 500, 0, 0, 500, 500, "REFUND", "CASH", null, null,
+                1000, null, 0, 500, 0, 0, 0, 500, 500, "REFUND", "CASH", null, null,
                 List.of(), OffsetDateTime.now()
         );
     }
@@ -68,7 +71,7 @@ class InvoiceControllerTest {
     @WithMockUser
     void should_return_preview_without_persisting() throws Exception {
         UUID receiptId = UUID.randomUUID();
-        ReturnPreviewResponse preview = new ReturnPreviewResponse(0, 0, 0, 500, 500, "REFUND", List.of());
+        ReturnPreviewResponse preview = new ReturnPreviewResponse(0, 0, 0, 0, 0, 500, 500, "REFUND", List.of());
         when(returnService.previewReturn(eq(receiptId), any())).thenReturn(preview);
 
         mockMvc.perform(post("/api/receipts/{id}/return/preview", receiptId).with(csrf())
@@ -89,6 +92,24 @@ class InvoiceControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @WithMockUser
+    void should_pass_null_apply_late_fee_when_field_missing_from_preview_body() throws Exception {
+        UUID receiptId = UUID.randomUUID();
+        ReturnPreviewResponse preview = new ReturnPreviewResponse(0, 0, 0, 0, 0, 500, 500, "REFUND", List.of());
+        when(returnService.previewReturn(eq(receiptId), any())).thenReturn(preview);
+        String body = "{\"returnDatetime\":\"2026-04-11T12:00:00+05:30\",\"lineItems\":[],\"paymentMethod\":\"CASH\"}";
+
+        mockMvc.perform(post("/api/receipts/{id}/return/preview", receiptId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<ProcessReturnRequest> captor = ArgumentCaptor.forClass(ProcessReturnRequest.class);
+        verify(returnService).previewReturn(eq(receiptId), captor.capture());
+        assertThat(captor.getValue().applyLateFee()).isNull();
+    }
+
     // ─── POST /api/receipts/{id}/return ──────────────────────────────────────
 
     @Test
@@ -103,6 +124,43 @@ class InvoiceControllerTest {
                         .content(objectMapper.writeValueAsString(returnRequest())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(invoiceId.toString()));
+    }
+
+    @Test
+    @WithMockUser
+    void should_pass_null_apply_late_fee_when_field_missing_from_issue_body() throws Exception {
+        UUID receiptId = UUID.randomUUID();
+        UUID invoiceId = UUID.randomUUID();
+        when(returnService.processReturn(eq(receiptId), any())).thenReturn(invoiceResponse(invoiceId));
+        String body = "{\"returnDatetime\":\"2026-04-11T12:00:00+05:30\",\"lineItems\":[],\"paymentMethod\":\"CASH\"}";
+
+        mockMvc.perform(post("/api/receipts/{id}/return", receiptId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<ProcessReturnRequest> captor = ArgumentCaptor.forClass(ProcessReturnRequest.class);
+        verify(returnService).processReturn(eq(receiptId), captor.capture());
+        assertThat(captor.getValue().applyLateFee()).isNull();
+    }
+
+    @Test
+    @WithMockUser(roles = "EXECUTIVE")
+    void should_accept_waive_from_executive() throws Exception {
+        UUID receiptId = UUID.randomUUID();
+        UUID invoiceId = UUID.randomUUID();
+        when(returnService.processReturn(eq(receiptId), any())).thenReturn(invoiceResponse(invoiceId));
+        String body = "{\"returnDatetime\":\"2026-04-11T12:00:00+05:30\",\"lineItems\":[],"
+                + "\"paymentMethod\":\"CASH\",\"applyLateFee\":false}";
+
+        mockMvc.perform(post("/api/receipts/{id}/return", receiptId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<ProcessReturnRequest> captor = ArgumentCaptor.forClass(ProcessReturnRequest.class);
+        verify(returnService).processReturn(eq(receiptId), captor.capture());
+        assertThat(captor.getValue().applyLateFee()).isEqualTo(Boolean.FALSE);
     }
 
     @Test

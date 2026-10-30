@@ -68,6 +68,22 @@ else:
     transaction_type = REFUND, final_amount = deposit_to_return
 ```
 
+**Late fee waiver (#184).** `total_late_fee` above is the *applied* fee, not necessarily the
+calculated one:
+
+```
+calculated   = BillingService.calculateLateFee(...)   // unchanged
+apply        = applyLateFee != FALSE                  // null or TRUE → apply; FALSE → waive
+applied      = apply ? calculated : 0
+waived       = calculated - applied
+total_deductions = applied + total_damage_cost
+
+total_late_fee_paise in the formula above IS `applied` (not `calculated`).
+```
+
+`waived_late_fee` is stored on the invoice (and on no line item — every line's `late_fee` is 0
+when waived, matching `applied`). `total_late_fee` always equals the sum of the line fees.
+
 ---
 
 ## Worked Example
@@ -111,7 +127,8 @@ public record ProcessReturnRequest(
     @NotNull List<ReturnLineItem> lineItems,
     String paymentMethod,     // CASH | UPI | OTHER
     String damageNotes,
-    String notes
+    String notes,
+    Boolean applyLateFee      // null = apply (backward compatible); FALSE = waive (#184)
 ) {}
 
 public record ReturnLineItem(
@@ -320,6 +337,20 @@ Notes: [TextArea — optional]
 └─────────────────────────────────────────────────┘
 [Confirm & Complete Return]
 ```
+
+### Late fee waiver (#184)
+
+When the calculated late fee is above 0, calculating the preview opens a non-dismissable
+pop-up: "Do you want to apply the late fee? (₹X)" with **Yes** / **No**. **No** waives the fee
+(re-previews with `applyLateFee: false`); **Yes** applies it (re-previews with
+`applyLateFee: true`). The decision then shows as a row with a flip button ("Waive late
+fee"/"Apply late fee") that re-previews with the opposite decision. The decision persists
+across edits to Notes, Damage Notes, payment method and damage — none of those affect the
+calculated fee. It is re-asked (the pop-up reopens) whenever a date/time change alters the
+calculated fee, including the fee going to 0 (row and pop-up both disappear) and then back
+above 0. Confirm is disabled until the fee, if above 0, has an answered decision. Omitting
+`applyLateFee` (the first preview, before any decision) charges the fee, so existing/older
+clients are unaffected.
 
 ---
 

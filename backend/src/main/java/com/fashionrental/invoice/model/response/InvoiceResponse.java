@@ -19,6 +19,7 @@ public record InvoiceResponse(
         int discountAmount,
         int totalDepositCollected,
         int totalLateFee,
+        int waivedLateFee,
         int totalDamageCost,
         int depositToReturn,
         int finalAmount,

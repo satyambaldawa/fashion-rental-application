@@ -13,6 +13,8 @@ import com.fashionrental.receipt.model.request.AdHocLineItem;
 import com.fashionrental.receipt.model.request.CheckoutLineItem;
 import com.fashionrental.receipt.model.request.CheckoutRequest;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,9 @@ class RentalFlowIT extends AbstractIntegrationTest {
     @Autowired private ReceiptGivenService receiptGivenService;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private ItemRepository itemRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @BeforeEach
     void authenticateAsOwner() {
@@ -98,7 +103,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
         InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
                 end,
                 List.of(new ReturnLineItem(receiptLineItemId, false, null, null)),
-                "CASH", null, null
+                "CASH", null, null, null
         ));
 
         assertThat(invoice.invoiceNumber()).isNotBlank();
@@ -146,7 +151,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
         InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
                 end,
                 List.of(new ReturnLineItem(receipt.lineItems().get(0).id(), false, null, null)),
-                "CASH", null, null
+                "CASH", null, null, null
         ));
 
         assertThat(invoice.totalLateFee()).isZero();
@@ -154,6 +159,92 @@ class RentalFlowIT extends AbstractIntegrationTest {
         assertThat(invoice.transactionType()).isEqualTo("REFUND");
         assertThat(invoice.lineItems()).hasSize(1);
         assertThat(invoice.lineItems().get(0).itemName()).isEqualTo("Walk-in Lehenga");
+    }
+
+    @Test
+    void late_return_with_late_fee_applied_collects_balance() {
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-19T10:00:00+05:30");
+        ReceiptResponse receipt = checkoutAndGiveItem(end);
+        UUID lineItemId = receipt.lineItems().get(0).id();
+
+        InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
+                end.plusHours(7),
+                List.of(new ReturnLineItem(lineItemId, true, null, 800)),
+                "CASH", null, null, Boolean.TRUE
+        ));
+        flushAndClear();
+
+        assertThat(invoice.totalLateFee()).isEqualTo(300);
+        InvoiceResponse persisted = returnService.getInvoice(invoice.id());
+        assertThat(persisted.totalLateFee()).isEqualTo(300);
+        assertThat(persisted.waivedLateFee()).isZero();
+        assertThat(persisted.lineItems()).hasSize(1);
+        assertThat(persisted.lineItems().get(0).lateFee()).isEqualTo(300);
+        assertThat(persisted.totalLateFee())
+                .isEqualTo(persisted.lineItems().stream().mapToInt(li -> li.lateFee()).sum());
+        assertThat(persisted.transactionType()).isEqualTo("COLLECT");
+        assertThat(persisted.finalAmount()).isEqualTo(100);
+    }
+
+    @Test
+    void late_return_with_late_fee_waived_refunds_and_stores_waived_amount() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "staff", null, List.of(new SimpleGrantedAuthority("ROLE_EXECUTIVE")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        OffsetDateTime end = OffsetDateTime.parse("2026-04-19T10:00:00+05:30");
+        ReceiptResponse receipt = checkoutAndGiveItem(end);
+        UUID lineItemId = receipt.lineItems().get(0).id();
+
+        InvoiceResponse invoice = returnService.processReturn(receipt.id(), new ProcessReturnRequest(
+                end.plusHours(7),
+                List.of(new ReturnLineItem(lineItemId, true, null, 800)),
+                "CASH", null, null, Boolean.FALSE
+        ));
+        flushAndClear();
+
+        InvoiceResponse persisted = returnService.getInvoice(invoice.id());
+        assertThat(persisted.totalLateFee()).isZero();
+        assertThat(persisted.waivedLateFee()).isEqualTo(300);
+        assertThat(persisted.lineItems()).hasSize(1);
+        assertThat(persisted.lineItems().get(0).lateFee()).isZero();
+        assertThat(persisted.totalLateFee())
+                .isEqualTo(persisted.lineItems().stream().mapToInt(li -> li.lateFee()).sum());
+        assertThat(persisted.transactionType()).isEqualTo("REFUND");
+        assertThat(persisted.finalAmount()).isEqualTo(200);
+    }
+
+    private ReceiptResponse checkoutAndGiveItem(OffsetDateTime end) {
+        Customer customer = new Customer();
+        customer.setName("Priya");
+        customer.setPhone("9833344455");
+        customer.setCustomerType(Customer.CustomerType.MISC);
+        customer.setIsActive(true);
+        customer = customerRepository.save(customer);
+
+        Item item = new Item();
+        item.setName("Blue Sherwani");
+        item.setCategory(Item.Category.COSTUME);
+        item.setItemType(Item.ItemType.INDIVIDUAL);
+        item.setRate(300);
+        item.setDeposit(1000);
+        item.setQuantity(2);
+        item.setIsActive(true);
+        item = itemRepository.save(item);
+
+        OffsetDateTime start = end.minusDays(1);
+        ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
+                customer.getId(), start, end,
+                List.of(new CheckoutLineItem(item.getId(), 1)),
+                List.of(), null, null
+        ));
+        receiptGivenService.markGiven(receipt.id());
+        return receipt;
+    }
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
     }
 
     @Autowired private ReceiptRepository receiptRepository;

@@ -171,7 +171,7 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
 
         Exception returnFailure = runWhileCancelHoldsRowLock(receipt.id(), () ->
                 returnService.processReturn(receipt.id(), new ProcessReturnRequest(
-                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null)));
+                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null, null)));
 
         assertThat(returnFailure)
                 .isInstanceOf(ConflictException.class)

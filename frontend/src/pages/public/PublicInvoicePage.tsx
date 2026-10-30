@@ -175,6 +175,11 @@ export default function PublicInvoicePage() {
                   <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalLateFee)}</span>
                 </Descriptions.Item>
               )}
+              {invoice.waivedLateFee > 0 && (
+                <Descriptions.Item label="Late fee waived">
+                  {formatCurrency(invoice.waivedLateFee)}
+                </Descriptions.Item>
+              )}
               {invoice.totalDamageCost > 0 && (
                 <Descriptions.Item label="Damage Cost">
                   <span style={{ color: '#ff4d4f' }}>−{formatCurrency(invoice.totalDamageCost)}</span>
