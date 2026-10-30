@@ -55,6 +55,19 @@ describe('InvoiceDetailPage discount row', () => {
   })
 })
 
+describe('InvoiceDetailPage WhatsApp share', () => {
+  it('includes a link to the review page in the WhatsApp message', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))
+
+    await renderInvoice()
+
+    const link = await screen.findByRole('link', { name: /Send on WhatsApp/i })
+    const decodedHref = decodeURIComponent(link.getAttribute('href') ?? '')
+
+    expect(decodedHref).toContain(`${window.location.origin}/review`)
+  })
+})
+
 describe('InvoiceDetailPage "Add items" (#165)', () => {
   it('has no Add items button — the action only exists on the receipt it was created from', async () => {
     await renderInvoice()
