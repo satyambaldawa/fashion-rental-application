@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
-import { useCart, STORAGE_KEY, LEGACY_STORAGE_KEY, SESSION_MARKER_KEY, peekPersistedCart, startCustomerCart } from './useCart'
-import type { AppliedCouponPreview, CartCustomer, CatalogueCartItem, AdHocCartItem } from '../types/receipt'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { act, render, renderHook } from '@testing-library/react'
+import { createElement, useEffect } from 'react'
+import {
+  useCart, STORAGE_KEY, LEGACY_STORAGE_KEY, SESSION_MARKER_KEY, STALE_CART_THRESHOLD_MS,
+  isCartStale, peekPersistedCart, startCustomerCart,
+} from './useCart'
+import type { AppliedCouponPreview, Cart, CartCustomer, CatalogueCartItem, AdHocCartItem } from '../types/receipt'
 
 const aCouponPreview = (overrides: Partial<AppliedCouponPreview> = {}): AppliedCouponPreview => ({
   couponCode: 'SAVE20', discountAmount: 60, totalRent: 300, totalDeposit: 1000, grandTotal: 1240, ...overrides,
@@ -209,7 +213,10 @@ describe('useCart', () => {
     })
 
     it('loads an old-format cart with no customer field as undefined, leaving existing behaviour unchanged', () => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [] }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [],
+        lastChangedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      }))
 
       const { result } = renderHook(() => useCart())
 
@@ -220,6 +227,7 @@ describe('useCart', () => {
     it('falls back to null when a malformed customer is found in storage', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [], customer: {},
+        lastChangedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       }))
 
       const { result } = renderHook(() => useCart())
@@ -236,6 +244,302 @@ describe('useCart', () => {
       expect(sessionStorage.getItem(SESSION_MARKER_KEY)).toBeNull()
       expect(peekPersistedCart()).toEqual({
         startDatetime: 's', endDatetime: 'e', rentalDays: 2, items: [], appliedCoupon: null, customer,
+        lastChangedAt: expect.any(String),
+      })
+    })
+  })
+
+  describe('stale cart expiry (#172)', () => {
+    const customer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
+
+    function seedStored(cart: unknown) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cart))
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    describe('isCartStale', () => {
+      const now = Date.parse('2026-04-18T12:00:00.000Z')
+      const cartAt = (lastChangedAt?: string): Cart => (
+        { startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [], lastChangedAt }
+      )
+
+      it('treats a cart younger than the threshold as fresh', () => {
+        const changedAt = new Date(now - 59 * 60 * 1000).toISOString()
+        expect(isCartStale(cartAt(changedAt), now)).toBe(false)
+      })
+
+      it('treats a cart exactly at the threshold as fresh (boundary)', () => {
+        const changedAt = new Date(now - STALE_CART_THRESHOLD_MS).toISOString()
+        expect(isCartStale(cartAt(changedAt), now)).toBe(false)
+      })
+
+      it('treats a cart one millisecond past the threshold as stale', () => {
+        const changedAt = new Date(now - STALE_CART_THRESHOLD_MS - 1).toISOString()
+        expect(isCartStale(cartAt(changedAt), now)).toBe(true)
+      })
+
+      it('treats a cart hours old as stale', () => {
+        const changedAt = new Date(now - 3 * 60 * 60 * 1000).toISOString()
+        expect(isCartStale(cartAt(changedAt), now)).toBe(true)
+      })
+
+      it('treats a missing lastChangedAt as stale', () => {
+        expect(isCartStale(cartAt(undefined), now)).toBe(true)
+      })
+
+      it('treats an unparseable lastChangedAt as stale', () => {
+        expect(isCartStale(cartAt('garbage'), now)).toBe(true)
+      })
+    })
+
+    describe('useCart hook', () => {
+      it('clears a stale cart on mount, dropping its coupon too', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+        seedStored({
+          startDatetime: 's', endDatetime: 'e', rentalDays: 1,
+          items: [aCatalogueItem()],
+          customer,
+          appliedCoupon: aCouponPreview(),
+          lastChangedAt: new Date(T0 - 61 * 60 * 1000).toISOString(),
+        })
+
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart).toBeNull()
+        expect(result.current.droppedCouponCode).toBeNull()
+        expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+      })
+
+      it('restores a fresh cart unchanged, with storage untouched', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+        sessionStorage.setItem(SESSION_MARKER_KEY, '1')
+        const stored = {
+          startDatetime: 's', endDatetime: 'e', rentalDays: 1,
+          items: [aCatalogueItem()],
+          customer,
+          appliedCoupon: aCouponPreview(),
+          lastChangedAt: new Date(T0 - 30 * 60 * 1000).toISOString(),
+        }
+        seedStored(stored)
+
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart?.items).toHaveLength(1)
+        expect(result.current.cart?.customer).toEqual(customer)
+        expect(result.current.cart?.startDatetime).toBe('s')
+        expect(result.current.cart?.endDatetime).toBe('e')
+        expect(result.current.cart?.appliedCoupon).toEqual(aCouponPreview())
+        expect(localStorage.getItem(STORAGE_KEY)).toBe(JSON.stringify(stored))
+      })
+
+      it('a fresh cart in a new tab still drops the coupon and reports droppedCouponCode', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+        seedStored({
+          startDatetime: 's', endDatetime: 'e', rentalDays: 1,
+          items: [aCatalogueItem()],
+          appliedCoupon: aCouponPreview(),
+          lastChangedAt: new Date(T0 - 30 * 60 * 1000).toISOString(),
+        })
+
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart?.appliedCoupon).toBeNull()
+        expect(result.current.droppedCouponCode).toBe('SAVE20')
+      })
+
+      it('discards a cart with no lastChangedAt at all', () => {
+        seedStored({ startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [aCatalogueItem()] })
+
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart).toBeNull()
+        expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+      })
+
+      it('refreshes lastChangedAt on every mutator', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+
+        const { result } = renderHook(() => useCart())
+
+        act(() => result.current.createCart('s', 'e', 1))
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T0).toISOString())
+
+        const T1 = T0 + 10 * 60 * 1000
+        vi.setSystemTime(T1)
+        act(() => result.current.addItem(aCatalogueItem()))
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T1).toISOString())
+        expect(result.current.cart?.lastChangedAt).toBe(new Date(T1).toISOString())
+
+        const T2 = T1 + 10 * 60 * 1000
+        vi.setSystemTime(T2)
+        act(() => result.current.updateQuantity('i1', 2))
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T2).toISOString())
+
+        const T3 = T2 + 10 * 60 * 1000
+        vi.setSystemTime(T3)
+        act(() => result.current.applyCoupon(aCouponPreview()))
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T3).toISOString())
+
+        const T4 = T3 + 10 * 60 * 1000
+        vi.setSystemTime(T4)
+        act(() => result.current.removeCoupon())
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T4).toISOString())
+
+        const T5 = T4 + 10 * 60 * 1000
+        vi.setSystemTime(T5)
+        act(() => result.current.removeItem('i1'))
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T5).toISOString())
+      })
+
+      it('keeps a cart alive past the threshold when it was edited recently', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+
+        const first = renderHook(() => useCart())
+        act(() => first.result.current.createCart('s', 'e', 1))
+
+        const editTime = T0 + 2 * 60 * 60 * 1000 + 50 * 60 * 1000 // T0 + 2h50m
+        vi.setSystemTime(editTime)
+        act(() => first.result.current.addItem(aCatalogueItem()))
+
+        vi.setSystemTime(T0 + 3 * 60 * 60 * 1000) // T0 + 3h
+        const second = renderHook(() => useCart())
+
+        expect(second.result.current.cart?.items).toHaveLength(1)
+        expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+      })
+
+      it('a cart seeded by startCustomerCart (#165) is never treated as stale', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+
+        startCustomerCart({ customer, startDatetime: 's', endDatetime: 'e', rentalDays: 1 })
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).lastChangedAt).toBe(new Date(T0).toISOString())
+
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart?.customer).toEqual(customer)
+        expect(result.current.cart?.startDatetime).toBe('s')
+        expect(result.current.cart?.endDatetime).toBe('e')
+        expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+      })
+
+      it('startCustomerCart overwrites an already-stale cart with the freshly seeded one', () => {
+        seedStored({
+          startDatetime: 'old-s', endDatetime: 'old-e', rentalDays: 1, items: [aCatalogueItem()],
+          lastChangedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        })
+
+        startCustomerCart({ customer, startDatetime: 's', endDatetime: 'e', rentalDays: 1 })
+        const { result } = renderHook(() => useCart())
+
+        expect(result.current.cart).not.toBeNull()
+        expect(result.current.cart?.customer).toEqual(customer)
+        expect(result.current.cart?.items).toEqual([])
+      })
+
+      it('a short detour within the hour keeps the cart and coupon intact', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+
+        const first = renderHook(() => useCart())
+        act(() => first.result.current.createCart('s', 'e', 1))
+        act(() => first.result.current.addItem(aCatalogueItem()))
+        act(() => first.result.current.applyCoupon(aCouponPreview()))
+        first.unmount()
+
+        vi.setSystemTime(T0 + 20 * 60 * 1000)
+        const second = renderHook(() => useCart())
+
+        expect(second.result.current.cart?.items).toHaveLength(1)
+        expect(second.result.current.cart?.appliedCoupon).toEqual(aCouponPreview())
+        expect(second.result.current.droppedCouponCode).toBeNull()
+      })
+
+      it('variant: a detour past the hour with no edits discards the cart', () => {
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+
+        const first = renderHook(() => useCart())
+        act(() => first.result.current.createCart('s', 'e', 1))
+        act(() => first.result.current.addItem(aCatalogueItem()))
+        act(() => first.result.current.applyCoupon(aCouponPreview()))
+        first.unmount()
+
+        vi.setSystemTime(T0 + 61 * 60 * 1000)
+        const second = renderHook(() => useCart())
+
+        expect(second.result.current.cart).toBeNull()
+      })
+
+      it('peekPersistedCart does not filter stale carts; only mounting useCart clears storage', () => {
+        seedStored({
+          startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [aCatalogueItem()],
+          lastChangedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        })
+
+        expect(peekPersistedCart()?.items).toHaveLength(1)
+        expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+
+        renderHook(() => useCart())
+
+        expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+      })
+
+      it('does not delete a cart that was rewritten fresh by a child effect before the removal effect runs (the double-check race guard)', () => {
+        // Proves the removal effect's second staleness check actually does something, not
+        // just that removal eventually happens. React fires a child component's effects
+        // before its parent's own effects, so RaceChild's write below lands in storage
+        // before useCart's removal effect (owned by Harness, the parent) runs — reproducing
+        // the exact race the comment on that effect describes: "a fresh cart written since
+        // then (a child effect ...) is never deleted." Without the re-check (e.g. if the
+        // effect unconditionally called saveCart(null) whenever discardedStale is true),
+        // this freshly-written cart would be wiped out; with it, it survives.
+        const T0 = Date.parse('2026-04-18T12:00:00.000Z')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+        seedStored({
+          startDatetime: 's', endDatetime: 'e', rentalDays: 1, items: [aCatalogueItem()],
+          lastChangedAt: new Date(T0 - 61 * 60 * 1000).toISOString(),
+        })
+
+        const freshCart: Cart = {
+          startDatetime: 'fresh-s', endDatetime: 'fresh-e', rentalDays: 2, items: [],
+          lastChangedAt: new Date(T0).toISOString(),
+        }
+
+        function RaceChild() {
+          useEffect(() => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(freshCart))
+          }, [])
+          return null
+        }
+
+        function Harness() {
+          useCart()
+          return createElement(RaceChild)
+        }
+
+        act(() => {
+          render(createElement(Harness))
+        })
+
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual(freshCart)
       })
     })
   })

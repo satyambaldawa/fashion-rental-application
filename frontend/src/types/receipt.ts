@@ -197,6 +197,7 @@ export interface Cart {
   items: CartItem[]
   appliedCoupon?: AppliedCouponPreview | null
   customer?: CartCustomer | null
+  lastChangedAt?: string  // ISO 8601 UTC (Date#toISOString), stamped by saveCart() on every write; absent on carts saved before #172
 }
 
 export interface CustomerCartSeed {
