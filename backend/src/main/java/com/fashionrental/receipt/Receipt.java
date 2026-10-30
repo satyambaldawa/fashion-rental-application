@@ -113,6 +113,13 @@ public class Receipt {
     @Column(name = "cancellation_reason_detail", length = 500)
     private String cancellationReasonDetail;
 
+    @Column(name = "given_reverted_at")
+    private OffsetDateTime givenRevertedAt;
+
+    @ManyToOne(fetch = LAZY)
+    @JoinColumn(name = "given_reverted_by_user_id")
+    private AppUser givenRevertedBy;
+
     @OneToMany(mappedBy = "receipt", cascade = ALL, fetch = LAZY, orphanRemoval = true)
     private List<ReceiptLineItem> lineItems = new ArrayList<>();
 
@@ -164,11 +171,25 @@ public class Receipt {
     public AppUser getCancelledBy() { return cancelledBy; }
     public CancellationReason getCancellationReason() { return cancellationReason; }
     public String getCancellationReasonDetail() { return cancellationReasonDetail; }
+    public OffsetDateTime getGivenRevertedAt() { return givenRevertedAt; }
+    public AppUser getGivenRevertedBy() { return givenRevertedBy; }
 
     /** The only way a receipt becomes GIVEN — keeps status and givenAt from drifting apart. */
     public void markGiven(OffsetDateTime at) {
         this.status = Status.GIVEN;
         this.givenAt = at;
+    }
+
+    /**
+     * The only way a GIVEN receipt goes back to GENERATED — clears givenAt with the status
+     * (receipts_given_at_check) and records who undid the hand-over and when. Does not clear
+     * a prior revert audit: that history survives a later re-give, by design.
+     */
+    public void revertGiven(AppUser by, OffsetDateTime at) {
+        this.status = Status.GENERATED;
+        this.givenAt = null;
+        this.givenRevertedBy = by;
+        this.givenRevertedAt = at;
     }
 
     /**

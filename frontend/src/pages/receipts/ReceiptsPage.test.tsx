@@ -287,7 +287,50 @@ describe('ReceiptsPage given / booked state on the Active Rentals card', () => {
     expect(screen.queryByLabelText('Given to customer')).not.toBeInTheDocument()
   })
 
-  it('swaps the Booked tag for the tick after Mark as Given is clicked', async () => {
+  it('clicking Mark as Given on a card opens a confirm dialog for that receipt', async () => {
+    // Both pickup dates are within the default-open window (today / tomorrow) so neither
+    // card sits behind a collapsed group.
+    stubReceiptLists({ active: [
+      aSummary({ id: 'rcpt-1', receiptNumber: 'R-2026-0001', status: 'GENERATED', startDatetime: dayjs().toISOString() }),
+      aSummary({ id: 'rcpt-2', receiptNumber: 'R-2026-0002', status: 'GENERATED', startDatetime: dayjs().add(1, 'day').toISOString() }),
+    ] })
+    const user = userEvent.setup()
+    renderReceiptsPage()
+    await flush()
+
+    const buttons = await screen.findAllByRole('button', { name: /Mark as Given$/ })
+    await user.click(buttons[1])
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('R-2026-0002')).toBeInTheDocument()
+    expect(within(dialog).queryByText('R-2026-0001')).not.toBeInTheDocument()
+  })
+
+  it('Go back on the card confirm dialog sends no request', async () => {
+    let giveRequests = 0
+    server.use(
+      http.get('*/api/receipts', ({ request }) => {
+        if (new URL(request.url).searchParams.get('status') === 'CANCELLED') return ok([])
+        return ok([aSummary({ status: 'GENERATED' })])
+      }),
+      http.post('*/api/receipts/rcpt-1/give', () => {
+        giveRequests += 1
+        return ok(f.aReceipt({ status: 'GIVEN' }))
+      }),
+    )
+    const user = userEvent.setup()
+    renderReceiptsPage()
+    await flush()
+
+    await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Go back' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(giveRequests).toBe(0)
+    expect(screen.getByText('Booked')).toBeInTheDocument()
+  })
+
+  it('swaps the Booked tag for the tick after Mark as Given is confirmed', async () => {
     let isGiven = false
     server.use(
       http.get('*/api/receipts', ({ request }) => {
@@ -304,6 +347,7 @@ describe('ReceiptsPage given / booked state on the Active Rentals card', () => {
     await flush()
 
     await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, mark as given' }))
 
     expect(await screen.findByLabelText('Given to customer')).toBeInTheDocument()
     expect(screen.queryByText('Booked')).not.toBeInTheDocument()

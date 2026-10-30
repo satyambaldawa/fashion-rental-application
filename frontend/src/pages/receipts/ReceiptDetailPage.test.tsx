@@ -563,7 +563,40 @@ describe('ReceiptDetailPage handover (Mark as Given)', () => {
     expect(screen.queryByRole('button', { name: /Mark as Given$/ })).not.toBeInTheDocument()
   })
 
-  it('clicking Mark as Given sends the request and reveals Process Return', async () => {
+  it('clicking Mark as Given opens a confirm dialog showing the receipt number and booked start', async () => {
+    const receipt = f.aReceipt({ status: 'GENERATED', receiptNumber: 'R-2026-0001' })
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(receipt)))
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('R-2026-0001')).toBeInTheDocument()
+    expect(within(dialog).getByText(dayjs(receipt.startDatetime).format('DD MMM YYYY, h:mm A'))).toBeInTheDocument()
+  })
+
+  it('Go back on the confirm dialog sends no request', async () => {
+    let giveRequests = 0
+    server.use(
+      http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: 'GENERATED' }))),
+      http.post('*/api/receipts/rcpt-1/give', () => {
+        giveRequests += 1
+        return ok(f.aReceipt({ status: 'GIVEN' }))
+      }),
+    )
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Go back' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(giveRequests).toBe(0)
+    expect(screen.getByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
+  })
+
+  it('confirming Mark as Given sends the request and reveals Process Return', async () => {
     let isGiven = false
     server.use(
       http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ status: isGiven ? 'GIVEN' : 'GENERATED' }))),
@@ -576,6 +609,7 @@ describe('ReceiptDetailPage handover (Mark as Given)', () => {
     await renderReceipt()
 
     await user.click(await screen.findByRole('button', { name: /Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, mark as given' }))
 
     expect(await screen.findByRole('button', { name: 'Process Return' })).toBeInTheDocument()
   })
@@ -662,5 +696,113 @@ describe('ReceiptDetailPage handover (Mark as Given)', () => {
       await screen.findByRole('button', { name: /Mark as Given$/ })
       expect(screen.queryByText('Has the dress already been given to the customer?')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('ReceiptDetailPage undo Mark as Given (#179)', () => {
+  beforeEach(() => useAuthStore.setState({ token: jwtWithRole('OWNER'), role: 'OWNER' }))
+
+  it('shows the undo button to an OWNER for a GIVEN receipt whose booked start is in the future', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () =>
+      ok(f.aReceipt({ status: 'GIVEN', startDatetime: dayjs().add(2, 'day').toISOString() }))))
+
+    await renderReceipt()
+
+    expect(await screen.findByRole('button', { name: /Undo Mark as Given$/ })).toBeInTheDocument()
+  })
+
+  it('hides the undo button from an EXECUTIVE even for an undoable receipt', async () => {
+    useAuthStore.setState({ token: jwtWithRole('EXECUTIVE'), role: 'EXECUTIVE' })
+    server.use(http.get('*/api/receipts/rcpt-1', () =>
+      ok(f.aReceipt({ status: 'GIVEN', startDatetime: dayjs().add(2, 'day').toISOString() }))))
+
+    await renderReceipt()
+
+    await screen.findByRole('button', { name: 'Process Return' })
+    expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+  })
+
+  it('hides the undo button once the booked start has passed', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () =>
+      ok(f.aReceipt({ status: 'GIVEN', startDatetime: dayjs().subtract(1, 'hour').toISOString() }))))
+
+    await renderReceipt()
+
+    await screen.findByRole('button', { name: 'Process Return' })
+    expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+  })
+
+  it.each(['GENERATED', 'RETURNED', 'CANCELLED'] as const)(
+    'does not show the undo button for a %s receipt',
+    async (status) => {
+      server.use(http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status, startDatetime: dayjs().add(2, 'day').toISOString() }))))
+
+      await renderReceipt()
+      await flush()
+
+      expect(screen.queryByRole('button', { name: /Undo Mark as Given$/ })).not.toBeInTheDocument()
+    },
+  )
+
+  it('confirming undo sends the request and swaps Process Return for Mark as Given and Cancel', async () => {
+    let status: 'GIVEN' | 'GENERATED' = 'GIVEN'
+    server.use(
+      http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status, startDatetime: dayjs().add(2, 'day').toISOString() }))),
+      http.post('*/api/receipts/rcpt-1/undo-give', () => {
+        status = 'GENERATED'
+        return ok(f.aReceipt({ status: 'GENERATED', startDatetime: dayjs().add(2, 'day').toISOString() }))
+      }),
+    )
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, undo' }))
+
+    expect(await screen.findByRole('button', { name: /Mark as Given$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel receipt' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Process Return' })).not.toBeInTheDocument()
+  })
+
+  it('Go back on the undo confirm dialog sends no request', async () => {
+    let undoRequests = 0
+    server.use(
+      http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status: 'GIVEN', startDatetime: dayjs().add(2, 'day').toISOString() }))),
+      http.post('*/api/receipts/rcpt-1/undo-give', () => {
+        undoRequests += 1
+        return ok(f.aReceipt({ status: 'GENERATED' }))
+      }),
+    )
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Go back' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(undoRequests).toBe(0)
+    expect(screen.getByRole('button', { name: 'Process Return' })).toBeInTheDocument()
+  })
+
+  it('shows the server error when undo is rejected', async () => {
+    server.use(
+      http.get('*/api/receipts/rcpt-1', () =>
+        ok(f.aReceipt({ status: 'GIVEN', startDatetime: dayjs().add(2, 'day').toISOString() }))),
+      http.post('*/api/receipts/rcpt-1/undo-give', () =>
+        HttpResponse.json(
+          { success: false, data: null, error: 'Receipt R-2026-0001 is RETURNED and its hand-over can no longer be undone' },
+          { status: 409 },
+        )),
+    )
+    const user = userEvent.setup()
+    await renderReceipt()
+
+    await user.click(await screen.findByRole('button', { name: /Undo Mark as Given$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, undo' }))
+
+    expect(await screen.findByText(/is RETURNED and its hand-over can no longer be undone/)).toBeInTheDocument()
   })
 })

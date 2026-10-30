@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -215,6 +216,41 @@ class ReceiptControllerTest {
         when(receiptGivenService.markGiven(id)).thenThrow(new ConflictException("Receipt is CANCELLED"));
 
         mockMvc.perform(post("/api/receipts/{id}/give", id).with(csrf()))
+                .andExpect(status().isConflict());
+    }
+
+    // ─── POST /api/receipts/{id}/undo-give ────────────────────────────────────
+    // Role enforcement (OWNER only) is exercised in ReceiptGivenUndoControllerTest, which
+    // imports the real SecurityConfig — this class mocks it away, same as the /give tests above.
+
+    @Test
+    @WithMockUser
+    void should_return_200_when_undo_given_succeeds() throws Exception {
+        UUID id = UUID.randomUUID();
+        ReceiptResponse generated = new ReceiptResponse(
+                id, "R-20260421-001", "token", UUID.randomUUID(), "Ravi Sharma", "9876543210",
+                START, END, 3, 600, null, 0, 1000, 1600, "GENERATED", null, List.of(), START, null);
+        when(receiptGivenService.undoGiven(eq(id), any())).thenReturn(generated);
+
+        mockMvc.perform(post("/api/receipts/{id}/undo-give", id).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("GENERATED"));
+    }
+
+    @Test
+    void should_return_401_when_unauthenticated_user_undoes_given() throws Exception {
+        mockMvc.perform(post("/api/receipts/{id}/undo-give", UUID.randomUUID()).with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_409_when_undo_is_rejected() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(receiptGivenService.undoGiven(eq(id), any()))
+                .thenThrow(new ConflictException("Receipt is RETURNED and its hand-over can no longer be undone"));
+
+        mockMvc.perform(post("/api/receipts/{id}/undo-give", id).with(csrf()))
                 .andExpect(status().isConflict());
     }
 }
