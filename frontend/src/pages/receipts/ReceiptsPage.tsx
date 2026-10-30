@@ -115,7 +115,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
                 />
               )}
               {receipt.status === 'GENERATED' && (
-                <MarkAsGivenButton receiptId={receipt.id} size="middle" style={{ height: CARD_ACTION_HEIGHT }} />
+                <MarkAsGivenButton receipt={receipt} size="middle" style={{ height: CARD_ACTION_HEIGHT }} />
               )}
               <ViewButton onClick={() => navigate(`/receipts/${receipt.id}`)} />
             </Space>
