@@ -16,6 +16,7 @@ import {
 } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethod'
 import { receiptsApi } from '../../api/receipts'
 import type { Receipt, ReceiptDetailLocationState, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -371,6 +372,9 @@ export default function ReceiptDetailPage() {
             <Descriptions.Item label="Receipt Date">
               {dayjs(receipt.createdAt).format('DD MMM YYYY, h:mm A')}
             </Descriptions.Item>
+            {receipt.paymentMethod && (
+              <Descriptions.Item label="Paid by">{PAYMENT_METHOD_LABELS[receipt.paymentMethod]}</Descriptions.Item>
+            )}
           </Descriptions>
 
           {/* Line items */}

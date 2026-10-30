@@ -52,7 +52,7 @@ class ReceiptGivenUndoControllerTest {
                 id, "R-20260421-001", "tok3nABCD12",
                 UUID.randomUUID(), "Ravi Sharma", "9876543210",
                 START, END, 3, 600, null, 0, 1000, 1600,
-                "GENERATED", null, List.of(), OffsetDateTime.now(), null
+                "GENERATED", null, null, List.of(), OffsetDateTime.now(), null
         );
     }
 

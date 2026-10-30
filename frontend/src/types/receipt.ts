@@ -21,6 +21,10 @@ export interface CheckoutPreviewRequest {
   couponCode?: string | null
 }
 
+// Distinct from the invoice PaymentMethod (which also allows OTHER): a receipt's grand total
+// is collected in full by exactly one of these at checkout.
+export type ReceiptPaymentMethod = 'CASH' | 'UPI'
+
 export interface CheckoutRequest {
   customerId: string
   startDatetime: string
@@ -29,6 +33,12 @@ export interface CheckoutRequest {
   adHocItems: AdHocLineItem[]
   notes?: string
   couponCode?: string | null
+  // Omitted means CASH.
+  paymentMethod?: ReceiptPaymentMethod
+  // UPI only: the amount the QR asked for; the server refuses the receipt if its total differs.
+  expectedGrandTotal?: number
+  // UPI only: one per confirmation, so a retry after a lost response returns the same receipt.
+  idempotencyKey?: string
 }
 
 export interface PreviewLineItem {
@@ -121,6 +131,8 @@ export interface Receipt {
   totalDeposit: number
   grandTotal: number
   status: ReceiptStatus
+  // null on receipts created before the payment method was recorded
+  paymentMethod: ReceiptPaymentMethod | null
   notes: string | null
   lineItems: ReceiptLineItem[]
   createdAt: string

@@ -15,6 +15,7 @@ import {
   Modal,
   Pagination,
   Popover,
+  Radio,
   Row,
   Space,
   Grid,
@@ -38,6 +39,7 @@ import { useCart } from '../../hooks/useCart'
 import { toApiDatetime } from '../../utils/datetime'
 import { itemsApi } from '../../api/items'
 import { receiptsApi } from '../../api/receipts'
+import { paymentSettingsApi } from '../../api/paymentSettings'
 import CustomerSearch from '../../components/common/CustomerSearch'
 import { customersApi } from '../../api/customers'
 import type { CustomerSummary } from '../../types/customer'
@@ -48,13 +50,16 @@ import type {
   AdHocCartItem,
   CheckoutPreviewRequest,
   CheckoutRequest,
+  Receipt,
   ReceiptDetailLocationState,
+  ReceiptPaymentMethod,
 } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
 import ItemBrowseModal from './ItemBrowseModal'
 import AdHocItemModal from './AdHocItemModal'
 import EligibleCouponList from './EligibleCouponList'
 import CustomerCartBanner from './CustomerCartBanner'
+import UpiPaymentModal from './UpiPaymentModal'
 import { lineRentOf, perDayRateOf, MAX_AD_HOC_QUANTITY } from './cartPricing'
 import { useAuth } from '../../hooks/useAuth'
 import { CATEGORY_OPTIONS } from '../../constants/categories'
@@ -148,6 +153,8 @@ export default function CheckoutPage() {
 
   // Preview / confirm
   const [conflictError, setConflictError] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<ReceiptPaymentMethod>('CASH')
+  const [showUpiModal, setShowUpiModal] = useState(false)
 
   // Coupon
   const [couponInput, setCouponInput] = useState('')
@@ -224,13 +231,21 @@ export default function CheckoutPage() {
   // Only show items that are actually available for the cart's dates
   const availableItems = (itemsPage?.content ?? []).filter(i => i.availableQuantity > 0)
 
+  const { data: paymentOptions } = useQuery({
+    queryKey: ['checkout-payment-options'],
+    queryFn: paymentSettingsApi.checkoutOptions,
+    enabled: !!cart && screen === 'customer',
+  })
+
+  function handleReceiptCreated(receipt: Receipt) {
+    clearCart()
+    const state: ReceiptDetailLocationState = { justCreated: true }
+    navigate(`/receipts/${receipt.id}`, { state })
+  }
+
   const createMutation = useMutation({
     mutationFn: (req: CheckoutRequest) => receiptsApi.create(req),
-    onSuccess: (receipt) => {
-      clearCart()
-      const state: ReceiptDetailLocationState = { justCreated: true }
-      navigate(`/receipts/${receipt.id}`, { state })
-    },
+    onSuccess: handleReceiptCreated,
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }
       setConflictError(apiErr?.response?.data?.error ?? 'Failed to create receipt. Please try again.')
@@ -419,11 +434,15 @@ export default function CheckoutPage() {
   // owner built one and logged out without checking out, on the shared tablet) gets a clean 400
   // from CheckoutService.hasOwnerRole() here, not silent corruption. isOwner already blocks
   // *creating* ad-hoc lines; blocking submission too was judged not worth the added state for now.
-  function handleConfirmReceipt() {
+  function handleConfirmReceipt(selectedMethod: ReceiptPaymentMethod) {
     const customerId = pinnedCustomer?.id ?? selectedCustomer?.id
     if (!customerId) return
     setConflictError(null)
-    createMutation.mutate(buildRequest(customerId))
+    if (selectedMethod === 'UPI') {
+      setShowUpiModal(true)
+      return
+    }
+    createMutation.mutate({ ...buildRequest(customerId), paymentMethod: 'CASH' })
   }
 
   // --- Render helpers ---
@@ -983,6 +1002,10 @@ export default function CheckoutPage() {
     const totalRent = appliedCoupon?.totalRent ?? localTotalRent
     const totalDeposit = appliedCoupon?.totalDeposit ?? localTotalDeposit
     const grandTotal = appliedCoupon?.grandTotal ?? (localTotalRent + localTotalDeposit)
+    const confirmingCustomerId = (pinnedCustomer ?? selectedCustomer)?.id
+    // UPI can't request ₹0, and is offered only once the owner has set a UPI ID.
+    const upiOffered = !!paymentOptions?.upiEnabled && grandTotal > 0
+    const effectivePaymentMethod: ReceiptPaymentMethod = upiOffered ? paymentMethod : 'CASH'
 
     return (
       <div style={{ maxWidth: 560 }}>
@@ -1040,8 +1063,34 @@ export default function CheckoutPage() {
           </Descriptions.Item>
         </Descriptions>
 
+        {upiOffered && (
+          <div style={{ marginBottom: 24 }}>
+            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>Payment</Typography.Text>
+            <Radio.Group
+              value={effectivePaymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+              optionType="button"
+              buttonStyle="solid"
+            >
+              <Radio.Button value="CASH">Cash</Radio.Button>
+              <Radio.Button value="UPI">UPI</Radio.Button>
+            </Radio.Group>
+          </div>
+        )}
+
         {conflictError && (
           <Alert type="error" message={conflictError} style={{ marginBottom: 16 }} />
+        )}
+
+        {showUpiModal && confirmingCustomerId && paymentOptions?.upiVpa && paymentOptions.upiPayeeName && (
+          <UpiPaymentModal
+            vpa={paymentOptions.upiVpa}
+            payeeName={paymentOptions.upiPayeeName}
+            previewRequest={buildPreviewRequest(cart!.appliedCoupon?.couponCode)}
+            checkoutRequest={buildRequest(confirmingCustomerId)}
+            onCancel={() => setShowUpiModal(false)}
+            onReceiptCreated={handleReceiptCreated}
+          />
         )}
 
         <Space>
@@ -1053,9 +1102,9 @@ export default function CheckoutPage() {
             type="primary"
             disabled={!(pinnedCustomer ?? selectedCustomer)}
             loading={createMutation.isPending}
-            onClick={handleConfirmReceipt}
+            onClick={() => handleConfirmReceipt(effectivePaymentMethod)}
           >
-            Create Receipt
+            {effectivePaymentMethod === 'UPI' ? 'Show UPI QR' : 'Create Receipt'}
           </Button>
         </Space>
       </div>

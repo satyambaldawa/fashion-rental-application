@@ -157,7 +157,7 @@ class ActiveRentalsQueryCountIT extends AbstractIntegrationTest {
                 List.of(new CheckoutLineItem(item.getId(), 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         ));
     }
 }

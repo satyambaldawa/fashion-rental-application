@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Descriptions, Divider, Table, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethod'
 import { publicApi } from '../../api/public'
 import type { ReceiptLineItem } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -143,6 +144,9 @@ export default function PublicReceiptPage() {
         <Descriptions.Item label="Receipt Date">
           {dayjs(receipt.createdAt).format('DD MMM YYYY, h:mm A')}
         </Descriptions.Item>
+        {receipt.paymentMethod && (
+          <Descriptions.Item label="Paid by">{PAYMENT_METHOD_LABELS[receipt.paymentMethod]}</Descriptions.Item>
+        )}
       </Descriptions>
 
       {/* Line items */}

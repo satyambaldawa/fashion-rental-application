@@ -65,6 +65,26 @@ describe('ReceiptDetailPage discount row', () => {
   })
 })
 
+describe('ReceiptDetailPage payment method', () => {
+  it('shows how the receipt was paid', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ paymentMethod: 'UPI' }))))
+
+    await renderReceipt()
+
+    expect(await screen.findByText('Paid by')).toBeInTheDocument()
+    expect(screen.getByText('UPI')).toBeInTheDocument()
+  })
+
+  it('omits the row for a receipt created before the payment method was recorded', async () => {
+    server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt({ paymentMethod: null }))))
+
+    await renderReceipt()
+
+    expect(await screen.findByText('Total Rent')).toBeInTheDocument()
+    expect(screen.queryByText('Paid by')).not.toBeInTheDocument()
+  })
+})
+
 describe('ReceiptDetailPage WhatsApp share', () => {
   it('does not include the review link in the WhatsApp message', async () => {
     server.use(http.get('*/api/receipts/rcpt-1', () => ok(f.aReceipt())))

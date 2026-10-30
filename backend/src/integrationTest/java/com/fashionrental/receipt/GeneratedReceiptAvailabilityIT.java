@@ -107,6 +107,6 @@ class GeneratedReceiptAvailabilityIT extends AbstractIntegrationTest {
         return checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), START, END,
                 List.of(new CheckoutLineItem(singleUnitItem.getId(), 1)),
-                List.of(), null, null));
+                List.of(), null, null, null, null, null));
     }
 }

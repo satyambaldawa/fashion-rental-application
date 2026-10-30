@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -172,6 +173,11 @@ public class CheckoutService {
 
         validateDateRange(request.startDatetime(), request.endDatetime());
 
+        Optional<Receipt> alreadyCreated = findReplayedReceipt(request.idempotencyKey());
+        if (alreadyCreated.isPresent()) {
+            return receiptMapper.toReceiptResponse(alreadyCreated.get());
+        }
+
         OffsetDateTime start = request.startDatetime();
         OffsetDateTime end = request.endDatetime();
         int rentalDays = dateTimeUtil.calculateRentalDays(start, end);
@@ -186,6 +192,8 @@ public class CheckoutService {
         receipt.setRentalDays(rentalDays);
         receipt.setNotes(request.notes());
         receipt.setStatus(Receipt.Status.GENERATED);
+        receipt.setPaymentMethod(request.paymentMethod());
+        receipt.setIdempotencyKey(request.idempotencyKey());
         receipt.setShareToken(shareTokenService.generate());
 
         List<ReceiptLineItem> lineItems = new ArrayList<>();
@@ -244,11 +252,34 @@ public class CheckoutService {
         receipt.setCouponCode(discount.code());
         receipt.setDiscountAmount(discount.amount());
         receipt.setGrandTotal(totalRent - discount.amount() + totalDeposit);
+        requireGrandTotalMatchesUpiAmount(request, receipt.getGrandTotal());
         receipt.setReceiptNumber(receiptNumberService.generateReceiptNumber());
         receipt.getLineItems().addAll(lineItems);
 
         Receipt saved = receiptRepository.save(receipt);
         return receiptMapper.toReceiptResponse(saved);
+    }
+
+    private Optional<Receipt> findReplayedReceipt(UUID idempotencyKey) {
+        if (idempotencyKey == null) {
+            return Optional.empty();
+        }
+        return receiptRepository.findByIdempotencyKey(idempotencyKey);
+    }
+
+    // The customer has already paid the QR amount by the time a UPI receipt is created, so a
+    // server-side total that differs (rate edit, coupon exhausted mid-payment) must stop the
+    // receipt rather than record a different amount than was collected. Throwing rolls back the
+    // coupon claim above along with everything else.
+    private void requireGrandTotalMatchesUpiAmount(CheckoutRequest request, int grandTotal) {
+        if (request.paymentMethod() != ReceiptPaymentMethod.UPI) {
+            return;
+        }
+        if (request.expectedGrandTotal() != grandTotal) {
+            throw new ConflictException(
+                    "The total is now ₹" + grandTotal + " but the customer paid ₹" + request.expectedGrandTotal()
+                            + " by UPI. The receipt was not created.");
+        }
     }
 
     // Only the rent subtotal is discountable today. When #57 lands, the hardcoded 0

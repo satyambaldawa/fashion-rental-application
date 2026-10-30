@@ -2,11 +2,11 @@ import dayjs, { type Dayjs } from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 import type { ReceiptSummary } from '../types/receipt'
+import { IST } from './datetime'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-const IST = 'Asia/Kolkata'
 const DATE_KEY_FORMAT = 'YYYY-MM-DD'
 
 export interface PickupDateGroup {

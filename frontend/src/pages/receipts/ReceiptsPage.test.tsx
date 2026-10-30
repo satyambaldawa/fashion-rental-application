@@ -7,6 +7,7 @@ import { ConfigProvider } from 'antd'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { flush, screen, waitFor, within } from '../../test/render'
+import { IST } from '../../utils/datetime'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import { useAuthStore } from '../../store/authStore'
@@ -457,7 +458,9 @@ describe('ReceiptsPage groups active rentals by pickup date', () => {
     const user = userEvent.setup()
 
     renderReceiptsPage()
-    await user.click(await screen.findByText(new RegExp(later.format('D MMM'))))
+    // The page labels pickup dates in IST; formatting in the runner's zone (UTC on CI) names the
+    // wrong day between 18:30 and 24:00 UTC.
+    await user.click(await screen.findByText(new RegExp(later.tz(IST).format('D MMM'))))
 
     expect(await screen.findByText('R-LATER')).toBeInTheDocument()
   })

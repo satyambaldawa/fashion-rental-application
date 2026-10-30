@@ -138,7 +138,7 @@ class CouponUsageLimitConcurrencyIT extends AbstractIntegrationTest {
             CheckoutRequest request = new CheckoutRequest(
                     customer.getId(), start, end,
                     List.of(new CheckoutLineItem(item.getId(), 1)),
-                    List.of(), null, "LASTSLOT"
+                    List.of(), null, "LASTSLOT", null, null, null
             );
             checkoutService.createReceipt(request);
             return new Outcome(true, null);

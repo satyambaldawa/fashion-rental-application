@@ -78,7 +78,7 @@ class CouponCheckoutIT extends AbstractIntegrationTest {
         ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, "welcome10" // lower-case on purpose: proves normalisation
+                List.of(), null, "welcome10", null, null, null // lower-case on purpose: proves normalisation
         ));
 
         // rent = 300 * 2 days * 1 = 600; 10% discount = 60; deposit untouched at 1500
@@ -108,7 +108,7 @@ class CouponCheckoutIT extends AbstractIntegrationTest {
         ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, null
+                List.of(), null, null, null, null, null
         ));
 
         assertThat(receipt.couponCode()).isNull();
@@ -136,7 +136,7 @@ class CouponCheckoutIT extends AbstractIntegrationTest {
         CheckoutRequest request = new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, "OLD2025"
+                List.of(), null, "OLD2025", null, null, null
         );
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -169,7 +169,7 @@ class CouponCheckoutIT extends AbstractIntegrationTest {
         ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, "STAFF25"
+                List.of(), null, "STAFF25", null, null, null
         ));
 
         // rent = 400 * 2 days = 800; 25% = 200

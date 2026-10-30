@@ -5,7 +5,7 @@ import utc from 'dayjs/plugin/utc'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-const IST = 'Asia/Kolkata'
+export const IST = 'Asia/Kolkata'
 
 export function formatDatetime(iso: string): string {
   return dayjs(iso).tz(IST).format('DD MMM YYYY, hh:mm A')

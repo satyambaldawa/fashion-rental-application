@@ -81,7 +81,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
                 List.of(new CheckoutLineItem(weddingPackage.getId(), 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         ));
         List<ReturnLineItem> returnLines = packageReceipt.lineItems().stream()
                 .map(li -> new ReturnLineItem(li.id(), false, null, null))
@@ -97,7 +97,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
                 List.of(new CheckoutLineItem(sherwani.getId(), 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         ));
 
         entityManager.flush();

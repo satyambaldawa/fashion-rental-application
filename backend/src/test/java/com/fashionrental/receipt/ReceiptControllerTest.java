@@ -53,7 +53,7 @@ class ReceiptControllerTest {
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
     }
 
@@ -71,7 +71,7 @@ class ReceiptControllerTest {
                 UUID.randomUUID(), "R-20260421-001", "tok3nABCD12",
                 UUID.randomUUID(), "Ravi Sharma", "9876543210",
                 START, END, 3, 600, null, 0, 1000, 1600,
-                "GIVEN", null,
+                "GIVEN", null, null,
                 List.of(new ReceiptLineItemResponse(
                         UUID.randomUUID(), UUID.randomUUID(), "Blue Sherwani",
                         "https://r2.example/thumb.jpg",
@@ -146,7 +146,7 @@ class ReceiptControllerTest {
     @WithMockUser
     void should_return_400_when_items_empty() throws Exception {
         CheckoutRequest invalidRequest = new CheckoutRequest(
-                UUID.randomUUID(), START, END, List.of(), List.of(), null, null
+                UUID.randomUUID(), START, END, List.of(), List.of(), null, null, null, null, null
         );
 
         mockMvc.perform(post("/api/receipts").with(csrf())
@@ -195,7 +195,7 @@ class ReceiptControllerTest {
         UUID id = UUID.randomUUID();
         ReceiptResponse given = new ReceiptResponse(
                 id, "R-20260421-001", "token", UUID.randomUUID(), "Ravi Sharma", "9876543210",
-                START, END, 3, 600, null, 0, 1000, 1600, "GIVEN", null, List.of(), START, null);
+                START, END, 3, 600, null, 0, 1000, 1600, "GIVEN", null, null, List.of(), START, null);
         when(receiptGivenService.markGiven(id)).thenReturn(given);
 
         mockMvc.perform(post("/api/receipts/{id}/give", id).with(csrf()))
@@ -229,7 +229,7 @@ class ReceiptControllerTest {
         UUID id = UUID.randomUUID();
         ReceiptResponse generated = new ReceiptResponse(
                 id, "R-20260421-001", "token", UUID.randomUUID(), "Ravi Sharma", "9876543210",
-                START, END, 3, 600, null, 0, 1000, 1600, "GENERATED", null, List.of(), START, null);
+                START, END, 3, 600, null, 0, 1000, 1600, "GENERATED", null, null, List.of(), START, null);
         when(receiptGivenService.undoGiven(eq(id), any())).thenReturn(generated);
 
         mockMvc.perform(post("/api/receipts/{id}/undo-give", id).with(csrf()))
