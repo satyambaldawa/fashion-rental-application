@@ -271,7 +271,7 @@ class ReceiptCancellationIT extends AbstractIntegrationTest {
         return checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, null));
+                List.of(), null, null, null, null, null));
     }
 
     private void cancel(UUID receiptId) {

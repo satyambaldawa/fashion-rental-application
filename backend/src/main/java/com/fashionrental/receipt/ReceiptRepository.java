@@ -52,6 +52,8 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
     Optional<Receipt> findByShareToken(String shareToken);
 
+    Optional<Receipt> findByIdempotencyKey(UUID idempotencyKey);
+
     // Package component lines are reserved at ₹0/₹0 and are not separately rented items.
     String BILLED_LINE_ITEM = " (li.rateSnapshot > 0 or li.depositSnapshot > 0) ";
 

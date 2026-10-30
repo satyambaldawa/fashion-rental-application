@@ -56,6 +56,7 @@ public class ReceiptMapper {
                 receipt.getTotalDeposit(),
                 receipt.getGrandTotal(),
                 receipt.getStatus().name(),
+                receipt.getPaymentMethod() != null ? receipt.getPaymentMethod().name() : null,
                 receipt.getNotes(),
                 lineItems,
                 receipt.getCreatedAt(),

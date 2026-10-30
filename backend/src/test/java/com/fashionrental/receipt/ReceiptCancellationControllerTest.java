@@ -56,7 +56,7 @@ class ReceiptCancellationControllerTest {
                 id, "R-20260421-001", "tok3nABCD12",
                 UUID.randomUUID(), "Ravi Sharma", "9876543210",
                 START, END, 3, 600, null, 0, 1000, 1600,
-                "CANCELLED", null,
+                "CANCELLED", null, null,
                 List.of(new ReceiptLineItemResponse(
                         UUID.randomUUID(), UUID.randomUUID(), "Blue Sherwani",
                         "https://r2.example/thumb.jpg", "M", "COSTUME", null,

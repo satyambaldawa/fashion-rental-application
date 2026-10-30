@@ -87,6 +87,14 @@ public class Receipt {
     @Column(nullable = false)
     private Status status = Status.GENERATED;
 
+    // Null on receipts created before payment method was recorded.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 10)
+    private ReceiptPaymentMethod paymentMethod;
+
+    @Column(name = "idempotency_key", unique = true, updatable = false)
+    private UUID idempotencyKey;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -159,6 +167,10 @@ public class Receipt {
     public void setGrandTotal(int grandTotal) { this.grandTotal = grandTotal; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+    public ReceiptPaymentMethod getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(ReceiptPaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
+    public UUID getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(UUID idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

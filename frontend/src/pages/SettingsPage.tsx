@@ -9,6 +9,7 @@ import PageHeader from '../components/common/PageHeader'
 import { getLateFeeRules, updateLateFeeRules } from '../api/config'
 import { authApi } from '../api/auth'
 import CouponsPage from './coupons/CouponsPage'
+import PaymentSettingsPage from './payments/PaymentSettingsPage'
 import GalleryManagePage from './gallery/GalleryManagePage'
 import ReviewModerationPage from './reviews/ReviewModerationPage'
 import type { LateFeeRuleItem } from '../types/config'
@@ -320,6 +321,7 @@ export default function SettingsPage() {
           { key: 'late-fees', label: 'Late Fees', children: lateFeesTab },
           { key: 'users', label: 'Manage Users', children: manageUsersTab },
           { key: 'coupons', label: 'Coupons', children: <CouponsPage /> },
+          { key: 'payments', label: 'Payments', children: <PaymentSettingsPage /> },
           { key: 'gallery', label: 'Gallery', children: <GalleryManagePage /> },
           { key: 'reviews', label: 'Reviews', children: <ReviewModerationPage /> },
         ]}

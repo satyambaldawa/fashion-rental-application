@@ -966,3 +966,140 @@ describe('CheckoutPage customer carried over from a receipt (#165)', () => {
     expect(fetchedOtherCustomer).toBe(false)
   })
 })
+
+describe('CheckoutPage UPI payment', () => {
+  const pinnedCustomer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
+  const upiOn = { upiEnabled: true, upiVpa: 'shop@ybl', upiPayeeName: 'Manisha Collection' }
+
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    sessionStorage.clear()
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  async function goToConfirm() {
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout', path: '/checkout' })
+    await flush()
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+    await user.click(await screen.findByRole('button', { name: 'Confirm & Proceed' }))
+    await flush()
+    return user
+  }
+
+  // Ant's button-style radio hides the real input behind its label, so click the label.
+  async function chooseUpi(user: ReturnType<typeof userEvent.setup>) {
+    const radio = await screen.findByRole('radio', { name: 'UPI' })
+    await user.click(radio.closest('label')!)
+  }
+
+  function captureReceiptPosts() {
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/receipts', async ({ request }) => {
+        bodies.push(await request.json() as Record<string, unknown>)
+        return ok(f.aReceipt({ id: 'rcpt-new' }))
+      }),
+    )
+    return bodies
+  }
+
+  it('offers no payment choice when the owner has not set a UPI ID, and records the receipt as cash', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const bodies = captureReceiptPosts()
+
+    const user = await goToConfirm()
+
+    expect(screen.queryByRole('radio', { name: 'UPI' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ paymentMethod: 'CASH' })
+  })
+
+  it('shows the QR for the server-priced total and creates the receipt only when staff confirm receipt of payment', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const bodies = captureReceiptPosts()
+    server.use(
+      http.get('*/api/checkout/payment-options', () => ok(upiOn)),
+      // Deliberately different from the cart's locally cached total (300 + 1000): the QR must use the server's.
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({ totalRent: 350, grandTotal: 1350 }))),
+    )
+
+    const user = await goToConfirm()
+    await chooseUpi(user)
+    await user.click(screen.getByRole('button', { name: 'Show UPI QR' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Manisha Collection')).toBeInTheDocument()
+    expect(bodies).toHaveLength(0)
+
+    await user.click(within(dialog).getByRole('button', { name: '₹1,350 received' }))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ paymentMethod: 'UPI', expectedGrandTotal: 1350 })
+    expect(bodies[0].idempotencyKey).toEqual(expect.any(String))
+  })
+
+  it('creates nothing and keeps the cart when staff cancel the QR', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const bodies = captureReceiptPosts()
+    server.use(http.get('*/api/checkout/payment-options', () => ok(upiOn)))
+
+    const user = await goToConfirm()
+    await chooseUpi(user)
+    await user.click(screen.getByRole('button', { name: 'Show UPI QR' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(bodies).toHaveLength(0)
+    expect(localStorage.getItem(CART_STORAGE_KEY)).not.toBeNull()
+  })
+
+  it('refuses to show a QR when an item became unavailable', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    captureReceiptPosts()
+    server.use(
+      http.get('*/api/checkout/payment-options', () => ok(upiOn)),
+      http.post('*/api/checkout/preview', () => ok(f.aCheckoutPreview({
+        allAvailable: false, unavailableItems: ['Royal Sherwani'],
+      }))),
+    )
+
+    const user = await goToConfirm()
+    await chooseUpi(user)
+    await user.click(screen.getByRole('button', { name: 'Show UPI QR' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Some items are no longer available. Do not take payment.')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Payment received' })).toBeDisabled()
+  })
+
+  it('tells staff the customer has already paid when the receipt is then refused, and keeps the cart', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.get('*/api/checkout/payment-options', () => ok(upiOn)),
+      http.post('*/api/receipts', () => HttpResponse.json(
+        { success: false, data: null, error: "'Royal Sherwani' no longer has enough units available." },
+        { status: 409 },
+      )),
+    )
+
+    const user = await goToConfirm()
+    await chooseUpi(user)
+    await user.click(screen.getByRole('button', { name: 'Show UPI QR' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(await within(dialog).findByRole('button', { name: '₹1,300 received' }))
+
+    expect(await within(dialog).findByText(/Receipt NOT created, but the customer has paid ₹1,300/)).toBeInTheDocument()
+    expect(localStorage.getItem(CART_STORAGE_KEY)).not.toBeNull()
+  })
+})
