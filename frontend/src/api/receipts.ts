@@ -30,6 +30,9 @@ export const receiptsApi = {
   give: (id: string): Promise<Receipt> =>
     client.post<ApiResponse<Receipt>>(`/receipts/${id}/give`).then(r => r.data.data!),
 
+  undoGive: (id: string): Promise<Receipt> =>
+    client.post<ApiResponse<Receipt>>(`/receipts/${id}/undo-give`).then(r => r.data.data!),
+
   cancel: (id: string, data: CancelReceiptRequest): Promise<Receipt> =>
     client.post<ApiResponse<Receipt>>(`/receipts/${id}/cancel`, data).then(r => r.data.data!),
 }

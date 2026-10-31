@@ -87,6 +87,14 @@ public class Receipt {
     @Column(nullable = false)
     private Status status = Status.GENERATED;
 
+    // Null on receipts created before payment method was recorded.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 10)
+    private ReceiptPaymentMethod paymentMethod;
+
+    @Column(name = "idempotency_key", unique = true, updatable = false)
+    private UUID idempotencyKey;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -112,6 +120,13 @@ public class Receipt {
 
     @Column(name = "cancellation_reason_detail", length = 500)
     private String cancellationReasonDetail;
+
+    @Column(name = "given_reverted_at")
+    private OffsetDateTime givenRevertedAt;
+
+    @ManyToOne(fetch = LAZY)
+    @JoinColumn(name = "given_reverted_by_user_id")
+    private AppUser givenRevertedBy;
 
     @OneToMany(mappedBy = "receipt", cascade = ALL, fetch = LAZY, orphanRemoval = true)
     private List<ReceiptLineItem> lineItems = new ArrayList<>();
@@ -152,6 +167,10 @@ public class Receipt {
     public void setGrandTotal(int grandTotal) { this.grandTotal = grandTotal; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+    public ReceiptPaymentMethod getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(ReceiptPaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
+    public UUID getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(UUID idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
@@ -164,11 +183,25 @@ public class Receipt {
     public AppUser getCancelledBy() { return cancelledBy; }
     public CancellationReason getCancellationReason() { return cancellationReason; }
     public String getCancellationReasonDetail() { return cancellationReasonDetail; }
+    public OffsetDateTime getGivenRevertedAt() { return givenRevertedAt; }
+    public AppUser getGivenRevertedBy() { return givenRevertedBy; }
 
     /** The only way a receipt becomes GIVEN — keeps status and givenAt from drifting apart. */
     public void markGiven(OffsetDateTime at) {
         this.status = Status.GIVEN;
         this.givenAt = at;
+    }
+
+    /**
+     * The only way a GIVEN receipt goes back to GENERATED — clears givenAt with the status
+     * (receipts_given_at_check) and records who undid the hand-over and when. Does not clear
+     * a prior revert audit: that history survives a later re-give, by design.
+     */
+    public void revertGiven(AppUser by, OffsetDateTime at) {
+        this.status = Status.GENERATED;
+        this.givenAt = null;
+        this.givenRevertedBy = by;
+        this.givenRevertedAt = at;
     }
 
     /**

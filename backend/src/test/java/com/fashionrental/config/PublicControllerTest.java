@@ -50,7 +50,7 @@ class PublicControllerTest {
         return new ReceiptResponse(
                 id, "R-0001", shareToken, UUID.randomUUID(), "Jane Doe", "9876543210",
                 OffsetDateTime.now(), OffsetDateTime.now().plusDays(2), 2, 1000, null, 0,
-                500, 1500, "ACTIVE", null, List.of(), OffsetDateTime.now(), null
+                500, 1500, "ACTIVE", null, null, List.of(), OffsetDateTime.now(), null
         );
     }
 
@@ -76,7 +76,7 @@ class PublicControllerTest {
         ReceiptResponse cancelledResponse = new ReceiptResponse(
                 id, "R-0001", "cancelled-token", UUID.randomUUID(), "Jane Doe", "9876543210",
                 OffsetDateTime.now(), OffsetDateTime.now().plusDays(2), 2, 1000, null, 0,
-                500, 1500, "CANCELLED", null, List.of(), OffsetDateTime.now(), null
+                500, 1500, "CANCELLED", null, null, List.of(), OffsetDateTime.now(), null
         );
         when(receiptRepository.findByShareToken("cancelled-token")).thenReturn(Optional.of(receipt));
         when(receiptMapper.toPublicReceiptResponse(receipt)).thenReturn(cancelledResponse);

@@ -132,3 +132,6 @@ Neon Console Environment.txt
 
 # Marketing outreach lists (contain third-party contact details)
 marketing/
+
+# Wrangler local cache (Cloudflare account metadata)
+.wrangler/

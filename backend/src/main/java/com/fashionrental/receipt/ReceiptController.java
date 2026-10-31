@@ -95,4 +95,10 @@ public class ReceiptController {
     public ResponseEntity<ApiResponse<ReceiptResponse>> markReceiptGiven(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(receiptGivenService.markGiven(id)));
     }
+
+    @Operation(summary = "Undo a mistaken Mark as Given — move a Given receipt back to Generated before its booked start (owner only)")
+    @PostMapping("/api/receipts/{id}/undo-give")
+    public ResponseEntity<ApiResponse<ReceiptResponse>> undoReceiptGiven(@PathVariable UUID id, Principal principal) {
+        return ResponseEntity.ok(ApiResponse.ok(receiptGivenService.undoGiven(id, principal.getName())));
+    }
 }

@@ -151,6 +151,28 @@ class ReceiptMapperTest {
         assertThat(response.cancellation()).isNull();
     }
 
+    @Test
+    void toReceiptResponse_leaves_payment_method_null_for_a_receipt_created_before_it_was_recorded() {
+        ReceiptResponse response = mapReceiptWith(TestData.item("Sherwani", 300, 1000));
+
+        assertThat(response.paymentMethod()).isNull();
+    }
+
+    @Test
+    void toReceiptResponse_maps_the_payment_method() {
+        Customer customer = TestData.customer("Asha", "9812345678");
+        Item item = TestData.item("Sherwani", 300, 1000);
+        Receipt receipt = TestData.receipt(customer,
+                OffsetDateTime.parse("2026-04-10T10:00:00+05:30"),
+                OffsetDateTime.parse("2026-04-11T10:00:00+05:30"),
+                TestData.receiptLineItem(item, 1));
+        receipt.setPaymentMethod(ReceiptPaymentMethod.UPI);
+
+        ReceiptResponse response = mapper.toReceiptResponse(receipt);
+
+        assertThat(response.paymentMethod()).isEqualTo("UPI");
+    }
+
     private ReceiptResponse mapReceiptWith(Item item) {
         Customer customer = TestData.customer("Asha", "9812345678");
         ReceiptLineItem lineItem = TestData.receiptLineItem(item, 1);

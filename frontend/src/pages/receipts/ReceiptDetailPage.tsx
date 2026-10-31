@@ -16,6 +16,7 @@ import {
 } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, PrinterOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethod'
 import { receiptsApi } from '../../api/receipts'
 import type { Receipt, ReceiptDetailLocationState, ReceiptLineItem, ReceiptStatus } from '../../types/receipt'
 import { formatCurrency } from '../../utils/currency'
@@ -24,9 +25,11 @@ import PageHeader from '../../components/common/PageHeader'
 import { peekPersistedCart, startCustomerCart } from '../../hooks/useCart'
 import { useAuth } from '../../hooks/useAuth'
 import { CANCELLATION_REASON_LABELS, isReceiptCancellable } from '../../utils/receiptCancellation'
+import { isGivenUndoable } from '../../utils/receiptHandover'
 import { useMarkReceiptGiven } from '../../hooks/useMarkReceiptGiven'
 import CancelReceiptFlow from './CancelReceiptFlow'
 import MarkAsGivenButton from './MarkAsGivenButton'
+import UndoGivenButton from './UndoGivenButton'
 
 const PRINT_STYLES = `
 @media print {
@@ -286,12 +289,13 @@ export default function ReceiptDetailPage() {
                 Add items
               </Button>
             )}
-            {receipt.status === 'GENERATED' && <MarkAsGivenButton receiptId={receipt.id} />}
+            {receipt.status === 'GENERATED' && <MarkAsGivenButton receipt={receipt} />}
             {receipt.status === 'GIVEN' && (
               <Button size="large" type="primary" onClick={() => navigate(`/receipts/${receipt.id}/return`)}>
                 Process Return
               </Button>
             )}
+            {isOwner && isGivenUndoable(receipt) && <UndoGivenButton receipt={receipt} />}
             {isOwner && isReceiptCancellable(receipt) && <CancelReceiptFlow receipt={receipt} />}
           </Space>
         </div>
@@ -368,6 +372,9 @@ export default function ReceiptDetailPage() {
             <Descriptions.Item label="Receipt Date">
               {dayjs(receipt.createdAt).format('DD MMM YYYY, h:mm A')}
             </Descriptions.Item>
+            {receipt.paymentMethod && (
+              <Descriptions.Item label="Paid by">{PAYMENT_METHOD_LABELS[receipt.paymentMethod]}</Descriptions.Item>
+            )}
           </Descriptions>
 
           {/* Line items */}

@@ -110,7 +110,7 @@ class DiscountsGivenReportIT extends AbstractIntegrationTest {
         return checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, couponCode
+                List.of(), null, couponCode, null, null, null
         ));
     }
 

@@ -186,7 +186,7 @@ class InvoicesReportIT extends AbstractIntegrationTest {
         OffsetDateTime start = OffsetDateTime.parse("2026-05-01T10:00:00+05:30");
         OffsetDateTime end = OffsetDateTime.parse("2026-05-02T10:00:00+05:30");
         return checkoutService.createReceipt(new CheckoutRequest(
-                customer.getId(), start, end, lines, List.of(), null, couponCode));
+                customer.getId(), start, end, lines, List.of(), null, couponCode, null, null, null));
     }
 
     private InvoiceResponse processReturn(ReceiptResponse receipt) {

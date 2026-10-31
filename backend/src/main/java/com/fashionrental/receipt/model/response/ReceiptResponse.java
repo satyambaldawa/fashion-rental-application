@@ -20,6 +20,7 @@ public record ReceiptResponse(
         int totalDeposit,
         int grandTotal,
         String status,
+        String paymentMethod,
         String notes,
         List<ReceiptLineItemResponse> lineItems,
         OffsetDateTime createdAt,

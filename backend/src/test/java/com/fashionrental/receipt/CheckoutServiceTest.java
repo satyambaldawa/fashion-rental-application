@@ -161,6 +161,89 @@ class CheckoutServiceTest {
                 .hasMessageContaining("endDatetime must be after startDatetime");
     }
 
+    // ─── Payment method ───────────────────────────────────────────────────────
+
+    // rent 150 * 1 day + deposit 500
+    private static final int UPI_CART_GRAND_TOTAL = 650;
+
+    private CheckoutRequest upiRequest(UUID customerId, UUID itemId, Integer expectedGrandTotal, UUID idempotencyKey) {
+        return new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null,
+                ReceiptPaymentMethod.UPI, expectedGrandTotal, idempotencyKey);
+    }
+
+    private void stubCreatableCart(UUID customerId, UUID itemId) {
+        when(customerRepository.findById(customerId))
+                .thenReturn(Optional.of(makeCustomer(customerId, "Test User", "9000000001")));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(makeItem(itemId, "Blue Pagdi", 150, 500)));
+        when(availabilityService.getAvailableQuantity(itemId, START, END)).thenReturn(1);
+        when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(1);
+    }
+
+    @Test
+    void should_record_cash_when_request_omits_payment_method() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        stubCreatableCart(customerId, itemId);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(new CheckoutRequest(
+                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null, null, null, null));
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        assertThat(captor.getValue().getPaymentMethod()).isEqualTo(ReceiptPaymentMethod.CASH);
+    }
+
+    @Test
+    void should_record_upi_when_server_total_matches_amount_customer_paid() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        stubCreatableCart(customerId, itemId);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(upiRequest(customerId, itemId, UPI_CART_GRAND_TOTAL, key));
+
+        ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);
+        verify(receiptRepository).save(captor.capture());
+        assertThat(captor.getValue().getPaymentMethod()).isEqualTo(ReceiptPaymentMethod.UPI);
+        assertThat(captor.getValue().getIdempotencyKey()).isEqualTo(key);
+    }
+
+    @Test
+    void should_refuse_upi_receipt_when_server_total_differs_from_amount_customer_paid() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        int amountPaidBeforeRateChange = UPI_CART_GRAND_TOTAL - 100;
+        stubCreatableCart(customerId, itemId);
+
+        assertThatThrownBy(() -> checkoutService.createReceipt(
+                upiRequest(customerId, itemId, amountPaidBeforeRateChange, UUID.randomUUID())))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("paid ₹" + amountPaidBeforeRateChange);
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
+    @Test
+    void should_return_existing_receipt_when_upi_confirmation_is_replayed() {
+        UUID key = UUID.randomUUID();
+        Receipt existing = new Receipt();
+        ReceiptResponse existingResponse = new ReceiptResponse(null, "R-1", null, null, null, null, null, null,
+                1, 150, null, 0, 500, UPI_CART_GRAND_TOTAL, "GENERATED", "UPI", null, List.of(), null, null);
+        when(receiptRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(existing));
+        when(receiptMapper.toReceiptResponse(existing)).thenReturn(existingResponse);
+
+        ReceiptResponse response = checkoutService.createReceipt(
+                upiRequest(UUID.randomUUID(), UUID.randomUUID(), UPI_CART_GRAND_TOTAL, key));
+
+        assertThat(response).isSameAs(existingResponse);
+        verify(receiptRepository, never()).save(any(Receipt.class));
+    }
+
     // ─── Create Receipt ───────────────────────────────────────────────────────
 
     @Test
@@ -188,7 +271,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
@@ -230,7 +313,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -250,7 +333,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(UUID.randomUUID(), 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -276,7 +359,7 @@ class CheckoutServiceTest {
         when(receiptMapper.toReceiptResponse(any(Receipt.class))).thenAnswer(inv -> {
             Receipt r = inv.getArgument(0);
             return new ReceiptResponse(null, null, null, null, null, null, null, null,
-                    r.getRentalDays(), 0, null, 0, 0, 0, null, null, List.of(), null, null);
+                    r.getRentalDays(), 0, null, 0, 0, 0, null, null, null, List.of(), null, null);
         });
 
         CheckoutRequest request = new CheckoutRequest(
@@ -284,7 +367,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         ReceiptResponse response = checkoutService.createReceipt(request);
@@ -309,7 +392,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -340,7 +423,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -367,7 +450,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -394,7 +477,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Cheap Scarf", "S", 5, 0, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -421,7 +504,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Cheap Scarf", "S", 5, 0, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -449,7 +532,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 2)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -522,7 +605,7 @@ class CheckoutServiceTest {
         when(dateTimeUtil.calculateRentalDays(START, END)).thenReturn(3);
 
         CheckoutRequest request = new CheckoutRequest(
-                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), null, null);
+                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)), List.of(), null, null, null, null, null);
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
                 .isInstanceOf(ValidationException.class)
@@ -540,7 +623,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -560,7 +643,7 @@ class CheckoutServiceTest {
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -594,7 +677,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -622,7 +705,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(itemId, 1)),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
                 null,
-                null
+                null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -676,7 +759,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(packageId, 1)),
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
@@ -747,7 +830,7 @@ class CheckoutServiceTest {
                 List.of(new CheckoutLineItem(packageId, 2)), // renting 2 packages
                 List.of(),
                 null,
-                null
+                null, null, null, null
         );
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
@@ -791,7 +874,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE20"
+                List.of(), null, "SAVE20", null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -819,7 +902,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END, List.of(),
                 List.of(new AdHocLineItem("Red Sherwani", "L", 500, 1000, 1)),
-                null, "SAVE10"
+                null, "SAVE10", null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -851,7 +934,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "FLAT50"
+                List.of(), null, "FLAT50", null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -887,7 +970,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "FLAT50"
+                List.of(), null, "FLAT50", null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -917,7 +1000,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, null
+                List.of(), null, null, null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -972,7 +1055,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE20"
+                List.of(), null, "SAVE20", null, null, null
         );
 
         checkoutService.createReceipt(request);
@@ -1002,7 +1085,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE20"
+                List.of(), null, "SAVE20", null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -1037,7 +1120,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE20"
+                List.of(), null, "SAVE20", null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -1068,7 +1151,7 @@ class CheckoutServiceTest {
         CheckoutRequest request = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE20"
+                List.of(), null, "SAVE20", null, null, null
         );
 
         assertThatThrownBy(() -> checkoutService.createReceipt(request))
@@ -1103,7 +1186,7 @@ class CheckoutServiceTest {
         CheckoutRequest createRequest = new CheckoutRequest(
                 customerId, START, END,
                 List.of(new CheckoutLineItem(itemId, 1)),
-                List.of(), null, "SAVE10");
+                List.of(), null, "SAVE10", null, null, null);
         checkoutService.createReceipt(createRequest);
 
         ArgumentCaptor<Receipt> captor = ArgumentCaptor.forClass(Receipt.class);

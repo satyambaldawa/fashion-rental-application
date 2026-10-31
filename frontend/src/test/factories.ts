@@ -54,7 +54,7 @@ export const aReceipt: Partialize<Receipt> = (o = {}) => ({
   customerName: 'Meera', customerPhone: '9811122233',
   startDatetime: '2026-04-18T10:00:00+05:30', endDatetime: '2026-04-19T10:00:00+05:30',
   rentalDays: 1, totalRent: 300, couponCode: null, discountAmount: 0,
-  totalDeposit: 1000, grandTotal: 1300, status: 'GIVEN',
+  totalDeposit: 1000, grandTotal: 1300, status: 'GIVEN', paymentMethod: 'CASH',
   notes: null, createdAt: '2026-04-18T10:00:00+05:30',
   lineItems: [{
     id: 'rli-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M',
