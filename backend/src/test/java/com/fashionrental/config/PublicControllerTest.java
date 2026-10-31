@@ -105,7 +105,7 @@ class PublicControllerTest {
         InvoiceResponse response = new InvoiceResponse(
                 id, "INV-0001", "valid-invoice-token", UUID.randomUUID(), "R-0001",
                 UUID.randomUUID(), "Jane Doe", "9876543210", OffsetDateTime.now(),
-                1000, null, 0, 500, 0, 0, 500, 500, "REFUND", "CASH", null, null,
+                1000, null, 0, 500, 0, 0, 0, 500, 500, "REFUND", "CASH", null, null,
                 List.of(), OffsetDateTime.now()
         );
         when(invoiceRepository.findByShareToken("valid-invoice-token")).thenReturn(Optional.of(invoice));
