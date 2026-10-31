@@ -236,7 +236,7 @@ class RentalFlowIT extends AbstractIntegrationTest {
         ReceiptResponse receipt = checkoutService.createReceipt(new CheckoutRequest(
                 customer.getId(), start, end,
                 List.of(new CheckoutLineItem(item.getId(), 1)),
-                List.of(), null, null
+                List.of(), null, null, null, null, null
         ));
         receiptGivenService.markGiven(receipt.id());
         return receipt;
