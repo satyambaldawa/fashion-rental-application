@@ -57,12 +57,7 @@ public class ReturnService {
         Receipt receipt = loadReturnableReceipt(receiptRepository.findById(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
         List<ComputedLine> lines = computeLines(receipt, request, rules);
-
-        int calculatedLateFee = lines.stream().mapToInt(ComputedLine::calculatedLateFee).sum();
-        int totalDamageCost = lines.stream().mapToInt(ComputedLine::damageCost).sum();
-        ReturnSettlement settlement = ReturnSettlement.of(
-                receipt.getTotalDeposit(), calculatedLateFee, totalDamageCost, request.applyLateFee()
-        );
+        ReturnSettlement settlement = settle(receipt, lines, request.applyLateFee());
 
         List<ReturnPreviewLineItem> previewLines = lines.stream()
                 .map(line -> new ReturnPreviewLineItem(
@@ -85,12 +80,7 @@ public class ReturnService {
         Receipt receipt = loadReturnableReceipt(receiptRepository.findByIdForUpdate(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
         List<ComputedLine> lines = computeLines(receipt, request, rules);
-
-        int calculatedLateFee = lines.stream().mapToInt(ComputedLine::calculatedLateFee).sum();
-        int totalDamageCost = lines.stream().mapToInt(ComputedLine::damageCost).sum();
-        ReturnSettlement settlement = ReturnSettlement.of(
-                receipt.getTotalDeposit(), calculatedLateFee, totalDamageCost, request.applyLateFee()
-        );
+        ReturnSettlement settlement = settle(receipt, lines, request.applyLateFee());
 
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumberService.generateInvoiceNumber());
@@ -165,6 +155,14 @@ public class ReturnService {
     }
 
     private record ComputedLine(ReceiptLineItem rli, ReturnLineItem returnLine, int calculatedLateFee, int damageCost) {}
+
+    private ReturnSettlement settle(Receipt receipt, List<ComputedLine> lines, Boolean applyLateFee) {
+        int calculatedLateFee = lines.stream().mapToInt(ComputedLine::calculatedLateFee).sum();
+        int totalDamageCost = lines.stream().mapToInt(ComputedLine::damageCost).sum();
+        return ReturnSettlement.of(
+                receipt.getTotalDeposit(), calculatedLateFee, totalDamageCost, LateFeeDecision.from(applyLateFee)
+        );
+    }
 
     private List<ComputedLine> computeLines(Receipt receipt, ProcessReturnRequest request, List<LateFeeRule> rules) {
         Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);

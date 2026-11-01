@@ -319,5 +319,10 @@ describe('ProcessReturnPage late fee decision (#184)', () => {
     expect(screen.queryByText('Waived')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Waive late fee|Apply late fee/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Confirm & Complete Return/i })).toBeDisabled()
+    // The totals and banner must not show fee-applied figures while the decision for this
+    // preview hasn't actually been made yet (even though the previous, now-stale decision
+    // was "Yes" for a different, smaller fee).
+    expect(screen.getByText('Awaiting late fee decision')).toBeInTheDocument()
+    expect(screen.queryByText(/REFUND:|COLLECT:/)).not.toBeInTheDocument()
   })
 })

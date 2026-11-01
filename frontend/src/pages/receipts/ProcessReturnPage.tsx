@@ -165,6 +165,16 @@ export default function ProcessReturnPage() {
     setPreview(null)
   }
 
+  // The return time is the only input that can change the calculated late fee, so any
+  // existing decision is invalidated here synchronously — before any in-flight preview
+  // request for the old time can resolve and be mistaken for an answer to the new fee.
+  function handleReturnTimeChange(v: Dayjs | null) {
+    setReturnDatetime(v ?? dayjs())
+    setPreview(null)
+    setFeeDecision(NO_DECISION)
+    setPromptFee(null)
+  }
+
   const isOverdue = returnDatetime.isAfter(dayjs(receipt.endDatetime))
 
   return (
@@ -217,16 +227,7 @@ export default function ProcessReturnPage() {
             showTime={{ format: 'HH:mm' }}
             format="DD MMM YYYY HH:mm"
             value={returnDatetime}
-            onChange={(v) => {
-              setReturnDatetime(v ?? dayjs())
-              setPreview(null)
-              // Fix for devils-advocate/business-lead Blocker 1: the date/time is the one
-              // input that can change the calculated late fee, so any existing decision is
-              // invalidated synchronously here — before any in-flight preview request for
-              // the old date can resolve and be mistaken for an answer to the new fee.
-              setFeeDecision(NO_DECISION)
-              setPromptFee(null)
-            }}
+            onChange={handleReturnTimeChange}
             style={{ width: 240 }}
           />
         </Form.Item>
@@ -352,7 +353,15 @@ export default function ProcessReturnPage() {
       <Divider />
 
       {/* Preview section */}
-      {preview && (
+      {preview && (() => {
+        // While the fee decision is unresolved (the modal is up, or a just-fired
+        // recalculation hasn't landed yet) the settlement totals below depend on a decision
+        // that hasn't actually been made for the current preview — render them as pending
+        // rather than showing figures that assume an answer, same as the Late Fee row already
+        // does for itself.
+        const settlementPending = previewMutation.isPending ||
+          (preview.calculatedLateFee > 0 && feeDecision.decision === null)
+        return (
         <Card
           style={{ marginBottom: 20, background: '#fafafa', borderColor: '#d9d9d9' }}
           title="Invoice Preview"
@@ -379,9 +388,8 @@ export default function ProcessReturnPage() {
             {preview.calculatedLateFee > 0 && (
               <Descriptions.Item label="Late Fee">
                 {feeDecision.decision === null ? (
-                  // Awaiting decision: neutral rendering only — never claims an amount was
-                  // applied or waived before the user has actually decided (fix for
-                  // business-lead Blocker 1).
+                  // Neutral rendering: never claims an amount was applied or waived before
+                  // the user has actually decided.
                   <span>{formatCurrency(preview.calculatedLateFee)}</span>
                 ) : feeDecision.decision === 'APPLY' ? (
                   <Space>
@@ -416,27 +424,32 @@ export default function ProcessReturnPage() {
                 <span style={{ color: '#ff4d4f' }}>– {formatCurrency(preview.totalDamageCost)}</span>
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="Total Deductions">{formatCurrency(preview.totalDeductions)}</Descriptions.Item>
-            <Descriptions.Item label="Deposit to Return">{formatCurrency(preview.depositToReturn)}</Descriptions.Item>
+            <Descriptions.Item label="Total Deductions">
+              {settlementPending ? '—' : formatCurrency(preview.totalDeductions)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Deposit to Return">
+              {settlementPending ? '—' : formatCurrency(preview.depositToReturn)}
+            </Descriptions.Item>
           </Descriptions>
 
           <div style={{
             marginTop: 16,
             padding: '14px 20px',
-            background: preview.transactionType === 'REFUND' ? '#f6ffed' : '#fff2f0',
-            border: `2px solid ${preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f'}`,
+            background: settlementPending ? '#fafafa' : preview.transactionType === 'REFUND' ? '#f6ffed' : '#fff2f0',
+            border: `2px solid ${settlementPending ? '#d9d9d9' : preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f'}`,
             borderRadius: 8,
             textAlign: 'center',
           }}>
             <Typography.Title
               level={3}
-              style={{ margin: 0, color: preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f' }}
+              style={{ margin: 0, color: settlementPending ? '#999' : preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f' }}
             >
-              {preview.transactionType === 'REFUND' ? 'REFUND' : 'COLLECT'}: {formatCurrency(preview.finalAmount)}
+              {settlementPending ? 'Awaiting late fee decision' : `${preview.transactionType === 'REFUND' ? 'REFUND' : 'COLLECT'}: ${formatCurrency(preview.finalAmount)}`}
             </Typography.Title>
           </div>
         </Card>
-      )}
+        )
+      })()}
 
       {previewMutation.isError && (
         <Alert type="error" message="Failed to calculate preview. Please try again." style={{ marginBottom: 16 }} />
