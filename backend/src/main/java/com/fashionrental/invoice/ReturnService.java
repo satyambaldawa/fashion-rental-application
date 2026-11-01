@@ -56,30 +56,21 @@ public class ReturnService {
     public ReturnPreviewResponse previewReturn(UUID receiptId, ProcessReturnRequest request) {
         Receipt receipt = loadReturnableReceipt(receiptRepository.findById(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
-        Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);
+        List<ComputedLine> lines = computeLines(receipt, request, rules);
+        ReturnSettlement settlement = settle(receipt, lines, request.applyLateFee());
 
-        int totalLateFee = 0;
-        int totalDamageCost = 0;
-        List<ReturnPreviewLineItem> previewLines = new ArrayList<>();
+        List<ReturnPreviewLineItem> previewLines = lines.stream()
+                .map(line -> new ReturnPreviewLineItem(
+                        line.rli().getId(), line.rli().getItem().getName(), line.rli().getQuantity(),
+                        settlement.chargedLineLateFee(line.calculatedLateFee()), line.damageCost()
+                ))
+                .toList();
 
-        for (ReturnLineItem returnLine : request.lineItems()) {
-            ReceiptLineItem rli = lineItemMap.get(returnLine.receiptLineItemId());
-            if (rli == null) continue;
-
-            int lateFee = billingService.calculateLateFee(
-                    receipt.getEndDatetime(), request.returnDatetime(),
-                    rli.getRateSnapshot(), rli.getQuantity(), rules
-            );
-            int damage = billingService.calculateDamageCost(rli, returnLine);
-
-            totalLateFee += lateFee;
-            totalDamageCost += damage;
-            previewLines.add(new ReturnPreviewLineItem(
-                    rli.getId(), rli.getItem().getName(), rli.getQuantity(), lateFee, damage
-            ));
-        }
-
-        return buildPreviewResponse(receipt, totalLateFee, totalDamageCost, previewLines);
+        return new ReturnPreviewResponse(
+                settlement.calculatedLateFee(), settlement.appliedLateFee(), settlement.waivedLateFee(),
+                settlement.totalDamageCost(), settlement.totalDeductions(), settlement.depositToReturn(),
+                settlement.finalAmount(), settlement.transactionType().name(), previewLines
+        );
     }
 
     @Transactional
@@ -88,7 +79,8 @@ public class ReturnService {
         // mid-flight building an invoice for the same receipt (plan §4, "Concurrency").
         Receipt receipt = loadReturnableReceipt(receiptRepository.findByIdForUpdate(receiptId), receiptId);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
-        Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);
+        List<ComputedLine> lines = computeLines(receipt, request, rules);
+        ReturnSettlement settlement = settle(receipt, lines, request.applyLateFee());
 
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumberService.generateInvoiceNumber());
@@ -105,50 +97,26 @@ public class ReturnService {
         invoice.setDamageNotes(request.damageNotes());
         invoice.setNotes(request.notes());
 
-        int totalLateFee = 0;
-        int totalDamageCost = 0;
-
-        for (ReturnLineItem returnLine : request.lineItems()) {
-            ReceiptLineItem rli = lineItemMap.get(returnLine.receiptLineItemId());
-            if (rli == null) continue;
-
-            int lateFee = billingService.calculateLateFee(
-                    receipt.getEndDatetime(), request.returnDatetime(),
-                    rli.getRateSnapshot(), rli.getQuantity(), rules
-            );
-            int damage = billingService.calculateDamageCost(rli, returnLine);
-
-            totalLateFee += lateFee;
-            totalDamageCost += damage;
-
+        for (ComputedLine line : lines) {
             InvoiceLineItem ili = new InvoiceLineItem();
             ili.setInvoice(invoice);
-            ili.setReceiptLineItem(rli);
-            ili.setItem(rli.getItem());
-            ili.setQuantityReturned(rli.getQuantity());
-            ili.setIsDamaged(returnLine.isDamaged());
-            ili.setDamagePercentage(returnLine.damagePercentage() != null
-                    ? BigDecimal.valueOf(returnLine.damagePercentage()) : null);
-            ili.setDamageCost(damage);
-            ili.setLateFee(lateFee);
+            ili.setReceiptLineItem(line.rli());
+            ili.setItem(line.rli().getItem());
+            ili.setQuantityReturned(line.rli().getQuantity());
+            ili.setIsDamaged(line.returnLine().isDamaged());
+            ili.setDamagePercentage(line.returnLine().damagePercentage() != null
+                    ? BigDecimal.valueOf(line.returnLine().damagePercentage()) : null);
+            ili.setDamageCost(line.damageCost());
+            ili.setLateFee(settlement.chargedLineLateFee(line.calculatedLateFee()));
             invoice.getLineItems().add(ili);
         }
 
-        int totalDeductions = totalLateFee + totalDamageCost;
-        int depositToReturn = Math.max(0, receipt.getTotalDeposit() - totalDeductions);
-        int balanceOwed = Math.max(0, totalDeductions - receipt.getTotalDeposit());
-
-        invoice.setTotalLateFee(totalLateFee);
-        invoice.setTotalDamageCost(totalDamageCost);
-        invoice.setDepositToReturn(depositToReturn);
-
-        if (balanceOwed > 0) {
-            invoice.setTransactionType(Invoice.TransactionType.COLLECT);
-            invoice.setFinalAmount(balanceOwed);
-        } else {
-            invoice.setTransactionType(Invoice.TransactionType.REFUND);
-            invoice.setFinalAmount(depositToReturn);
-        }
+        invoice.setTotalLateFee(settlement.appliedLateFee());
+        invoice.setWaivedLateFee(settlement.waivedLateFee());
+        invoice.setTotalDamageCost(settlement.totalDamageCost());
+        invoice.setDepositToReturn(settlement.depositToReturn());
+        invoice.setFinalAmount(settlement.finalAmount());
+        invoice.setTransactionType(settlement.transactionType());
 
         Invoice saved = invoiceRepository.save(invoice);
 
@@ -186,19 +154,34 @@ public class ReturnService {
                 .collect(Collectors.toMap(ReceiptLineItem::getId, Function.identity()));
     }
 
-    private ReturnPreviewResponse buildPreviewResponse(
-            Receipt receipt, int totalLateFee, int totalDamageCost,
-            List<ReturnPreviewLineItem> lines
-    ) {
-        int totalDeductions = totalLateFee + totalDamageCost;
-        int depositToReturn = Math.max(0, receipt.getTotalDeposit() - totalDeductions);
-        int balanceOwed = Math.max(0, totalDeductions - receipt.getTotalDeposit());
-        String txType = balanceOwed > 0 ? "COLLECT" : "REFUND";
-        int finalAmount = balanceOwed > 0 ? balanceOwed : depositToReturn;
-        return new ReturnPreviewResponse(
-                totalLateFee, totalDamageCost, totalDeductions,
-                depositToReturn, finalAmount, txType, lines
+    private record ComputedLine(ReceiptLineItem rli, ReturnLineItem returnLine, int calculatedLateFee, int damageCost) {}
+
+    private ReturnSettlement settle(Receipt receipt, List<ComputedLine> lines, Boolean applyLateFee) {
+        int calculatedLateFee = lines.stream().mapToInt(ComputedLine::calculatedLateFee).sum();
+        int totalDamageCost = lines.stream().mapToInt(ComputedLine::damageCost).sum();
+        return ReturnSettlement.of(
+                receipt.getTotalDeposit(), calculatedLateFee, totalDamageCost, LateFeeDecision.from(applyLateFee)
         );
+    }
+
+    private List<ComputedLine> computeLines(Receipt receipt, ProcessReturnRequest request, List<LateFeeRule> rules) {
+        Map<UUID, ReceiptLineItem> lineItemMap = buildLineItemMap(receipt);
+        List<ComputedLine> lines = new ArrayList<>();
+
+        for (ReturnLineItem returnLine : request.lineItems()) {
+            ReceiptLineItem rli = lineItemMap.get(returnLine.receiptLineItemId());
+            if (rli == null) continue;
+
+            int lateFee = billingService.calculateLateFee(
+                    receipt.getEndDatetime(), request.returnDatetime(),
+                    rli.getRateSnapshot(), rli.getQuantity(), rules
+            );
+            int damage = billingService.calculateDamageCost(rli, returnLine);
+
+            lines.add(new ComputedLine(rli, returnLine, lateFee, damage));
+        }
+
+        return lines;
     }
 
     private Invoice.PaymentMethod parsePaymentMethod(String value) {
@@ -234,6 +217,7 @@ public class ReturnService {
                 invoice.getReceipt().getDiscountAmount(),
                 invoice.getTotalDepositCollected(),
                 invoice.getTotalLateFee(),
+                invoice.getWaivedLateFee(),
                 invoice.getTotalDamageCost(),
                 invoice.getDepositToReturn(),
                 invoice.getFinalAmount(),

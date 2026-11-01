@@ -155,6 +155,27 @@ class InvoicesReportIT extends AbstractIntegrationTest {
         assertThat(secondPage.totalRevenue()).isEqualTo(firstPage.totalRevenue());
     }
 
+    @Test
+    void reports_a_waived_late_fee_as_zero_late_fee_and_revenue() {
+        Item item = newItem("Anarkali", 600);
+        ReceiptResponse receipt = checkout(List.of(line(item, 1)), null);
+
+        InvoiceResponse invoice = processReturn(receipt, receipt.endDatetime().plusHours(7), Boolean.FALSE);
+        backdateInvoice(invoice.id(), "2026-06-03T15:00:00+05:30");
+        flushAndClear();
+
+        InvoicesReportResponse report = reportingService.getInvoicesReport(JUNE_1, JUNE_7, null, 0, PAGE_SIZE);
+        InvoiceListItem row = report.invoices().get(0);
+
+        assertThat(row.lateFee()).isZero();
+        assertThat(report.totalLateFee()).isZero();
+        assertThat(row.revenue()).isEqualTo(receipt.totalRent());
+
+        InvoicesReportResponse excludingWaived = reportingService.getInvoicesReport(
+                JUNE_1, JUNE_7, receipt.totalRent() + 1, 0, PAGE_SIZE);
+        assertThat(excludingWaived.invoices()).isEmpty();
+    }
+
     private InvoiceResponse rentAndReturn(List<CheckoutLineItem> lines, String couponCode, String invoicedAt) {
         InvoiceResponse invoice = processReturn(checkout(lines, couponCode));
         backdateInvoice(invoice.id(), invoicedAt);
@@ -169,12 +190,16 @@ class InvoicesReportIT extends AbstractIntegrationTest {
     }
 
     private InvoiceResponse processReturn(ReceiptResponse receipt) {
+        return processReturn(receipt, receipt.endDatetime(), null);
+    }
+
+    private InvoiceResponse processReturn(ReceiptResponse receipt, OffsetDateTime returnAt, Boolean applyLateFee) {
         receiptGivenService.markGiven(receipt.id());
         List<ReturnLineItem> returnLines = receipt.lineItems().stream()
                 .map(li -> new ReturnLineItem(li.id(), false, null, null))
                 .toList();
         return returnService.processReturn(receipt.id(), new ProcessReturnRequest(
-                receipt.endDatetime(), returnLines, "CASH", null, null));
+                returnAt, returnLines, "CASH", null, null, applyLateFee));
     }
 
     private static CheckoutLineItem line(Item item, int quantity) {

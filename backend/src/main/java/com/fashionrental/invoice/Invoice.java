@@ -49,6 +49,9 @@ public class Invoice {
     @Column(name = "total_late_fee", nullable = false)
     private int totalLateFee;
 
+    @Column(name = "waived_late_fee", nullable = false)
+    private int waivedLateFee;
+
     @Column(name = "total_damage_cost", nullable = false)
     private int totalDamageCost;
 
@@ -98,6 +101,8 @@ public class Invoice {
     public void setTotalDepositCollected(int totalDepositCollected) { this.totalDepositCollected = totalDepositCollected; }
     public int getTotalLateFee() { return totalLateFee; }
     public void setTotalLateFee(int totalLateFee) { this.totalLateFee = totalLateFee; }
+    public int getWaivedLateFee() { return waivedLateFee; }
+    public void setWaivedLateFee(int waivedLateFee) { this.waivedLateFee = waivedLateFee; }
     public int getTotalDamageCost() { return totalDamageCost; }
     public void setTotalDamageCost(int totalDamageCost) { this.totalDamageCost = totalDamageCost; }
     public int getDepositToReturn() { return depositToReturn; }

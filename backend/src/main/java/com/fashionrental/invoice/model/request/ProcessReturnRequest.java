@@ -11,5 +11,6 @@ public record ProcessReturnRequest(
         @NotNull @Valid List<ReturnLineItem> lineItems,
         String paymentMethod,  // CASH | UPI | OTHER — defaults to CASH if null
         String damageNotes,
-        String notes
+        String notes,
+        Boolean applyLateFee   // null = apply (backward compatible); FALSE = waive. Never primitive.
 ) {}

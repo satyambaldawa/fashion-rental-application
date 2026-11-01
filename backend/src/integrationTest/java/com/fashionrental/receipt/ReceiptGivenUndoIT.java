@@ -129,7 +129,7 @@ class ReceiptGivenUndoIT extends AbstractIntegrationTest {
         Exception returnFailure = runWhileHoldingRowLock(
                 () -> receiptGivenService.undoGiven(receipt.id(), ownerUsername),
                 () -> returnService.processReturn(receipt.id(), new ProcessReturnRequest(
-                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null)));
+                        end, List.of(new ReturnLineItem(lineItemId, false, null, null)), "CASH", null, null, null)));
 
         assertThat(returnFailure)
                 .isInstanceOf(ConflictException.class)

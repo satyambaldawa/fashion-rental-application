@@ -88,7 +88,7 @@ class CustomerHistoryServiceIT extends AbstractIntegrationTest {
                 .toList();
         receiptGivenService.markGiven(packageReceipt.id());
         returnService.processReturn(packageReceipt.id(), new ProcessReturnRequest(
-                end, returnLines, "CASH", null, null
+                end, returnLines, "CASH", null, null, null
         ));
 
         // ── receipt 2: plain rental, still active (no invoice) ──

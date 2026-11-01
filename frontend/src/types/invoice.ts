@@ -14,6 +14,7 @@ export interface ProcessReturnRequest {
   paymentMethod?: PaymentMethod
   damageNotes?: string
   notes?: string
+  applyLateFee?: boolean
 }
 
 export interface ReturnPreviewLineItem {
@@ -25,7 +26,9 @@ export interface ReturnPreviewLineItem {
 }
 
 export interface ReturnPreview {
+  calculatedLateFee: number
   totalLateFee: number
+  waivedLateFee: number
   totalDamageCost: number
   totalDeductions: number
   depositToReturn: number
@@ -65,6 +68,7 @@ export interface Invoice {
   discountAmount: number
   totalDepositCollected: number
   totalLateFee: number
+  waivedLateFee: number
   totalDamageCost: number
   depositToReturn: number
   finalAmount: number

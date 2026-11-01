@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
@@ -11,6 +11,7 @@ import {
   Divider,
   Form,
   InputNumber,
+  Modal,
   Radio,
   Space,
   Tag,
@@ -30,6 +31,13 @@ import type {
 import { formatCurrency } from '../../utils/currency'
 import { toApiDatetime } from '../../utils/datetime'
 import ItemPhotoPlaceholder from '../../components/common/ItemPhotoPlaceholder'
+import {
+  NO_DECISION,
+  applyLateFeeFlag,
+  reconcileLateFeeDecision,
+  type LateFeeDecision,
+  type LateFeeDecisionState,
+} from './lateFeeDecision'
 
 interface LineItemFormState {
   isDamaged: boolean
@@ -48,6 +56,12 @@ export default function ProcessReturnPage() {
   const [notes, setNotes] = useState('')
   const [lineStates, setLineStates] = useState<Record<string, LineItemFormState>>({})
   const [preview, setPreview] = useState<ReturnPreview | null>(null)
+  const [feeDecision, setFeeDecision] = useState<LateFeeDecisionState>(NO_DECISION)
+  const [promptFee, setPromptFee] = useState<number | null>(null)
+  // onSuccess below reconciles against the latest decision, never a stale closure from
+  // when the request was fired.
+  const feeDecisionRef = useRef(feeDecision)
+  useEffect(() => { feeDecisionRef.current = feeDecision }, [feeDecision])
 
   const { data: receipt, isLoading, isError } = useQuery({
     queryKey: ['receipt', id],
@@ -68,7 +82,12 @@ export default function ProcessReturnPage() {
 
   const previewMutation = useMutation({
     mutationFn: (req: ProcessReturnRequest) => invoicesApi.previewReturn(id!, req),
-    onSuccess: setPreview,
+    onSuccess: (p) => {
+      setPreview(p)
+      const { next, prompt } = reconcileLateFeeDecision(feeDecisionRef.current, p.calculatedLateFee)
+      setFeeDecision(next)
+      setPromptFee(prompt ? p.calculatedLateFee : null)
+    },
   })
 
   const confirmMutation = useMutation({
@@ -106,7 +125,7 @@ export default function ProcessReturnPage() {
     )
   }
 
-  function buildRequest(): ProcessReturnRequest {
+  function buildRequest(decision: LateFeeDecision | null = feeDecision.decision): ProcessReturnRequest {
     const lineItems: ReturnLineItemRequest[] = receipt!.lineItems.map(li => {
       const state = lineStates[li.id] ?? { isDamaged: false, damageMode: 'percentage' }
       // When no purchase rate the percentage radio is hidden and damageMode stays 'percentage',
@@ -125,12 +144,35 @@ export default function ProcessReturnPage() {
       paymentMethod,
       damageNotes: damageNotes || undefined,
       notes: notes || undefined,
+      applyLateFee: applyLateFeeFlag(decision),
     }
+  }
+
+  function answerLateFeePrompt(decision: LateFeeDecision) {
+    setFeeDecision({ decision, decidedForFee: promptFee })
+    setPromptFee(null)
+    previewMutation.mutate(buildRequest(decision))
+  }
+
+  function flipLateFeeDecision() {
+    const decision: LateFeeDecision = feeDecision.decision === 'WAIVE' ? 'APPLY' : 'WAIVE'
+    setFeeDecision({ ...feeDecision, decision })
+    previewMutation.mutate(buildRequest(decision))
   }
 
   function updateLine(lineId: string, patch: Partial<LineItemFormState>) {
     setLineStates(prev => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }))
     setPreview(null)
+  }
+
+  // The return time is the only input that can change the calculated late fee, so any
+  // existing decision is invalidated here synchronously — before any in-flight preview
+  // request for the old time can resolve and be mistaken for an answer to the new fee.
+  function handleReturnTimeChange(v: Dayjs | null) {
+    setReturnDatetime(v ?? dayjs())
+    setPreview(null)
+    setFeeDecision(NO_DECISION)
+    setPromptFee(null)
   }
 
   const isOverdue = returnDatetime.isAfter(dayjs(receipt.endDatetime))
@@ -185,7 +227,7 @@ export default function ProcessReturnPage() {
             showTime={{ format: 'HH:mm' }}
             format="DD MMM YYYY HH:mm"
             value={returnDatetime}
-            onChange={(v) => { setReturnDatetime(v ?? dayjs()); setPreview(null) }}
+            onChange={handleReturnTimeChange}
             style={{ width: 240 }}
           />
         </Form.Item>
@@ -311,7 +353,15 @@ export default function ProcessReturnPage() {
       <Divider />
 
       {/* Preview section */}
-      {preview && (
+      {preview && (() => {
+        // While the fee decision is unresolved (the modal is up, or a just-fired
+        // recalculation hasn't landed yet) the settlement totals below depend on a decision
+        // that hasn't actually been made for the current preview — render them as pending
+        // rather than showing figures that assume an answer, same as the Late Fee row already
+        // does for itself.
+        const settlementPending = previewMutation.isPending ||
+          (preview.calculatedLateFee > 0 && feeDecision.decision === null)
+        return (
         <Card
           style={{ marginBottom: 20, background: '#fafafa', borderColor: '#d9d9d9' }}
           title="Invoice Preview"
@@ -335,9 +385,38 @@ export default function ProcessReturnPage() {
           </Typography.Text>
           <Descriptions column={1} size="small" bordered style={{ marginTop: 4 }}>
             <Descriptions.Item label="Deposit Collected">{formatCurrency(receipt.totalDeposit)}</Descriptions.Item>
-            {preview.totalLateFee > 0 && (
+            {preview.calculatedLateFee > 0 && (
               <Descriptions.Item label="Late Fee">
-                <span style={{ color: '#ff4d4f' }}>– {formatCurrency(preview.totalLateFee)}</span>
+                {feeDecision.decision === null ? (
+                  // Neutral rendering: never claims an amount was applied or waived before
+                  // the user has actually decided.
+                  <span>{formatCurrency(preview.calculatedLateFee)}</span>
+                ) : feeDecision.decision === 'APPLY' ? (
+                  <Space>
+                    <span style={{ color: '#ff4d4f' }}>– {formatCurrency(preview.calculatedLateFee)}</span>
+                    <Button
+                      size="small"
+                      type="link"
+                      disabled={previewMutation.isPending}
+                      onClick={flipLateFeeDecision}
+                    >
+                      Waive late fee
+                    </Button>
+                  </Space>
+                ) : (
+                  <Space>
+                    <del>{formatCurrency(preview.calculatedLateFee)}</del>
+                    <Tag>Waived</Tag>
+                    <Button
+                      size="small"
+                      type="link"
+                      disabled={previewMutation.isPending}
+                      onClick={flipLateFeeDecision}
+                    >
+                      Apply late fee
+                    </Button>
+                  </Space>
+                )}
               </Descriptions.Item>
             )}
             {preview.totalDamageCost > 0 && (
@@ -345,27 +424,32 @@ export default function ProcessReturnPage() {
                 <span style={{ color: '#ff4d4f' }}>– {formatCurrency(preview.totalDamageCost)}</span>
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="Total Deductions">{formatCurrency(preview.totalDeductions)}</Descriptions.Item>
-            <Descriptions.Item label="Deposit to Return">{formatCurrency(preview.depositToReturn)}</Descriptions.Item>
+            <Descriptions.Item label="Total Deductions">
+              {settlementPending ? '—' : formatCurrency(preview.totalDeductions)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Deposit to Return">
+              {settlementPending ? '—' : formatCurrency(preview.depositToReturn)}
+            </Descriptions.Item>
           </Descriptions>
 
           <div style={{
             marginTop: 16,
             padding: '14px 20px',
-            background: preview.transactionType === 'REFUND' ? '#f6ffed' : '#fff2f0',
-            border: `2px solid ${preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f'}`,
+            background: settlementPending ? '#fafafa' : preview.transactionType === 'REFUND' ? '#f6ffed' : '#fff2f0',
+            border: `2px solid ${settlementPending ? '#d9d9d9' : preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f'}`,
             borderRadius: 8,
             textAlign: 'center',
           }}>
             <Typography.Title
               level={3}
-              style={{ margin: 0, color: preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f' }}
+              style={{ margin: 0, color: settlementPending ? '#999' : preview.transactionType === 'REFUND' ? '#52c41a' : '#ff4d4f' }}
             >
-              {preview.transactionType === 'REFUND' ? 'REFUND' : 'COLLECT'}: {formatCurrency(preview.finalAmount)}
+              {settlementPending ? 'Awaiting late fee decision' : `${preview.transactionType === 'REFUND' ? 'REFUND' : 'COLLECT'}: ${formatCurrency(preview.finalAmount)}`}
             </Typography.Title>
           </div>
         </Card>
-      )}
+        )
+      })()}
 
       {previewMutation.isError && (
         <Alert type="error" message="Failed to calculate preview. Please try again." style={{ marginBottom: 16 }} />
@@ -383,13 +467,31 @@ export default function ProcessReturnPage() {
         </Button>
         <Button
           type="primary"
-          disabled={!preview}
+          disabled={
+            !preview ||
+            previewMutation.isPending ||
+            (preview.calculatedLateFee > 0 && feeDecision.decision === null)
+          }
           loading={confirmMutation.isPending}
           onClick={() => confirmMutation.mutate(buildRequest())}
         >
           Confirm &amp; Complete Return
         </Button>
       </Space>
+
+      <Modal
+        title="Late fee"
+        open={promptFee !== null}
+        closable={false}
+        maskClosable={false}
+        keyboard={false}
+        footer={[
+          <Button key="no" onClick={() => answerLateFeePrompt('WAIVE')}>No</Button>,
+          <Button key="yes" type="primary" onClick={() => answerLateFeePrompt('APPLY')}>Yes</Button>,
+        ]}
+      >
+        <p>Do you want to apply the late fee? ({formatCurrency(promptFee ?? 0)})</p>
+      </Modal>
     </div>
   )
 }

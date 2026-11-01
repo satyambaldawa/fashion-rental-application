@@ -55,6 +55,28 @@ describe('InvoiceDetailPage discount row', () => {
   })
 })
 
+describe('InvoiceDetailPage late fee waived row (#184)', () => {
+  it('shows "Late fee waived" when waivedLateFee is positive', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () =>
+      ok(f.anInvoice({ totalLateFee: 0, waivedLateFee: 300 }))))
+
+    await renderInvoice()
+
+    expect(await screen.findByText('Late fee waived')).toBeInTheDocument()
+    expect(descriptionValue('Late fee waived')).toBe('₹300')
+  })
+
+  it('omits "Late fee waived" when waivedLateFee is zero', async () => {
+    server.use(http.get('*/api/invoices/inv-1', () =>
+      ok(f.anInvoice({ waivedLateFee: 0 }))))
+
+    await renderInvoice()
+
+    expect(await screen.findByText('Rent Charged')).toBeInTheDocument()
+    expect(screen.queryByText('Late fee waived')).not.toBeInTheDocument()
+  })
+})
+
 describe('InvoiceDetailPage WhatsApp share', () => {
   it('includes a link to the review page in the WhatsApp message', async () => {
     server.use(http.get('*/api/invoices/inv-1', () => ok(f.anInvoice())))

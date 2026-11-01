@@ -105,7 +105,7 @@ export const anInvoice: Partialize<Invoice> = (o = {}) => ({
   receiptNumber: 'R-2026-0001', customerId: 'cust-1', customerName: 'Meera', customerPhone: '9811122233',
   returnDatetime: '2026-04-19T10:00:00+05:30', totalRent: 300, couponCode: null, discountAmount: 0,
   totalDepositCollected: 1000,
-  totalLateFee: 0, totalDamageCost: 0, depositToReturn: 1000, finalAmount: 1000,
+  totalLateFee: 0, waivedLateFee: 0, totalDamageCost: 0, depositToReturn: 1000, finalAmount: 1000,
   transactionType: 'REFUND', paymentMethod: 'CASH', damageNotes: null, notes: null,
   createdAt: '2026-04-19T10:00:00+05:30', lineItems: [{
     id: 'ili-1', itemId: 'item-1', itemName: 'Royal Sherwani', thumbnailUrl: null, itemSize: 'M', itemCategory: 'COSTUME',
@@ -115,7 +115,7 @@ export const anInvoice: Partialize<Invoice> = (o = {}) => ({
 })
 
 export const aReturnPreview: Partialize<ReturnPreview> = (o = {}) => ({
-  totalLateFee: 0, totalDamageCost: 0, totalDeductions: 0, depositToReturn: 1000,
+  calculatedLateFee: 0, totalLateFee: 0, waivedLateFee: 0, totalDamageCost: 0, totalDeductions: 0, depositToReturn: 1000,
   finalAmount: 1000, transactionType: 'REFUND',
   lineItems: [{ receiptLineItemId: 'rli-1', itemName: 'Royal Sherwani', quantity: 1, lateFee: 0, damageCost: 0 }], ...o,
 })
