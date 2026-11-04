@@ -47,6 +47,7 @@ class ReceiptCancellationControllerTest {
     @MockitoBean private ReceiptCancellationService receiptCancellationService;
     @MockitoBean private ReceiptGivenService receiptGivenService;
     @MockitoBean private JwtConfig jwtConfig;
+    @MockitoBean private com.fashionrental.config.AppUserRepository appUserRepository;
 
     private static final OffsetDateTime START = OffsetDateTime.parse("2026-04-21T10:00:00+05:30");
     private static final OffsetDateTime END = OffsetDateTime.parse("2026-04-24T10:00:00+05:30");

@@ -34,6 +34,9 @@ class ReportingControllerTest {
     @MockitoBean
     private JwtConfig jwtConfig;
 
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+
     // ─── GET /api/reports/daily-revenue ──────────────────────────────────────
 
     @Test

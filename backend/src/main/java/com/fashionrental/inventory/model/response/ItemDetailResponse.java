@@ -25,5 +25,7 @@ public record ItemDetailResponse(
         List<PackageComponentResponse> components,
         List<ItemPhotoResponse> photos,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        // Echoed back on update so a stale save can be rejected
+        Long version
 ) {}

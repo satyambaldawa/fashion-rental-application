@@ -12,6 +12,8 @@ export interface Customer {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  // Echoed back on update so the server can reject a save made against a stale copy
+  version: number
 }
 
 export interface CustomerSummary {
@@ -38,6 +40,7 @@ export interface UpdateCustomerRequest {
   address?: string
   customerType: CustomerType
   organizationName?: string
+  version: number
 }
 
 export interface CustomerReceiptItem {

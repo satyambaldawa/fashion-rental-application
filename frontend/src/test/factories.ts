@@ -23,13 +23,13 @@ export const anItemSummary: Partialize<ItemSummary> = (o = {}) => ({
 export const anItemDetail: Partialize<ItemDetail> = (o = {}) => ({
   ...anItemSummary(), quantity: 3, isActive: true, notes: null,
   purchaseRate: 1500, vendorName: 'Vendor A', components: null, photos: [],
-  createdAt: '2026-04-10T10:00:00+05:30', updatedAt: '2026-04-10T10:00:00+05:30', ...o,
+  createdAt: '2026-04-10T10:00:00+05:30', updatedAt: '2026-04-10T10:00:00+05:30', version: 0, ...o,
 })
 
 export const aCustomer: Partialize<Customer> = (o = {}) => ({
   id: 'cust-1', name: 'Meera', phone: '9811122233', address: 'Pune',
   customerType: 'MISC', organizationName: null, isActive: true,
-  createdAt: '2026-04-10T10:00:00+05:30', updatedAt: '2026-04-10T10:00:00+05:30', ...o,
+  createdAt: '2026-04-10T10:00:00+05:30', updatedAt: '2026-04-10T10:00:00+05:30', version: 0, ...o,
 })
 
 export const aCustomerSummary: Partialize<CustomerSummary> = (o = {}) => ({
@@ -162,7 +162,7 @@ export const aCoupon: Partialize<Coupon> = (o = {}) => ({
 
 export const aLateFeeRule: Partialize<LateFeeRule> = (o = {}) => ({
   id: 'rule-1', durationFromHours: 0, durationToHours: 24, penaltyMultiplier: 1.5,
-  sortOrder: 0, isActive: true, label: '0–24h', ...o,
+  sortOrder: 0, isActive: true, label: '0–24h', version: 0, ...o,
 })
 
 export const aGalleryImage: Partialize<GalleryImage> = (o = {}) => ({

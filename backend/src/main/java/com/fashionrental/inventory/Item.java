@@ -73,6 +73,10 @@ public class Item {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @OneToMany(mappedBy = "item", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     @BatchSize(size = 20)
@@ -122,6 +126,7 @@ public class Item {
     public void setVendorName(String vendorName) { this.vendorName = vendorName; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public Long getVersion() { return version; }
     public List<ItemPhoto> getPhotos() { return photos; }
     public List<PackageComponent> getPackageComponents() { return packageComponents; }
 

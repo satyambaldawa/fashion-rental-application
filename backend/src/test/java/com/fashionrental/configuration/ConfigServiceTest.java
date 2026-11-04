@@ -1,5 +1,6 @@
 package com.fashionrental.configuration;
 
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.configuration.model.LateFeeRuleItem;
 import com.fashionrental.configuration.model.LateFeeRuleResponse;
@@ -41,6 +42,28 @@ class ConfigServiceTest {
         rule.setCreatedAt(OffsetDateTime.now());
         rule.setUpdatedAt(OffsetDateTime.now());
         return rule;
+    }
+
+    private LateFeeRule persistedRule(UUID id, Long version, boolean active) {
+        LateFeeRule rule = ruleWithHours(0, 3, new BigDecimal("0.50"), 1);
+        rule.setIsActive(active);
+        setField(rule, "id", id);
+        setVersion(rule, version);
+        return rule;
+    }
+
+    private void setVersion(LateFeeRule rule, Long version) {
+        setField(rule, "version", version);
+    }
+
+    private void setField(LateFeeRule rule, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = LateFeeRule.class.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(rule, value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private List<LateFeeRule> defaultRules() {
@@ -90,27 +113,95 @@ class ConfigServiceTest {
     @Test
     void should_save_updated_multiplier_for_existing_rule() {
         UUID existingId = UUID.randomUUID();
-        LateFeeRule existing = ruleWithHours(0, 3, new BigDecimal("0.50"), 1);
+        LateFeeRule existing = persistedRule(existingId, 0L, true);
 
         when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(lateFeeRuleRepository.findById(existingId)).thenReturn(Optional.of(existing));
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(existing));
 
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
-            new LateFeeRuleItem(existingId, 0, 3, new BigDecimal("0.75"), 1, true)
+            new LateFeeRuleItem(existingId, 0, 3, new BigDecimal("0.75"), 1, true, 0L)
         ));
 
         List<LateFeeRuleResponse> result = configService.updateLateFeeRules(request);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).penaltyMultiplier()).isEqualByComparingTo("0.75");
-        verify(lateFeeRuleRepository).deactivateAll();
+        assertThat(existing.getIsActive()).isTrue();
         verify(lateFeeRuleRepository).save(existing);
+    }
+
+    @Test
+    void should_deactivate_a_current_rule_that_is_left_out_of_the_request() {
+        UUID keptId = UUID.randomUUID();
+        UUID droppedId = UUID.randomUUID();
+        LateFeeRule kept = persistedRule(keptId, 0L, true);
+        LateFeeRule dropped = persistedRule(droppedId, 0L, true);
+        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(kept, dropped));
+
+        configService.updateLateFeeRules(new UpdateLateFeeRulesRequest(List.of(
+            new LateFeeRuleItem(keptId, 0, 3, new BigDecimal("0.50"), 1, true, 0L)
+        )));
+
+        assertThat(kept.getIsActive()).isTrue();
+        assertThat(dropped.getIsActive()).isFalse();
+    }
+
+    @Test
+    void should_reject_a_rule_resent_with_an_old_version_after_someone_else_deactivated_it() {
+        UUID ruleId = UUID.randomUUID();
+        LateFeeRule deactivatedByOthers = persistedRule(ruleId, 5L, false);
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(deactivatedByOthers));
+
+        UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
+            new LateFeeRuleItem(ruleId, 0, 3, new BigDecimal("0.50"), 1, true, 4L)
+        ));
+
+        assertThatThrownBy(() -> configService.updateLateFeeRules(request))
+            .isInstanceOf(StaleUpdateException.class);
+        assertThat(deactivatedByOthers.getIsActive()).isFalse();
+    }
+
+    @Test
+    void should_reject_a_request_id_that_is_not_in_the_current_rule_set() {
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of());
+
+        UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
+            new LateFeeRuleItem(UUID.randomUUID(), 0, 3, new BigDecimal("0.50"), 1, true, 0L)
+        ));
+
+        assertThatThrownBy(() -> configService.updateLateFeeRules(request))
+            .isInstanceOf(StaleUpdateException.class);
+        verify(lateFeeRuleRepository, never()).save(any());
+    }
+
+    @Test
+    void should_accept_a_second_save_that_uses_the_versions_returned_by_the_first() {
+        UUID ruleId = UUID.randomUUID();
+        LateFeeRule rule = persistedRule(ruleId, 0L, true);
+        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(rule));
+        doAnswer(inv -> {
+            setVersion(rule, rule.getVersion() + 1);
+            return null;
+        }).when(lateFeeRuleRepository).flush();
+
+        List<LateFeeRuleResponse> first = configService.updateLateFeeRules(new UpdateLateFeeRulesRequest(List.of(
+            new LateFeeRuleItem(ruleId, 0, 3, new BigDecimal("0.60"), 1, true, 0L)
+        )));
+        List<LateFeeRuleResponse> second = configService.updateLateFeeRules(new UpdateLateFeeRulesRequest(List.of(
+            new LateFeeRuleItem(ruleId, 0, 3, new BigDecimal("0.70"), 1, true, first.get(0).version())
+        )));
+
+        assertThat(first.get(0).version()).isEqualTo(1L);
+        assertThat(second.get(0).version()).isEqualTo(2L);
+        assertThat(second.get(0).penaltyMultiplier()).isEqualByComparingTo("0.70");
     }
 
     @Test
     void should_throw_when_all_rules_are_removed() {
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
-            new LateFeeRuleItem(null, 0, 3, new BigDecimal("0.50"), 1, false)
+            new LateFeeRuleItem(null, 0, 3, new BigDecimal("0.50"), 1, false, null)
         ));
 
         assertThatThrownBy(() -> configService.updateLateFeeRules(request))
@@ -121,8 +212,8 @@ class ConfigServiceTest {
     @Test
     void should_throw_when_ranges_overlap() {
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
-            new LateFeeRuleItem(null, 0, 6,  new BigDecimal("0.50"), 1, true),
-            new LateFeeRuleItem(null, 3, 12, new BigDecimal("0.75"), 2, true)
+            new LateFeeRuleItem(null, 0, 6,  new BigDecimal("0.50"), 1, true, null),
+            new LateFeeRuleItem(null, 3, 12, new BigDecimal("0.75"), 2, true, null)
         ));
 
         assertThatThrownBy(() -> configService.updateLateFeeRules(request))
@@ -133,11 +224,12 @@ class ConfigServiceTest {
     @Test
     void should_allow_contiguous_non_overlapping_ranges() {
         when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of());
 
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
-            new LateFeeRuleItem(null, 0,  6,    new BigDecimal("0.50"), 1, true),
-            new LateFeeRuleItem(null, 6,  24,   new BigDecimal("1.00"), 2, true),
-            new LateFeeRuleItem(null, 24, null, new BigDecimal("2.00"), 3, true)
+            new LateFeeRuleItem(null, 0,  6,    new BigDecimal("0.50"), 1, true, null),
+            new LateFeeRuleItem(null, 6,  24,   new BigDecimal("1.00"), 2, true, null),
+            new LateFeeRuleItem(null, 24, null, new BigDecimal("2.00"), 3, true, null)
         ));
 
         List<LateFeeRuleResponse> result = configService.updateLateFeeRules(request);

@@ -75,6 +75,9 @@ public class Invoice {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "idempotency_key", unique = true, updatable = false)
+    private UUID idempotencyKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -117,6 +120,8 @@ public class Invoice {
     public void setDamageNotes(String damageNotes) { this.damageNotes = damageNotes; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    public UUID getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(UUID idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public List<InvoiceLineItem> getLineItems() { return lineItems; }
 }

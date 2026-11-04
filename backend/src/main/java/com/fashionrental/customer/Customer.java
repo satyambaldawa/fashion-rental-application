@@ -41,6 +41,10 @@ public class Customer {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
@@ -67,6 +71,7 @@ public class Customer {
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public Long getVersion() { return version; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
 
 }

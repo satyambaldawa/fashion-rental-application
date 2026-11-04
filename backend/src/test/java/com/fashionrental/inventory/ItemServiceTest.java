@@ -1,6 +1,7 @@
 package com.fashionrental.inventory;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
 import com.fashionrental.inventory.model.request.UpdateItemRequest;
@@ -100,7 +101,18 @@ class ItemServiceTest {
             createdAt.set(item, OffsetDateTime.now());
             updatedAt.set(item, OffsetDateTime.now());
         } catch (Exception ignored) {}
+        setItemVersion(item, 0L);
         return item;
+    }
+
+    private void setItemVersion(Item item, Long version) {
+        try {
+            java.lang.reflect.Field field = Item.class.getDeclaredField("version");
+            field.setAccessible(true);
+            field.set(item, version);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -641,7 +653,7 @@ class ItemServiceTest {
 
         UpdateItemRequest request = new UpdateItemRequest(
                 "Red Sherwani", Item.Category.DRESS, "XL", "Updated description",
-                600, 2500, 5, "New notes", 400, "New Vendor", null
+                600, 2500, 5, "New notes", 400, "New Vendor", null, 0L
         );
 
         ItemDetailResponse result = itemService.updateItem(itemId, request);
@@ -664,7 +676,7 @@ class ItemServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
 
         assertThatThrownBy(() -> itemService.updateItem(itemId, request))
@@ -678,7 +690,7 @@ class ItemServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
 
         assertThatThrownBy(() -> itemService.updateItem(itemId, request))
@@ -694,7 +706,7 @@ class ItemServiceTest {
         when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(2);
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 2, null, null, null, null
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 2, null, null, null, null, 0L
         );
 
         // Trying to reduce to 2, but 3 are booked — should fail
@@ -713,12 +725,68 @@ class ItemServiceTest {
         when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null, 0L
         );
 
         // Reducing to 3 when 2 are booked — should succeed
         ItemDetailResponse result = itemService.updateItem(itemId, request);
         assertThat(result.quantity()).isEqualTo(3);
+    }
+
+    @Test
+    void should_throw_stale_update_when_request_version_differs_from_current_version() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        setItemVersion(item, 3L);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+
+        UpdateItemRequest staleRequest = new UpdateItemRequest(
+                "Renamed", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 2L
+        );
+
+        assertThatThrownBy(() -> itemService.updateItem(itemId, staleRequest))
+                .isInstanceOf(StaleUpdateException.class);
+        assertThat(item.getName()).isEqualTo("Sherwani");
+    }
+
+    @Test
+    void should_flush_before_mapping_so_the_response_carries_the_bumped_version() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.doAnswer(inv -> {
+            setItemVersion(item, 1L);
+            return null;
+        }).when(itemRepository).flush();
+
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Renamed", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 0L
+        );
+
+        ItemDetailResponse result = itemService.updateItem(itemId, request);
+
+        assertThat(result.version()).isEqualTo(1L);
+    }
+
+    @Test
+    void should_accept_a_second_save_that_uses_the_version_returned_by_the_first() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.doAnswer(inv -> {
+            setItemVersion(item, item.getVersion() + 1);
+            return null;
+        }).when(itemRepository).flush();
+
+        ItemDetailResponse first = itemService.updateItem(itemId, new UpdateItemRequest(
+                "First", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 0L));
+        ItemDetailResponse second = itemService.updateItem(itemId, new UpdateItemRequest(
+                "Second", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, first.version()));
+
+        assertThat(second.name()).isEqualTo("Second");
+        assertThat(second.version()).isEqualTo(2L);
     }
 
     @Test

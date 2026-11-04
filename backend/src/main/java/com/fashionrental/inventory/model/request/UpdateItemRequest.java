@@ -19,5 +19,7 @@ public record UpdateItemRequest(
         @Min(0) Integer purchaseRate,
         String vendorName,
         // For PACKAGE items: replaces existing components
-        List<PackageComponentRequest> components
+        List<PackageComponentRequest> components,
+        // The version the client loaded; a mismatch means someone else saved first
+        @NotNull Long version
 ) {}

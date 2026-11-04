@@ -14,5 +14,7 @@ public record CustomerResponse(
         String organizationName,
         Boolean isActive,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        // Echoed back on update so a stale save can be rejected
+        Long version
 ) {}

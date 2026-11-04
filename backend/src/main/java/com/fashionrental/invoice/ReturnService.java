@@ -75,14 +75,29 @@ public class ReturnService {
 
     @Transactional
     public InvoiceResponse processReturn(UUID receiptId, ProcessReturnRequest request) {
+        return processReturn(receiptId, request, null);
+    }
+
+    @Transactional
+    public InvoiceResponse processReturn(UUID receiptId, ProcessReturnRequest request, UUID idempotencyKey) {
         // Locked so a concurrent cancel can't commit CANCELLED while this transaction is
-        // mid-flight building an invoice for the same receipt (plan §4, "Concurrency").
-        Receipt receipt = loadReturnableReceipt(receiptRepository.findByIdForUpdate(receiptId), receiptId);
+        // mid-flight building an invoice for the same receipt (plan §4, "Concurrency"). The same
+        // lock serialises two requests carrying one idempotency key, so no extra lock is needed.
+        Receipt receipt = receiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+
+        Optional<Invoice> alreadyReturned = findReplayedInvoice(idempotencyKey, receiptId);
+        if (alreadyReturned.isPresent()) {
+            return toInvoiceResponse(alreadyReturned.get());
+        }
+
+        requireReturnable(receipt);
         List<LateFeeRule> rules = lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc();
         List<ComputedLine> lines = computeLines(receipt, request, rules);
         ReturnSettlement settlement = settle(receipt, lines, request.applyLateFee());
 
         Invoice invoice = new Invoice();
+        invoice.setIdempotencyKey(idempotencyKey);
         invoice.setInvoiceNumber(invoiceNumberService.generateInvoiceNumber());
         invoice.setShareToken(shareTokenService.generate());
         invoice.setReceipt(receipt);
@@ -135,8 +150,26 @@ public class ReturnService {
 
     // ── helpers ─────────────────────────────────────────────────────────────────
 
+    private Optional<Invoice> findReplayedInvoice(UUID idempotencyKey, UUID receiptId) {
+        if (idempotencyKey == null) {
+            return Optional.empty();
+        }
+        Optional<Invoice> existing = invoiceRepository.findByIdempotencyKey(idempotencyKey);
+        existing.ifPresent(invoice -> {
+            if (!invoice.getReceipt().getId().equals(receiptId)) {
+                throw new ConflictException("This idempotency key was already used for a different return.");
+            }
+        });
+        return existing;
+    }
+
     private Receipt loadReturnableReceipt(Optional<Receipt> found, UUID receiptId) {
         Receipt receipt = found.orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+        requireReturnable(receipt);
+        return receipt;
+    }
+
+    private void requireReturnable(Receipt receipt) {
         if (receipt.getStatus() == Receipt.Status.RETURNED) {
             throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has already been returned");
         }
@@ -146,7 +179,6 @@ public class ReturnService {
         if (receipt.getStatus() == Receipt.Status.GENERATED) {
             throw new ConflictException("Receipt " + receipt.getReceiptNumber() + " has not been given to the customer yet");
         }
-        return receipt;
     }
 
     private Map<UUID, ReceiptLineItem> buildLineItemMap(Receipt receipt) {

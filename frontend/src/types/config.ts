@@ -6,6 +6,7 @@ export interface LateFeeRule {
   sortOrder: number
   isActive: boolean
   label: string
+  version: number
 }
 
 export interface LateFeeRuleItem {
@@ -15,6 +16,8 @@ export interface LateFeeRuleItem {
   penaltyMultiplier: number
   sortOrder: number
   isActive: boolean
+  // Null only for a brand-new rule
+  version: number | null
 }
 
 export interface UpdateLateFeeRulesRequest {

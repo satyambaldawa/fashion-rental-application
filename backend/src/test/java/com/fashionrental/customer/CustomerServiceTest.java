@@ -2,6 +2,7 @@ package com.fashionrental.customer;
 
 import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
@@ -49,7 +50,18 @@ class CustomerServiceTest {
         customer.setCustomerType(type);
         customer.setIsActive(true);
         setTimestamps(customer);
+        setVersion(customer, 0L);
         return customer;
+    }
+
+    private void setVersion(Customer customer, Long version) {
+        try {
+            java.lang.reflect.Field field = Customer.class.getDeclaredField("version");
+            field.setAccessible(true);
+            field.set(customer, version);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void setTimestamps(Customer customer) {
@@ -217,7 +229,7 @@ class CustomerServiceTest {
         Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
         setId(existing, id);
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
@@ -234,7 +246,7 @@ class CustomerServiceTest {
         Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
         setId(existing, id);
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
@@ -253,7 +265,7 @@ class CustomerServiceTest {
         Customer other = buildActiveCustomer("Someone Else", "8765432109", Customer.CustomerType.MISC);
         setId(other, UUID.randomUUID());
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("8765432109")).thenReturn(Optional.of(other));
@@ -268,7 +280,7 @@ class CustomerServiceTest {
         Customer existing = buildActiveCustomer("Priya Sharma", "8765432109", Customer.CustomerType.STUDENT);
         setId(existing, id);
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Priya Sharma", "8765432109", null, Customer.CustomerType.MISC, null
+                "Priya Sharma", "8765432109", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("8765432109")).thenReturn(Optional.of(existing));
@@ -286,7 +298,7 @@ class CustomerServiceTest {
         Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
         setId(existing, id);
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
@@ -300,7 +312,7 @@ class CustomerServiceTest {
     void should_throw_not_found_when_updating_missing_customer() {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.empty());
 
@@ -314,7 +326,7 @@ class CustomerServiceTest {
         Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
         setId(existing, id);
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, "Some Org"
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, "Some Org", 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
@@ -332,7 +344,7 @@ class CustomerServiceTest {
         setId(existing, id);
         OffsetDateTime priorUpdatedAt = existing.getUpdatedAt();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", existing.getAddress(), Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", existing.getAddress(), Customer.CustomerType.MISC, null, 0L
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
@@ -341,6 +353,45 @@ class CustomerServiceTest {
         CustomerResponse result = customerService.updateCustomer(id, request);
 
         assertThat(result.updatedAt()).isAfter(priorUpdatedAt);
+    }
+
+    @Test
+    void should_throw_stale_update_when_request_version_differs_from_current_version() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        setVersion(existing, 4L);
+        UpdateCustomerRequest staleRequest = new UpdateCustomerRequest(
+                "Renamed", "9876543210", null, Customer.CustomerType.MISC, null, 3L
+        );
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> customerService.updateCustomer(id, staleRequest))
+                .isInstanceOf(StaleUpdateException.class);
+        assertThat(existing.getName()).isEqualTo("Ravi Kumar");
+    }
+
+    @Test
+    void should_accept_a_second_save_that_uses_the_version_returned_by_the_first() {
+        UUID id = UUID.randomUUID();
+        Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
+        setId(existing, id);
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.doAnswer(inv -> {
+            setVersion(existing, existing.getVersion() + 1);
+            return null;
+        }).when(customerRepository).flush();
+
+        CustomerResponse first = customerService.updateCustomer(id, new UpdateCustomerRequest(
+                "First", "9876543210", null, Customer.CustomerType.MISC, null, 0L));
+        CustomerResponse second = customerService.updateCustomer(id, new UpdateCustomerRequest(
+                "Second", "9876543210", null, Customer.CustomerType.MISC, null, first.version()));
+
+        assertThat(first.version()).isEqualTo(1L);
+        assertThat(second.version()).isEqualTo(2L);
+        assertThat(second.name()).isEqualTo("Second");
     }
 
     @Test

@@ -90,6 +90,8 @@ com.fashionrental/
     exception/   ← ResourceNotFoundException, ConflictException, ValidationException
     response/    ← ApiResponse<T> record (success, data, error)
     util/
+    numbering/   ← DailyDocumentCounter: atomic per-day counter for receipt/invoice numbers (ADR-013)
+    idempotency/ ← IdempotencyLock (advisory lock), IdempotencyKeyHeader (ADR-013)
   config/        ← Auth infrastructure: AppUser entity, SecurityConfig, JwtAuthFilter,
                     JwtConfig, UserDetailsConfig, AuthController, OwnerSeeder
   configuration/ ← Late fee rules domain (LateFeeRule entity + CRUD)

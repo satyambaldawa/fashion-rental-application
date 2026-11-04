@@ -1,5 +1,6 @@
 package com.fashionrental.configuration;
 
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.configuration.model.LateFeeRuleItem;
 import com.fashionrental.configuration.model.LateFeeRuleResponse;
@@ -10,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -32,12 +37,17 @@ public class ConfigService {
     public List<LateFeeRuleResponse> updateLateFeeRules(UpdateLateFeeRulesRequest request) {
         validateRules(request.rules());
 
-        lateFeeRuleRepository.deactivateAll();
+        List<LateFeeRule> current = lateFeeRuleRepository.findAllForUpdate();
+        Map<UUID, LateFeeRule> currentById = current.stream()
+                .collect(Collectors.toMap(LateFeeRule::getId, Function.identity()));
+        requireNoStaleRules(request.rules(), currentById);
+
+        // Entity-level deactivation (not a bulk UPDATE) so @Version and the persistence context
+        // stay consistent with the rewrite below.
+        current.forEach(rule -> rule.setIsActive(false));
 
         List<LateFeeRule> saved = request.rules().stream().map(item -> {
-            LateFeeRule rule = item.id() != null
-                    ? lateFeeRuleRepository.findById(item.id()).orElse(new LateFeeRule())
-                    : new LateFeeRule();
+            LateFeeRule rule = item.id() != null ? currentById.get(item.id()) : new LateFeeRule();
 
             rule.setDurationFromHours(item.durationFromHours());
             rule.setDurationToHours(item.durationToHours());
@@ -50,10 +60,25 @@ public class ConfigService {
             return lateFeeRuleRepository.save(rule);
         }).toList();
 
+        // Hibernate bumps @Version only at flush; flush first so the response carries the new versions.
+        lateFeeRuleRepository.flush();
+
         return saved.stream()
                 .sorted(Comparator.comparingInt(LateFeeRule::getSortOrder))
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private void requireNoStaleRules(List<LateFeeRuleItem> items, Map<UUID, LateFeeRule> currentById) {
+        for (LateFeeRuleItem item : items) {
+            if (item.id() == null) {
+                continue;
+            }
+            LateFeeRule existing = currentById.get(item.id());
+            if (existing == null || !item.version().equals(existing.getVersion())) {
+                throw new StaleUpdateException();
+            }
+        }
     }
 
     private void validateRules(List<LateFeeRuleItem> rules) {
@@ -84,7 +109,8 @@ public class ConfigService {
                 rule.getPenaltyMultiplier(),
                 rule.getSortOrder(),
                 rule.getIsActive(),
-                computeLabel(rule.getDurationFromHours(), rule.getDurationToHours())
+                computeLabel(rule.getDurationFromHours(), rule.getDurationToHours()),
+                rule.getVersion()
         );
     }
 

@@ -13,6 +13,7 @@ import {
 } from 'antd'
 import { customersApi } from '../../api/customers'
 import type { UpdateCustomerRequest, CustomerType } from '../../types/customer'
+import { isStaleVersionError } from '../../utils/staleVersion'
 
 interface EditCustomerForm {
   name: string
@@ -32,6 +33,8 @@ export default function EditCustomerPage() {
     queryFn: () => customersApi.get(id!),
   })
 
+  const [reloadError, setReloadError] = useState<string | null>(null)
+
   const updateMutation = useMutation({
     mutationFn: (data: UpdateCustomerRequest) => customersApi.update(id!, data),
     onSuccess: () => {
@@ -39,6 +42,20 @@ export default function EditCustomerPage() {
       navigate('/customers')
     },
   })
+
+  // Fetches outside the query cache so a failed reload cannot flip the page into its load-error
+  // state and lose the Reload prompt. On success the cache is updated, the new version changes
+  // the form's key below, and the form remounts with fresh values and the fresh version.
+  async function handleReload() {
+    setReloadError(null)
+    try {
+      const fresh = await customersApi.get(id!)
+      queryClient.setQueryData(['customers', id], fresh)
+      updateMutation.reset()
+    } catch {
+      setReloadError('Could not reload the customer. Check your connection and try again.')
+    }
+  }
 
   if (isLoading) {
     return <Spin />
@@ -53,19 +70,44 @@ export default function EditCustomerPage() {
     )
   }
 
-  return <EditCustomerForm key={id} customer={customer} onSubmit={updateMutation.mutate} isPending={updateMutation.isPending} isError={updateMutation.isError} error={updateMutation.error} onCancel={() => navigate('/customers')} />
+  // The key includes the version because the form takes its values from `initialValues`, which
+  // antd applies only on mount: a reload that brings in a new version must remount the form.
+  return (
+    <EditCustomerForm
+      key={`${id}:${customer.version}`}
+      customer={customer}
+      onSubmit={updateMutation.mutate}
+      isPending={updateMutation.isPending}
+      isError={updateMutation.isError}
+      error={updateMutation.error}
+      reloadError={reloadError}
+      onReload={handleReload}
+      onCancel={() => navigate('/customers')}
+    />
+  )
 }
 
 interface EditCustomerFormProps {
-  customer: { name: string; phone: string; address: string | null; customerType: CustomerType; organizationName: string | null }
+  customer: {
+    name: string
+    phone: string
+    address: string | null
+    customerType: CustomerType
+    organizationName: string | null
+    version: number
+  }
   onSubmit: (data: UpdateCustomerRequest) => void
   isPending: boolean
   isError: boolean
   error: unknown
+  reloadError: string | null
+  onReload: () => void
   onCancel: () => void
 }
 
-function EditCustomerForm({ customer, onSubmit, isPending, isError, error, onCancel }: EditCustomerFormProps) {
+function EditCustomerForm({
+  customer, onSubmit, isPending, isError, error, reloadError, onReload, onCancel,
+}: EditCustomerFormProps) {
   const [selectedType, setSelectedType] = useState<CustomerType>(customer.customerType)
   const [form] = Form.useForm<EditCustomerForm>()
 
@@ -76,9 +118,11 @@ function EditCustomerForm({ customer, onSubmit, isPending, isError, error, onCan
       address: values.address || undefined,
       customerType: values.customerType,
       organizationName: values.organizationName || undefined,
+      version: customer.version,
     })
   }
 
+  const isStale = isStaleVersionError(error)
   const apiError = error as { response?: { data?: { error?: string } } } | null
   const errorMessage = apiError?.response?.data?.error ?? 'Update failed. Please try again.'
 
@@ -156,7 +200,18 @@ function EditCustomerForm({ customer, onSubmit, isPending, isError, error, onCan
           <Input.TextArea rows={3} placeholder="Optional address" />
         </Form.Item>
 
-        {isError && (
+        {isError && isStale && (
+          <Alert
+            type="error"
+            showIcon
+            message={errorMessage}
+            description={reloadError ?? 'Reloading replaces what you typed with the latest saved details.'}
+            action={<Button size="small" onClick={onReload}>Reload</Button>}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
+        {isError && !isStale && (
           <Alert type="error" message={errorMessage} style={{ marginBottom: 16 }} />
         )}
 

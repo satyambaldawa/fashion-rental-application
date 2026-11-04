@@ -1,5 +1,6 @@
 package com.fashionrental.config;
 
+import com.fashionrental.common.idempotency.IdempotencyKeyHeader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +26,7 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", IdempotencyKeyHeader.NAME));
         config.setAllowCredentials(true);
         config.setMaxAge(PREFLIGHT_CACHE_SECONDS);
 

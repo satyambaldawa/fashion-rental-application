@@ -60,17 +60,12 @@ class CouponUsageLimitConcurrencyIT extends AbstractIntegrationTest {
         Customer customerA = newCustomer("Rekha", "9811100011");
         Customer customerB = newCustomer("Suresh", "9811100022");
 
-        Item item = new Item();
-        item.setName("Party Gown");
-        item.setCategory(Item.Category.COSTUME);
-        item.setItemType(Item.ItemType.INDIVIDUAL);
-        item.setRate(200);
-        item.setDeposit(500);
-        // >= 2: both concurrent carts must clear the availability guard, so the only
-        // thing that can reject either of them is the coupon claim, not stock.
-        item.setQuantity(4);
-        item.setIsActive(true);
-        item = itemRepository.save(item);
+        // One item per thread: checkout now row-locks the items it reserves, so two carts on
+        // the same item would be serialised before they reach the coupon latch below and this
+        // test would stop exercising the coupon usage-limit race. Enough stock on each that
+        // the only thing that can reject either cart is the coupon claim, not availability.
+        Item itemA = newItem("Party Gown");
+        Item itemB = newItem("Party Blazer");
 
         Coupon coupon = new Coupon();
         coupon.setCode("LASTSLOT");
@@ -104,10 +99,9 @@ class CouponUsageLimitConcurrencyIT extends AbstractIntegrationTest {
         }).when(couponDiscountResolver).resolve(any(), any());
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        Item finalItem = item;
 
-        Future<Outcome> futureA = pool.submit(() -> attemptCheckout(customerA, finalItem, start, end));
-        Future<Outcome> futureB = pool.submit(() -> attemptCheckout(customerB, finalItem, start, end));
+        Future<Outcome> futureA = pool.submit(() -> attemptCheckout(customerA, itemA, start, end));
+        Future<Outcome> futureB = pool.submit(() -> attemptCheckout(customerB, itemB, start, end));
 
         Outcome outcomeA = futureA.get(15, TimeUnit.SECONDS);
         Outcome outcomeB = futureB.get(15, TimeUnit.SECONDS);
@@ -147,6 +141,18 @@ class CouponUsageLimitConcurrencyIT extends AbstractIntegrationTest {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private Item newItem(String name) {
+        Item item = new Item();
+        item.setName(name);
+        item.setCategory(Item.Category.COSTUME);
+        item.setItemType(Item.ItemType.INDIVIDUAL);
+        item.setRate(200);
+        item.setDeposit(500);
+        item.setQuantity(4);
+        item.setIsActive(true);
+        return itemRepository.save(item);
     }
 
     private Customer newCustomer(String name, String phone) {

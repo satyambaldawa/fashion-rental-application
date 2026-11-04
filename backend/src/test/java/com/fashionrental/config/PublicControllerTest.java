@@ -46,6 +46,9 @@ class PublicControllerTest {
     @MockitoBean
     private JwtConfig jwtConfig;
 
+    @MockitoBean
+    private AppUserRepository appUserRepository;
+
     private ReceiptResponse receiptResponse(UUID id, String shareToken) {
         return new ReceiptResponse(
                 id, "R-0001", shareToken, UUID.randomUUID(), "Jane Doe", "9876543210",

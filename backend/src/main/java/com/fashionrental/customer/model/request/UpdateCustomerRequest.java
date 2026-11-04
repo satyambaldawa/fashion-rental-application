@@ -16,5 +16,8 @@ public record UpdateCustomerRequest(
 
         @NotNull Customer.CustomerType customerType,
 
-        String organizationName
+        String organizationName,
+
+        // The version the client loaded; a mismatch means someone else saved first
+        @NotNull Long version
 ) {}

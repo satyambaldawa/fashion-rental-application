@@ -3,6 +3,7 @@ package com.fashionrental.receipt;
 import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
+import com.fashionrental.common.idempotency.IdempotencyLock;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.configuration.Coupon;
@@ -46,6 +47,7 @@ public class CheckoutService {
     private final ReceiptMapper receiptMapper;
     private final CouponDiscountResolver couponDiscountResolver;
     private final CouponRepository couponRepository;
+    private final IdempotencyLock idempotencyLock;
 
     public CheckoutService(
             ItemRepository itemRepository,
@@ -58,7 +60,8 @@ public class CheckoutService {
             DateTimeUtil dateTimeUtil,
             ReceiptMapper receiptMapper,
             CouponDiscountResolver couponDiscountResolver,
-            CouponRepository couponRepository
+            CouponRepository couponRepository,
+            IdempotencyLock idempotencyLock
     ) {
         this.itemRepository = itemRepository;
         this.customerRepository = customerRepository;
@@ -71,6 +74,7 @@ public class CheckoutService {
         this.receiptMapper = receiptMapper;
         this.couponDiscountResolver = couponDiscountResolver;
         this.couponRepository = couponRepository;
+        this.idempotencyLock = idempotencyLock;
     }
 
     @Transactional(readOnly = true)
@@ -182,6 +186,10 @@ public class CheckoutService {
         OffsetDateTime end = request.endDatetime();
         int rentalDays = dateTimeUtil.calculateRentalDays(start, end);
 
+        // Lock before anything else loads these items, so the availability re-check below runs
+        // against post-lock state. See ADR-013 for the global lock order.
+        availabilityService.lockForBooking(requestedItemIds(request));
+
         Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + request.customerId()));
 
@@ -260,10 +268,17 @@ public class CheckoutService {
         return receiptMapper.toReceiptResponse(saved);
     }
 
+    private List<UUID> requestedItemIds(CheckoutRequest request) {
+        return request.items().stream().map(line -> line.itemId()).distinct().toList();
+    }
+
+    // The advisory lock makes a duplicate request that arrives while the first is still in
+    // flight wait for it to commit, then find and replay its receipt.
     private Optional<Receipt> findReplayedReceipt(UUID idempotencyKey) {
         if (idempotencyKey == null) {
             return Optional.empty();
         }
+        idempotencyLock.lock(idempotencyKey);
         return receiptRepository.findByIdempotencyKey(idempotencyKey);
     }
 

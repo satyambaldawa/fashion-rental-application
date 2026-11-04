@@ -2,12 +2,16 @@ package com.fashionrental.inventory;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -22,6 +26,20 @@ public class AvailabilityService {
                                PackageComponentRepository packageComponentRepository) {
         this.itemRepository = itemRepository;
         this.packageComponentRepository = packageComponentRepository;
+    }
+
+    /**
+     * Contract: must run before any other load of these items in the same transaction, so the
+     * persistence context holds post-lock state, not a stale pre-lock copy.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockForBooking(Collection<UUID> requestedItemIds) {
+        if (requestedItemIds.isEmpty()) {
+            return;
+        }
+        Set<UUID> toLock = new HashSet<>(requestedItemIds);
+        toLock.addAll(packageComponentRepository.findComponentItemIdsByPackageItemIds(requestedItemIds));
+        itemRepository.lockAllByIdInIdOrder(toLock);
     }
 
     public int getAvailableQuantity(UUID itemId, OffsetDateTime start, OffsetDateTime end) {

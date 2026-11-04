@@ -1,7 +1,8 @@
 package com.fashionrental.configuration;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
@@ -11,7 +12,9 @@ public interface LateFeeRuleRepository extends JpaRepository<LateFeeRule, UUID> 
 
     List<LateFeeRule> findByIsActiveTrueOrderBySortOrderAsc();
 
-    @Modifying(clearAutomatically = true)
-    @Query("UPDATE LateFeeRule r SET r.isActive = false")
-    void deactivateAll();
+    // Serialises concurrent "replace all rules" saves so the version check and the rewrite
+    // that follows it see one consistent set.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from LateFeeRule r")
+    List<LateFeeRule> findAllForUpdate();
 }

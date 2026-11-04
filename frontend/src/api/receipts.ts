@@ -1,4 +1,5 @@
 import client from './client'
+import { idempotencyConfig } from './idempotency'
 import type { ApiResponse } from '../types/api'
 import type {
   CancelReceiptRequest,
@@ -18,8 +19,8 @@ export const receiptsApi = {
   eligibleCoupons: (data: EligibleCouponsRequest): Promise<EligibleCoupon[]> =>
     client.post<ApiResponse<EligibleCoupon[]>>('/checkout/eligible-coupons', data).then(r => r.data.data!),
 
-  create: (data: CheckoutRequest): Promise<Receipt> =>
-    client.post<ApiResponse<Receipt>>('/receipts', data).then(r => r.data.data!),
+  create: (data: CheckoutRequest, idempotencyKey?: string): Promise<Receipt> =>
+    client.post<ApiResponse<Receipt>>('/receipts', data, idempotencyConfig(idempotencyKey)).then(r => r.data.data!),
 
   list: (params?: { status?: string; overdue?: boolean }): Promise<ReceiptSummary[]> =>
     client.get<ApiResponse<ReceiptSummary[]>>('/receipts', { params }).then(r => r.data.data!),

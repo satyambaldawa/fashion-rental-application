@@ -21,6 +21,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { receiptsApi } from '../../api/receipts'
 import { invoicesApi } from '../../api/invoices'
+import { useIdempotencyKey } from '../../hooks/useIdempotencyKey'
 import type { ReceiptLineItem } from '../../types/receipt'
 import type {
   ProcessReturnRequest,
@@ -90,9 +91,18 @@ export default function ProcessReturnPage() {
     },
   })
 
+  // The key follows the exact payload the confirm button would send: retrying after a lost
+  // response replays the first invoice, while any change to the return gets a new key.
+  const outgoingReturnRequest = receipt ? buildRequest() : null
+  const { key: returnIdempotencyKey, rotate: rotateReturnIdempotencyKey } =
+    useIdempotencyKey(outgoingReturnRequest)
+
   const confirmMutation = useMutation({
-    mutationFn: (req: ProcessReturnRequest) => invoicesApi.processReturn(id!, req),
-    onSuccess: (invoice) => navigate(`/invoices/${invoice.id}`),
+    mutationFn: (req: ProcessReturnRequest) => invoicesApi.processReturn(id!, req, returnIdempotencyKey),
+    onSuccess: (invoice) => {
+      rotateReturnIdempotencyKey()
+      navigate(`/invoices/${invoice.id}`)
+    },
   })
 
   if (isLoading) return <Typography.Text>Loading receipt…</Typography.Text>

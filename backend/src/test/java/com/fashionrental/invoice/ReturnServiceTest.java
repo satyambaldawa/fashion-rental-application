@@ -390,6 +390,75 @@ class ReturnServiceTest {
                 .hasMessageContaining("already been returned");
     }
 
+    private Invoice invoiceFor(Receipt forReceipt, UUID key) {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceNumber("INV-2026-0777");
+        invoice.setShareToken("token");
+        invoice.setReceipt(forReceipt);
+        invoice.setCustomer(customer);
+        invoice.setReturnDatetime(OffsetDateTime.parse("2026-04-11T12:00:00+05:30"));
+        invoice.setTransactionType(Invoice.TransactionType.REFUND);
+        invoice.setPaymentMethod(Invoice.PaymentMethod.CASH);
+        invoice.setIdempotencyKey(key);
+        return invoice;
+    }
+
+    @Test
+    void processReturn_replays_the_first_invoice_when_the_same_key_is_retried_after_the_receipt_was_returned() {
+        UUID key = UUID.randomUUID();
+        receipt.setStatus(Receipt.Status.RETURNED);
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(invoiceRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(invoiceFor(receipt, key)));
+
+        InvoiceResponse response = returnService.processReturn(receipt.getId(), returnRequest(false), key);
+
+        assertThat(response.invoiceNumber()).isEqualTo("INV-2026-0777");
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+        verify(invoiceNumberService, never()).generateInvoiceNumber();
+    }
+
+    @Test
+    void processReturn_rejects_a_key_that_was_already_used_for_a_different_receipt() {
+        UUID key = UUID.randomUUID();
+        Receipt otherReceipt = TestData.receipt(customer, receipt.getStartDatetime(), receipt.getEndDatetime(), lineItem);
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(invoiceRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(invoiceFor(otherReceipt, key)));
+
+        assertThatThrownBy(() -> returnService.processReturn(receipt.getId(), returnRequest(false), key))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already used for a different return");
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    @Test
+    void processReturn_still_rejects_an_already_returned_receipt_when_the_key_is_new() {
+        UUID key = UUID.randomUUID();
+        receipt.setStatus(Receipt.Status.RETURNED);
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(invoiceRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> returnService.processReturn(receipt.getId(), returnRequest(false), key))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already been returned");
+    }
+
+    @Test
+    void processReturn_stores_the_idempotency_key_on_the_new_invoice() {
+        UUID key = UUID.randomUUID();
+        when(receiptRepository.findByIdForUpdate(receipt.getId())).thenReturn(Optional.of(receipt));
+        when(invoiceRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+        when(lateFeeRuleRepository.findByIsActiveTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(invoiceNumberService.generateInvoiceNumber()).thenReturn("INV-2026-0008");
+        when(shareTokenService.generate()).thenReturn("share-token");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        returnService.processReturn(receipt.getId(), returnRequest(false), key);
+
+        ArgumentCaptor<Invoice> captor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(captor.capture());
+        assertThat(captor.getValue().getIdempotencyKey()).isEqualTo(key);
+    }
+
     @Test
     void processReturn_rejects_cancelled_receipt() {
         receipt.setStatus(Receipt.Status.CANCELLED);

@@ -1,5 +1,6 @@
 package com.fashionrental.invoice;
 
+import com.fashionrental.common.idempotency.IdempotencyKeyHeader;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.invoice.model.request.ProcessReturnRequest;
 import com.fashionrental.invoice.model.response.InvoiceResponse;
@@ -36,9 +37,10 @@ public class InvoiceController {
     @Operation(summary = "Process return and generate invoice")
     public ApiResponse<InvoiceResponse> processReturn(
             @PathVariable UUID id,
-            @RequestBody @Valid ProcessReturnRequest request
+            @RequestBody @Valid ProcessReturnRequest request,
+            @RequestHeader(name = IdempotencyKeyHeader.NAME, required = false) UUID idempotencyKey
     ) {
-        return ApiResponse.ok(returnService.processReturn(id, request));
+        return ApiResponse.ok(returnService.processReturn(id, request, idempotencyKey));
     }
 
     @GetMapping("/api/invoices/{id}")

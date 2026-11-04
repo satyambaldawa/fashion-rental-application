@@ -45,13 +45,16 @@ class ConfigControllerTest {
     @MockitoBean
     private JwtConfig jwtConfig;
 
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+
     // ─── GET /api/config/late-fee-rules ──────────────────────────────────────
 
     @Test
     @WithMockUser(roles = "OWNER")
     void should_return_configured_late_fee_rules() throws Exception {
         LateFeeRuleResponse rule = new LateFeeRuleResponse(
-                UUID.randomUUID(), 0, 24, BigDecimal.valueOf(1.0), 0, true, "Within 24 hours"
+                UUID.randomUUID(), 0, 24, BigDecimal.valueOf(1.0), 0, true, "Within 24 hours", 0L
         );
         when(configService.getLateFeeRules()).thenReturn(List.of(rule));
 
@@ -79,10 +82,10 @@ class ConfigControllerTest {
     @Test
     @WithMockUser(roles = "OWNER")
     void should_replace_late_fee_rules_when_request_is_valid() throws Exception {
-        LateFeeRuleItem item = new LateFeeRuleItem(null, 0, 24, BigDecimal.valueOf(1.5), 0, true);
+        LateFeeRuleItem item = new LateFeeRuleItem(null, 0, 24, BigDecimal.valueOf(1.5), 0, true, null);
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(item));
         LateFeeRuleResponse saved = new LateFeeRuleResponse(
-                UUID.randomUUID(), 0, 24, BigDecimal.valueOf(1.5), 0, true, "Within 24 hours"
+                UUID.randomUUID(), 0, 24, BigDecimal.valueOf(1.5), 0, true, "Within 24 hours", 1L
         );
         when(configService.updateLateFeeRules(any(UpdateLateFeeRulesRequest.class))).thenReturn(List.of(saved));
 

@@ -48,6 +48,9 @@ class ItemPhotoControllerTest {
     @MockitoBean
     private JwtConfig jwtConfig;
 
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+
     private ItemPhoto photo(UUID id, int sortOrder) {
         ItemPhoto photo = new ItemPhoto();
         photo.setUrl("https://cdn.example.com/" + id + ".jpg");

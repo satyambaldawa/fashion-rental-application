@@ -1,8 +1,12 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.common.numbering.DailyDocumentCounter;
+import com.fashionrental.common.numbering.DocumentSeries;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -10,17 +14,21 @@ import java.time.format.DateTimeFormatter;
 @Service
 public class ReceiptNumberService {
 
-    private final ReceiptRepository receiptRepository;
+    private static final ZoneId SHOP_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final String PREFIX = "R-";
 
-    public ReceiptNumberService(ReceiptRepository receiptRepository) {
-        this.receiptRepository = receiptRepository;
+    private final DailyDocumentCounter counter;
+    private final Clock clock;
+
+    public ReceiptNumberService(DailyDocumentCounter counter, Clock clock) {
+        this.counter = counter;
+        this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public String generateReceiptNumber() {
-        String today = LocalDate.now(ZoneId.of("Asia/Kolkata")).format(DateTimeFormatter.BASIC_ISO_DATE);
-        String prefix = "R-" + today + "-";
-        long count = receiptRepository.countByReceiptNumberStartingWith(prefix);
-        return prefix + String.format("%03d", count + 1);
+        LocalDate today = LocalDate.now(clock.withZone(SHOP_ZONE));
+        int sequence = counter.nextValue(DocumentSeries.RECEIPT, today);
+        return PREFIX + today.format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + String.format("%03d", sequence);
     }
 }

@@ -8,6 +8,7 @@ import { render } from '@testing-library/react'
 import { renderWithProviders, flush, screen, waitFor } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
+import { STALE_VERSION_MESSAGE } from '../../utils/staleVersion'
 import EditCustomerPage from './EditCustomerPage'
 
 const renderPage = () =>
@@ -121,6 +122,124 @@ describe('EditCustomerPage', () => {
 
     const phoneInput = await screen.findByDisplayValue('9811122233')
     expect(phoneInput).not.toHaveAttribute('readonly')
+  })
+
+  it('sends the version the customer was loaded with (#189)', async () => {
+    const user = userEvent.setup()
+    let capturedBody = null as { version?: number } | null
+    server.use(
+      http.get('*/api/customers/:id', () =>
+        HttpResponse.json({ success: true, data: f.aCustomer({ id: 'cust-1', version: 6 }), error: null })),
+      http.put('*/api/customers/:id', async ({ request }) => {
+        capturedBody = await request.json() as { version?: number }
+        return HttpResponse.json({ success: true, data: f.aCustomer({ version: 7 }), error: null })
+      }),
+    )
+
+    renderPage()
+    await flush()
+    await screen.findByDisplayValue('Meera')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(capturedBody).not.toBeNull())
+    expect(capturedBody!.version).toBe(6)
+  })
+
+  it('shows the stale message with a Reload button, unlike an ordinary 409 (#189)', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('*/api/customers/:id', () =>
+        HttpResponse.json({ success: true, data: f.aCustomer({ id: 'cust-1' }), error: null })),
+      http.put('*/api/customers/:id', () =>
+        HttpResponse.json({ success: false, data: null, error: STALE_VERSION_MESSAGE }, { status: 409 })),
+    )
+
+    renderPage()
+    await flush()
+    await screen.findByDisplayValue('Meera')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    expect(await screen.findByText(STALE_VERSION_MESSAGE)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  })
+
+  it('does not offer Reload for a duplicate-phone 409 (#189)', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('*/api/customers/:id', () =>
+        HttpResponse.json({ success: true, data: f.aCustomer({ id: 'cust-1' }), error: null })),
+      http.put('*/api/customers/:id', () =>
+        HttpResponse.json(
+          { success: false, data: null, error: 'A customer with phone 9811122233 already exists' },
+          { status: 409 },
+        )),
+    )
+
+    renderPage()
+    await flush()
+    await screen.findByDisplayValue('Meera')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    expect(await screen.findByText('A customer with phone 9811122233 already exists')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
+  })
+
+  it('after Reload shows the latest details and the next save sends the new version (#189)', async () => {
+    const user = userEvent.setup()
+    let loads = 0
+    const puts: Array<{ version?: number; name?: string }> = []
+    server.use(
+      http.get('*/api/customers/:id', () => {
+        loads += 1
+        const data = loads === 1
+          ? f.aCustomer({ id: 'cust-1', name: 'Meera', version: 2 })
+          : f.aCustomer({ id: 'cust-1', name: 'Meera Edited Elsewhere', version: 3 })
+        return HttpResponse.json({ success: true, data, error: null })
+      }),
+      http.put('*/api/customers/:id', async ({ request }) => {
+        puts.push(await request.json() as { version?: number; name?: string })
+        return puts.length === 1
+          ? HttpResponse.json({ success: false, data: null, error: STALE_VERSION_MESSAGE }, { status: 409 })
+          : HttpResponse.json({ success: true, data: f.aCustomer({ version: 4 }), error: null })
+      }),
+    )
+
+    renderPage()
+    await flush()
+    await screen.findByDisplayValue('Meera')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(await screen.findByRole('button', { name: 'Reload' }))
+    await screen.findByDisplayValue('Meera Edited Elsewhere')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(puts).toHaveLength(2))
+    expect(puts[0].version).toBe(2)
+    expect(puts[1].version).toBe(3)
+    expect(puts[1].name).toBe('Meera Edited Elsewhere')
+  })
+
+  it('keeps the Reload prompt and shows an error when the reload fails (#189)', async () => {
+    const user = userEvent.setup()
+    let loads = 0
+    server.use(
+      http.get('*/api/customers/:id', () => {
+        loads += 1
+        return loads === 1
+          ? HttpResponse.json({ success: true, data: f.aCustomer({ id: 'cust-1' }), error: null })
+          : new HttpResponse(null, { status: 500 })
+      }),
+      http.put('*/api/customers/:id', () =>
+        HttpResponse.json({ success: false, data: null, error: STALE_VERSION_MESSAGE }, { status: 409 })),
+    )
+
+    renderPage()
+    await flush()
+    await screen.findByDisplayValue('Meera')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(await screen.findByRole('button', { name: 'Reload' }))
+
+    expect(await screen.findByText('Could not reload the customer. Check your connection and try again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
   })
 
   it('blocks submission client-side when switching to PROFESSIONAL with no org name', async () => {

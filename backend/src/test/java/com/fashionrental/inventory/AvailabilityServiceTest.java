@@ -11,10 +11,13 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -327,6 +330,40 @@ class AvailabilityServiceTest {
         int available = availabilityService.getAvailableQuantity(packageId, start, end);
 
         assertThat(available).isEqualTo(1); // bottlenecked by comp-B
+    }
+
+    // ── lockForBooking ──────────────────────────────────────────────────────
+
+    @Test
+    void should_lock_requested_items_together_with_their_package_components() {
+        UUID packageId = UUID.randomUUID();
+        UUID standaloneId = UUID.randomUUID();
+        UUID componentId = UUID.randomUUID();
+        when(packageComponentRepository.findComponentItemIdsByPackageItemIds(List.of(packageId, standaloneId)))
+                .thenReturn(List.of(componentId));
+
+        availabilityService.lockForBooking(List.of(packageId, standaloneId));
+
+        verify(itemRepository).lockAllByIdInIdOrder(Set.of(packageId, standaloneId, componentId));
+    }
+
+    @Test
+    void should_lock_a_shared_item_only_once_when_it_is_requested_and_is_also_a_component() {
+        UUID packageId = UUID.randomUUID();
+        UUID sharedId = UUID.randomUUID();
+        when(packageComponentRepository.findComponentItemIdsByPackageItemIds(List.of(packageId, sharedId)))
+                .thenReturn(List.of(sharedId, sharedId));
+
+        availabilityService.lockForBooking(List.of(packageId, sharedId));
+
+        verify(itemRepository).lockAllByIdInIdOrder(Set.of(packageId, sharedId));
+    }
+
+    @Test
+    void should_not_query_when_no_items_are_requested_for_locking() {
+        availabilityService.lockForBooking(List.of());
+
+        verifyNoInteractions(itemRepository, packageComponentRepository);
     }
 
     // ── batchGetAvailableQuantities ─────────────────────────────────────────

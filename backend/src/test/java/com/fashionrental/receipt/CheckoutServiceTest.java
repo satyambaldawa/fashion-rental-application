@@ -3,6 +3,7 @@ package com.fashionrental.receipt;
 import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
 import com.fashionrental.common.exception.ValidationException;
+import com.fashionrental.common.idempotency.IdempotencyLock;
 import com.fashionrental.common.util.DateTimeUtil;
 import com.fashionrental.common.util.ShareTokenService;
 import com.fashionrental.configuration.Coupon;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -44,7 +46,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -64,6 +68,7 @@ class CheckoutServiceTest {
     @Mock ReceiptMapper receiptMapper;
     @Mock CouponDiscountResolver couponDiscountResolver;
     @Mock CouponRepository couponRepository;
+    @Mock IdempotencyLock idempotencyLock;
 
     @InjectMocks CheckoutService checkoutService;
 
@@ -242,6 +247,69 @@ class CheckoutServiceTest {
 
         assertThat(response).isSameAs(existingResponse);
         verify(receiptRepository, never()).save(any(Receipt.class));
+        verify(availabilityService, never()).lockForBooking(any());
+        verify(receiptNumberService, never()).generateReceiptNumber();
+    }
+
+    @Test
+    void should_take_the_idempotency_lock_before_looking_up_the_key() {
+        UUID key = UUID.randomUUID();
+        Receipt existing = new Receipt();
+        when(receiptRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(existing));
+        when(receiptMapper.toReceiptResponse(existing)).thenReturn(null);
+
+        checkoutService.createReceipt(upiRequest(UUID.randomUUID(), UUID.randomUUID(), UPI_CART_GRAND_TOTAL, key));
+
+        InOrder inOrder = inOrder(idempotencyLock, receiptRepository);
+        inOrder.verify(idempotencyLock).lock(key);
+        inOrder.verify(receiptRepository).findByIdempotencyKey(key);
+    }
+
+    @Test
+    void should_not_take_the_idempotency_lock_when_no_key_is_given() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        stubCreatableCart(customerId, itemId);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(new CheckoutRequest(
+                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null, null, null, null));
+
+        verifyNoInteractions(idempotencyLock);
+    }
+
+    @Test
+    void should_lock_items_after_calculating_rental_days_and_before_checking_availability() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        stubCreatableCart(customerId, itemId);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(new CheckoutRequest(
+                customerId, START, END, List.of(new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null, null, null, null));
+
+        InOrder inOrder = inOrder(dateTimeUtil, availabilityService, customerRepository);
+        inOrder.verify(dateTimeUtil).calculateRentalDays(START, END);
+        inOrder.verify(availabilityService).lockForBooking(List.of(itemId));
+        inOrder.verify(customerRepository).findById(customerId);
+        inOrder.verify(availabilityService).getAvailableQuantity(itemId, START, END);
+    }
+
+    @Test
+    void should_lock_each_requested_item_once_even_when_it_appears_on_two_lines() {
+        UUID customerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        stubCreatableCart(customerId, itemId);
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        checkoutService.createReceipt(new CheckoutRequest(
+                customerId, START, END,
+                List.of(new CheckoutLineItem(itemId, 1), new CheckoutLineItem(itemId, 1)),
+                List.of(), null, null, null, null, null));
+
+        verify(availabilityService).lockForBooking(List.of(itemId));
     }
 
     // ─── Create Receipt ───────────────────────────────────────────────────────
