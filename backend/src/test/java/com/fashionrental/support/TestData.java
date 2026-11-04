@@ -133,6 +133,11 @@ public final class TestData {
         return entity;
     }
 
+    public static <T> T withVersion(T entity, long version) {
+        ReflectionTestUtils.setField(entity, "version", version);
+        return entity;
+    }
+
     private static void setId(Object entity) {
         ReflectionTestUtils.setField(entity, "id", UUID.randomUUID());
     }

@@ -15,6 +15,5 @@ public record CustomerResponse(
         Boolean isActive,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
-        // Echoed back on update so a stale save can be rejected
         Long version
 ) {}

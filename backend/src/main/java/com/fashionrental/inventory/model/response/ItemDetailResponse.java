@@ -26,6 +26,5 @@ public record ItemDetailResponse(
         List<ItemPhotoResponse> photos,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
-        // Echoed back on update so a stale save can be rejected
         Long version
 ) {}

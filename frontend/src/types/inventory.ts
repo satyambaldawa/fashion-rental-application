@@ -42,7 +42,6 @@ export interface ItemDetail extends ItemSummary {
   photos: ItemPhoto[]
   createdAt: string
   updatedAt: string
-  // Echoed back on update so the server can reject a save made against a stale copy
   version: number
 }
 

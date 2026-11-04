@@ -12,7 +12,6 @@ export interface Customer {
   isActive: boolean
   createdAt: string
   updatedAt: string
-  // Echoed back on update so the server can reject a save made against a stale copy
   version: number
 }
 

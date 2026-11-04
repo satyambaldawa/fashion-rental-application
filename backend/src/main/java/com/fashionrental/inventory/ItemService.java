@@ -244,9 +244,7 @@ public class ItemService {
             validateAndAttachComponents(item, request.components());
         }
 
-        Item saved = itemRepository.save(item);
-        // Hibernate bumps @Version only at flush; flush first so the response carries the new version.
-        itemRepository.flush();
+        Item saved = itemRepository.saveAndFlush(item);
         return toDetailResponse(saved);
     }
 

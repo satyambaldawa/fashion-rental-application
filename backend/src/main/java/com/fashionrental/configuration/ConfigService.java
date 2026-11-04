@@ -46,7 +46,7 @@ public class ConfigService {
         // stay consistent with the rewrite below.
         current.forEach(rule -> rule.setIsActive(false));
 
-        List<LateFeeRule> saved = request.rules().stream().map(item -> {
+        List<LateFeeRule> rules = request.rules().stream().map(item -> {
             LateFeeRule rule = item.id() != null ? currentById.get(item.id()) : new LateFeeRule();
 
             rule.setDurationFromHours(item.durationFromHours());
@@ -57,11 +57,10 @@ public class ConfigService {
             rule.setUpdatedAt(OffsetDateTime.now());
             if (rule.getCreatedAt() == null) rule.setCreatedAt(OffsetDateTime.now());
 
-            return lateFeeRuleRepository.save(rule);
+            return rule;
         }).toList();
 
-        // Hibernate bumps @Version only at flush; flush first so the response carries the new versions.
-        lateFeeRuleRepository.flush();
+        List<LateFeeRule> saved = lateFeeRuleRepository.saveAllAndFlush(rules);
 
         return saved.stream()
                 .sorted(Comparator.comparingInt(LateFeeRule::getSortOrder))

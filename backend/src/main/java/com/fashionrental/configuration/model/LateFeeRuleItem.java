@@ -16,7 +16,6 @@ public record LateFeeRuleItem(
     @NotNull @DecimalMin("0.0") BigDecimal penaltyMultiplier,
     @NotNull Integer sortOrder,
     boolean isActive,
-    // Null only for a brand-new rule; an existing rule must echo the version it was loaded with
     Long version
 ) {
     @JsonIgnore

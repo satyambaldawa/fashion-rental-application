@@ -178,7 +178,6 @@ export default function AddItemPage() {
     }))
 
     if (isEditMode) {
-      // Unreachable in practice: Save is disabled until loadedVersion is set. Kept only to narrow the type.
       if (loadedVersion === null) return
       const request: UpdateItemRequest = {
         name: values.name as string,

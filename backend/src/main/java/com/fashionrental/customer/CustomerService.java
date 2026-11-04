@@ -78,9 +78,7 @@ public class CustomerService {
         // (which sets the authoritative timestamp) always fires on save.
         customer.setUpdatedAt(OffsetDateTime.now());
 
-        // Hibernate bumps @Version only at flush; flush first so the response carries the new version.
-        Customer saved = customerRepository.save(customer);
-        customerRepository.flush();
+        Customer saved = customerRepository.saveAndFlush(customer);
         return toResponse(saved);
     }
 

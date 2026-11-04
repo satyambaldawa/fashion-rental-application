@@ -35,6 +35,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
+import static com.fashionrental.support.TestData.withVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -101,18 +102,13 @@ class ItemServiceTest {
             createdAt.set(item, OffsetDateTime.now());
             updatedAt.set(item, OffsetDateTime.now());
         } catch (Exception ignored) {}
-        setItemVersion(item, 0L);
+        withVersion(item, 0L);
         return item;
     }
 
-    private void setItemVersion(Item item, Long version) {
-        try {
-            java.lang.reflect.Field field = Item.class.getDeclaredField("version");
-            field.setAccessible(true);
-            field.set(item, version);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private UpdateItemRequest updateRequest(String name, long version) {
+        return new UpdateItemRequest(
+                name, Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, version);
     }
 
     @Test
@@ -649,7 +645,7 @@ class ItemServiceTest {
         item.setSize("L");
 
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRequest request = new UpdateItemRequest(
                 "Red Sherwani", Item.Category.DRESS, "XL", "Updated description",
@@ -722,7 +718,7 @@ class ItemServiceTest {
         Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(3);
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRequest request = new UpdateItemRequest(
                 "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null, 0L
@@ -737,12 +733,10 @@ class ItemServiceTest {
     void should_throw_stale_update_when_request_version_differs_from_current_version() {
         UUID itemId = UUID.randomUUID();
         Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
-        setItemVersion(item, 3L);
+        withVersion(item, 3L);
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
-        UpdateItemRequest staleRequest = new UpdateItemRequest(
-                "Renamed", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 2L
-        );
+        UpdateItemRequest staleRequest = updateRequest("Renamed", 2L);
 
         assertThatThrownBy(() -> itemService.updateItem(itemId, staleRequest))
                 .isInstanceOf(StaleUpdateException.class);
@@ -754,17 +748,9 @@ class ItemServiceTest {
         UUID itemId = UUID.randomUUID();
         Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
-        org.mockito.Mockito.doAnswer(inv -> {
-            setItemVersion(item, 1L);
-            return null;
-        }).when(itemRepository).flush();
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> withVersion(item, 1L));
 
-        UpdateItemRequest request = new UpdateItemRequest(
-                "Renamed", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 0L
-        );
-
-        ItemDetailResponse result = itemService.updateItem(itemId, request);
+        ItemDetailResponse result = itemService.updateItem(itemId, updateRequest("Renamed", 0L));
 
         assertThat(result.version()).isEqualTo(1L);
     }
@@ -774,16 +760,13 @@ class ItemServiceTest {
         UUID itemId = UUID.randomUUID();
         Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
-        org.mockito.Mockito.doAnswer(inv -> {
-            setItemVersion(item, item.getVersion() + 1);
-            return null;
-        }).when(itemRepository).flush();
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> {
+            Item saved = inv.getArgument(0);
+            return withVersion(saved, saved.getVersion() + 1);
+        });
 
-        ItemDetailResponse first = itemService.updateItem(itemId, new UpdateItemRequest(
-                "First", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, 0L));
-        ItemDetailResponse second = itemService.updateItem(itemId, new UpdateItemRequest(
-                "Second", Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, first.version()));
+        ItemDetailResponse first = itemService.updateItem(itemId, updateRequest("First", 0L));
+        ItemDetailResponse second = itemService.updateItem(itemId, updateRequest("Second", first.version()));
 
         assertThat(second.name()).isEqualTo("Second");
         assertThat(second.version()).isEqualTo(2L);

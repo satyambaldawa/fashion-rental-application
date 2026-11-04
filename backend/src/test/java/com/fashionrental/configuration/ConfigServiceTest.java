@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.fashionrental.support.TestData.withVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,12 +49,7 @@ class ConfigServiceTest {
         LateFeeRule rule = ruleWithHours(0, 3, new BigDecimal("0.50"), 1);
         rule.setIsActive(active);
         setField(rule, "id", id);
-        setVersion(rule, version);
-        return rule;
-    }
-
-    private void setVersion(LateFeeRule rule, Long version) {
-        setField(rule, "version", version);
+        return withVersion(rule, version);
     }
 
     private void setField(LateFeeRule rule, String name, Object value) {
@@ -115,7 +111,7 @@ class ConfigServiceTest {
         UUID existingId = UUID.randomUUID();
         LateFeeRule existing = persistedRule(existingId, 0L, true);
 
-        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(existing));
 
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(
@@ -127,7 +123,7 @@ class ConfigServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).penaltyMultiplier()).isEqualByComparingTo("0.75");
         assertThat(existing.getIsActive()).isTrue();
-        verify(lateFeeRuleRepository).save(existing);
+        verify(lateFeeRuleRepository).saveAllAndFlush(List.of(existing));
     }
 
     @Test
@@ -136,7 +132,7 @@ class ConfigServiceTest {
         UUID droppedId = UUID.randomUUID();
         LateFeeRule kept = persistedRule(keptId, 0L, true);
         LateFeeRule dropped = persistedRule(droppedId, 0L, true);
-        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(kept, dropped));
 
         configService.updateLateFeeRules(new UpdateLateFeeRulesRequest(List.of(
@@ -172,19 +168,19 @@ class ConfigServiceTest {
 
         assertThatThrownBy(() -> configService.updateLateFeeRules(request))
             .isInstanceOf(StaleUpdateException.class);
-        verify(lateFeeRuleRepository, never()).save(any());
+        verify(lateFeeRuleRepository, never()).saveAllAndFlush(any());
     }
 
     @Test
     void should_accept_a_second_save_that_uses_the_versions_returned_by_the_first() {
         UUID ruleId = UUID.randomUUID();
         LateFeeRule rule = persistedRule(ruleId, 0L, true);
-        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of(rule));
-        doAnswer(inv -> {
-            setVersion(rule, rule.getVersion() + 1);
-            return null;
-        }).when(lateFeeRuleRepository).flush();
+        when(lateFeeRuleRepository.saveAllAndFlush(any())).thenAnswer(inv -> {
+            List<LateFeeRule> saved = inv.getArgument(0);
+            saved.forEach(saving -> withVersion(saving, saving.getVersion() + 1));
+            return saved;
+        });
 
         List<LateFeeRuleResponse> first = configService.updateLateFeeRules(new UpdateLateFeeRulesRequest(List.of(
             new LateFeeRuleItem(ruleId, 0, 3, new BigDecimal("0.60"), 1, true, 0L)
@@ -223,7 +219,7 @@ class ConfigServiceTest {
 
     @Test
     void should_allow_contiguous_non_overlapping_ranges() {
-        when(lateFeeRuleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lateFeeRuleRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(lateFeeRuleRepository.findAllForUpdate()).thenReturn(List.of());
 
         UpdateLateFeeRulesRequest request = new UpdateLateFeeRulesRequest(List.of(

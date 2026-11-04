@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static com.fashionrental.support.TestData.withVersion;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,18 +51,12 @@ class CustomerServiceTest {
         customer.setCustomerType(type);
         customer.setIsActive(true);
         setTimestamps(customer);
-        setVersion(customer, 0L);
+        withVersion(customer, 0L);
         return customer;
     }
 
-    private void setVersion(Customer customer, Long version) {
-        try {
-            java.lang.reflect.Field field = Customer.class.getDeclaredField("version");
-            field.setAccessible(true);
-            field.set(customer, version);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private UpdateCustomerRequest updateRequest(String name, long version) {
+        return new UpdateCustomerRequest(name, "9876543210", null, Customer.CustomerType.MISC, null, version);
     }
 
     private void setTimestamps(Customer customer) {
@@ -233,7 +228,7 @@ class CustomerServiceTest {
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse result = customerService.updateCustomer(id, request);
 
@@ -250,7 +245,7 @@ class CustomerServiceTest {
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse result = customerService.updateCustomer(id, request);
 
@@ -284,7 +279,7 @@ class CustomerServiceTest {
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("8765432109")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse result = customerService.updateCustomer(id, request);
 
@@ -330,7 +325,7 @@ class CustomerServiceTest {
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse result = customerService.updateCustomer(id, request);
 
@@ -348,7 +343,7 @@ class CustomerServiceTest {
         );
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse result = customerService.updateCustomer(id, request);
 
@@ -360,10 +355,8 @@ class CustomerServiceTest {
         UUID id = UUID.randomUUID();
         Customer existing = buildActiveCustomer("Ravi Kumar", "9876543210", Customer.CustomerType.MISC);
         setId(existing, id);
-        setVersion(existing, 4L);
-        UpdateCustomerRequest staleRequest = new UpdateCustomerRequest(
-                "Renamed", "9876543210", null, Customer.CustomerType.MISC, null, 3L
-        );
+        withVersion(existing, 4L);
+        UpdateCustomerRequest staleRequest = updateRequest("Renamed", 3L);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> customerService.updateCustomer(id, staleRequest))
@@ -378,16 +371,13 @@ class CustomerServiceTest {
         setId(existing, id);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("9876543210")).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
-        org.mockito.Mockito.doAnswer(inv -> {
-            setVersion(existing, existing.getVersion() + 1);
-            return null;
-        }).when(customerRepository).flush();
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(inv -> {
+            Customer saved = inv.getArgument(0);
+            return withVersion(saved, saved.getVersion() + 1);
+        });
 
-        CustomerResponse first = customerService.updateCustomer(id, new UpdateCustomerRequest(
-                "First", "9876543210", null, Customer.CustomerType.MISC, null, 0L));
-        CustomerResponse second = customerService.updateCustomer(id, new UpdateCustomerRequest(
-                "Second", "9876543210", null, Customer.CustomerType.MISC, null, first.version()));
+        CustomerResponse first = customerService.updateCustomer(id, updateRequest("First", 0L));
+        CustomerResponse second = customerService.updateCustomer(id, updateRequest("Second", first.version()));
 
         assertThat(first.version()).isEqualTo(1L);
         assertThat(second.version()).isEqualTo(2L);

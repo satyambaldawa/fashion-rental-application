@@ -18,6 +18,5 @@ public record UpdateCustomerRequest(
 
         String organizationName,
 
-        // The version the client loaded; a mismatch means someone else saved first
         @NotNull Long version
 ) {}
