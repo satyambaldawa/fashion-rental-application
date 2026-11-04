@@ -48,6 +48,9 @@ class GalleryAdminControllerTest {
     @MockitoBean
     private com.fashionrental.config.JwtConfig jwtConfig;
 
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+
     private GalleryImageResponse response(UUID id, Item.Category category) {
         return new GalleryImageResponse(id, category, "https://cdn/full.jpg", "https://cdn/thumb.jpg", null, true);
     }

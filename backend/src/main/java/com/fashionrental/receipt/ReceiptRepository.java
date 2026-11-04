@@ -15,8 +15,6 @@ import java.util.UUID;
 
 public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
 
-    long countByReceiptNumberStartingWith(String prefix);
-
     // Closes the cancel/return/give races: whichever transaction gets here first holds the row
     // lock until commit, so the loser re-reads the post-commit status and hits its guard.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

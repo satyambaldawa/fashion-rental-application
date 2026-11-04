@@ -31,6 +31,7 @@ import type {
 } from '../../types/inventory'
 import PhotoManager from './components/PhotoManager'
 import { CATEGORY_OPTIONS } from '../../constants/categories'
+import { isMissingVersionError, isStaleVersionError, STALE_VERSION_MESSAGE } from '../../utils/staleVersion'
 
 interface ComponentDraft {
   componentItemId: string
@@ -62,32 +63,45 @@ export default function AddItemPage() {
     enabled: isEditMode,
   })
 
+  // The version is captured here, once per load — not read from the query cache at submit —
+  // because a background refetch (e.g. on window focus) would otherwise silently swap in a newer
+  // version while the form still holds the old values, defeating the stale-save check.
+  const [loadedVersion, setLoadedVersion] = useState<number | null>(null)
+  const [reloadError, setReloadError] = useState<string | null>(null)
+
+  function fillFormFrom(item: ItemDetail) {
+    form.setFieldsValue({
+      name: item.name,
+      category: item.category,
+      size: item.size,
+      description: item.description,
+      rate: item.rate,
+      deposit: item.deposit,
+      quantity: item.quantity,
+      notes: item.notes,
+      purchaseRate: item.purchaseRate,
+      vendorName: item.vendorName,
+    })
+    setItemType(item.itemType)
+    setPhotos(item.photos)
+    setComponents(item.components
+      ? item.components.map(c => ({
+        componentItemId: c.componentItemId,
+        componentItemName: c.componentItemName,
+        quantity: c.quantity,
+      }))
+      : [])
+    setLoadedVersion(item.version)
+  }
+
   // Pre-fill form when existing item loads
   useEffect(() => {
     if (existingItem && !formReady) {
-      form.setFieldsValue({
-        name: existingItem.name,
-        category: existingItem.category,
-        size: existingItem.size,
-        description: existingItem.description,
-        rate: existingItem.rate,
-        deposit: existingItem.deposit,
-        quantity: existingItem.quantity,
-        notes: existingItem.notes,
-        purchaseRate: existingItem.purchaseRate,
-        vendorName: existingItem.vendorName,
-      })
-      setItemType(existingItem.itemType)
-      setPhotos(existingItem.photos)
-      if (existingItem.components) {
-        setComponents(existingItem.components.map(c => ({
-          componentItemId: c.componentItemId,
-          componentItemName: c.componentItemName,
-          quantity: c.quantity,
-        })))
-      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time prefill from loaded server data, the same pattern main already used
+      fillFormFrom(existingItem)
       setFormReady(true)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fillFormFrom only closes over stable setters and form
   }, [existingItem, formReady, form])
 
   // Search individual items for component picker
@@ -120,6 +134,24 @@ export default function AddItemPage() {
 
   const mutation = isEditMode ? updateMutation : createMutation
 
+  const staleSave = isEditMode && isStaleVersionError(updateMutation.error)
+  const outdatedApp = isEditMode && isMissingVersionError(updateMutation.error)
+
+  // Fetches outside the query cache and refills from that response directly: waiting for the
+  // query observer to re-render could refill from the old cached item and keep the old version,
+  // and a failed fetch through the cache would flip the whole page into its load-error state.
+  async function handleReload() {
+    setReloadError(null)
+    try {
+      const fresh = await itemsApi.get(editId!)
+      queryClient.setQueryData(['item', editId], fresh)
+      fillFormFrom(fresh)
+      updateMutation.reset()
+    } catch {
+      setReloadError('Could not reload the item. Check your connection and try again.')
+    }
+  }
+
   function handleAddComponent(item: ItemSummary) {
     setComponents(prev => [...prev, { componentItemId: item.id, componentItemName: item.name, quantity: 1 }])
     setComponentSearch('')
@@ -146,6 +178,7 @@ export default function AddItemPage() {
     }))
 
     if (isEditMode) {
+      if (loadedVersion === null) return
       const request: UpdateItemRequest = {
         name: values.name as string,
         category: values.category as ItemCategory,
@@ -158,6 +191,7 @@ export default function AddItemPage() {
         purchaseRate: values.purchaseRate as number | undefined,
         vendorName: values.vendorName as string | undefined,
         components: itemType === 'PACKAGE' ? componentRequests : undefined,
+        version: loadedVersion,
       }
       updateMutation.mutate(request)
     } else {
@@ -422,7 +456,26 @@ export default function AddItemPage() {
             </Form.Item>
           )}
 
-          {mutation.isError && (
+          {staleSave && (
+            <Alert
+              type="error"
+              showIcon
+              message={STALE_VERSION_MESSAGE}
+              description={reloadError ?? 'Reloading replaces what you typed with the latest saved values.'}
+              action={<Button size="small" onClick={handleReload}>Reload</Button>}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
+          {outdatedApp && (
+            <Alert
+              type="error"
+              message="The app was updated. Reload the page and try again."
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
+          {mutation.isError && !staleSave && !outdatedApp && (
             <Alert
               type="error"
               message={isEditMode ? 'Failed to update item. Please try again.' : 'Failed to create item. Please try again.'}
@@ -432,7 +485,12 @@ export default function AddItemPage() {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={mutation.isPending}
+                disabled={isEditMode && loadedVersion === null}
+              >
                 {isEditMode ? 'Save Changes' : 'Next: Add Photos'}
               </Button>
               <Button onClick={() => navigate('/inventory')}>Cancel</Button>

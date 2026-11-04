@@ -1,5 +1,6 @@
 package com.fashionrental.receipt;
 
+import com.fashionrental.common.idempotency.IdempotencyKeyHeader;
 import com.fashionrental.common.response.ApiResponse;
 import com.fashionrental.receipt.model.request.CancelReceiptRequest;
 import com.fashionrental.receipt.model.request.CheckoutPreviewRequest;
@@ -60,9 +61,14 @@ public class ReceiptController {
     @Operation(summary = "Create a new rental receipt")
     @PostMapping("/api/receipts")
     public ResponseEntity<ApiResponse<ReceiptResponse>> createReceipt(
-            @Valid @RequestBody CheckoutRequest request
+            @Valid @RequestBody CheckoutRequest request,
+            @RequestHeader(name = IdempotencyKeyHeader.NAME, required = false) UUID idempotencyKeyHeader
     ) {
-        ReceiptResponse created = checkoutService.createReceipt(request);
+        // The header takes precedence over the body field of the same name.
+        CheckoutRequest effectiveRequest = idempotencyKeyHeader == null
+                ? request
+                : request.withIdempotencyKey(idempotencyKeyHeader);
+        ReceiptResponse created = checkoutService.createReceipt(effectiveRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(created));
     }
 

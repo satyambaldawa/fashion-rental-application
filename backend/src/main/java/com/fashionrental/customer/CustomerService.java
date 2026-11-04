@@ -2,6 +2,7 @@ package com.fashionrental.customer;
 
 import com.fashionrental.common.exception.ConflictException;
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.customer.model.request.CreateCustomerRequest;
 import com.fashionrental.customer.model.request.UpdateCustomerRequest;
@@ -56,6 +57,10 @@ public class CustomerService {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
 
+        if (!request.version().equals(customer.getVersion())) {
+            throw new StaleUpdateException();
+        }
+
         customerRepository.findByPhone(request.phone()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
                 throw new ConflictException("A customer with phone " + request.phone() + " already exists");
@@ -73,7 +78,8 @@ public class CustomerService {
         // (which sets the authoritative timestamp) always fires on save.
         customer.setUpdatedAt(OffsetDateTime.now());
 
-        return toResponse(customerRepository.save(customer));
+        Customer saved = customerRepository.saveAndFlush(customer);
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +167,8 @@ public class CustomerService {
                 customer.getOrganizationName(),
                 customer.getIsActive(),
                 customer.getCreatedAt(),
-                customer.getUpdatedAt()
+                customer.getUpdatedAt(),
+                customer.getVersion()
         );
     }
 

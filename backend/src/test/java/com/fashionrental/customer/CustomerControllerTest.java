@@ -23,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -46,13 +47,15 @@ class CustomerControllerTest {
     @MockitoBean
     private com.fashionrental.config.JwtConfig jwtConfig;
     @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+    @MockitoBean
     private org.springframework.security.core.userdetails.UserDetailsService userDetailsService;
 
     private CustomerResponse sampleCustomerResponse(UUID id) {
         return new CustomerResponse(
                 id, "Ravi Kumar", "9876543210", "123 Main St",
                 Customer.CustomerType.MISC, null, true,
-                OffsetDateTime.now(), OffsetDateTime.now()
+                OffsetDateTime.now(), OffsetDateTime.now(), 0L
         );
     }
 
@@ -192,7 +195,7 @@ class CustomerControllerTest {
     void should_return_200_when_customer_updated_successfully() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", "456 New St", Customer.CustomerType.MISC, null, 0L
         );
         when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
                 .thenReturn(sampleCustomerResponse(id));
@@ -210,7 +213,7 @@ class CustomerControllerTest {
     void should_return_404_when_updating_missing_customer() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
                 .thenThrow(new ResourceNotFoundException("Customer not found: " + id));
@@ -227,7 +230,7 @@ class CustomerControllerTest {
     void should_return_409_when_updated_phone_belongs_to_another_customer() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "8765432109", null, Customer.CustomerType.MISC, null, 0L
         );
         when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
                 .thenThrow(new ConflictException("A customer with phone 8765432109 already exists"));
@@ -244,7 +247,7 @@ class CustomerControllerTest {
     void should_return_400_when_updated_phone_format_invalid() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "12345", null, Customer.CustomerType.MISC, null
+                "Ravi Kumar", "12345", null, Customer.CustomerType.MISC, null, 0L
         );
 
         mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
@@ -259,7 +262,7 @@ class CustomerControllerTest {
     void should_return_400_when_updated_professional_missing_org_name() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.PROFESSIONAL, null, 0L
         );
         when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
                 .thenThrow(new ValidationException("Organization name is required for professional customers"));
@@ -269,6 +272,39 @@ class CustomerControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_400_when_update_has_no_version() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null, null
+        );
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(containsString("version")));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_409_with_stale_message_when_customer_was_changed_by_someone_else() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                "Ravi Kumar", "9876543210", null, Customer.CustomerType.MISC, null, 0L
+        );
+        when(customerService.updateCustomer(any(UUID.class), any(UpdateCustomerRequest.class)))
+                .thenThrow(new com.fashionrental.common.exception.StaleUpdateException());
+
+        mockMvc.perform(put("/api/customers/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(
+                        com.fashionrental.common.exception.StaleUpdateException.MESSAGE));
     }
 
     @Test

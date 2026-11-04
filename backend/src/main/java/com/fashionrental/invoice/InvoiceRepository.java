@@ -9,11 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
-    long countByInvoiceNumberStartingWith(String prefix);
+    Optional<Invoice> findByIdempotencyKey(UUID idempotencyKey);
 
     List<Invoice> findByCreatedAtBetweenOrderByCreatedAtAsc(OffsetDateTime from, OffsetDateTime to);
 

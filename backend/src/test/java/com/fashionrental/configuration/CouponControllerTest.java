@@ -41,6 +41,7 @@ class CouponControllerTest {
 
     // Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest
     @MockitoBean private com.fashionrental.config.JwtConfig jwtConfig;
+    @MockitoBean private com.fashionrental.config.AppUserRepository appUserRepository;
 
     private static final OffsetDateTime FROM = OffsetDateTime.parse("2026-06-01T00:00:00+05:30");
     private static final OffsetDateTime TO = OffsetDateTime.parse("2026-06-30T23:59:59+05:30");

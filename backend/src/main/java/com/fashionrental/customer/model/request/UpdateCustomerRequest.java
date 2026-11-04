@@ -16,5 +16,7 @@ public record UpdateCustomerRequest(
 
         @NotNull Customer.CustomerType customerType,
 
-        String organizationName
+        String organizationName,
+
+        @NotNull Long version
 ) {}

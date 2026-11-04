@@ -326,3 +326,53 @@ describe('ProcessReturnPage late fee decision (#184)', () => {
     expect(screen.queryByText(/REFUND:|COLLECT:/)).not.toBeInTheDocument()
   })
 })
+
+describe('ProcessReturnPage idempotency (#189)', () => {
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+  async function calculatePreview(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Calculate Preview' }))
+    await flush()
+  }
+
+  it('sends an Idempotency-Key header and reuses the same key when the confirm is retried after a failure', async () => {
+    const keys: Array<string | null> = []
+    server.use(http.post('*/api/receipts/rcpt-1/return', ({ request }) => {
+      keys.push(request.headers.get('Idempotency-Key'))
+      return keys.length === 1 ? HttpResponse.error() : ok(f.anInvoice())
+    }))
+    await renderProcessReturn()
+    const user = userEvent.setup()
+    await calculatePreview(user)
+
+    await user.click(screen.getByRole('button', { name: /Confirm & Complete Return/i }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await screen.findByText('Failed to process return. Please try again.')
+    await user.click(screen.getByRole('button', { name: /Confirm & Complete Return/i }))
+    await waitFor(() => expect(keys).toHaveLength(2))
+
+    expect(keys[0]).toMatch(UUID_PATTERN)
+    expect(keys[1]).toBe(keys[0])
+  })
+
+  it('sends a different key once the return details have changed', async () => {
+    const keys: Array<string | null> = []
+    server.use(http.post('*/api/receipts/rcpt-1/return', ({ request }) => {
+      keys.push(request.headers.get('Idempotency-Key'))
+      return HttpResponse.error()
+    }))
+    await renderProcessReturn()
+    const user = userEvent.setup()
+    await calculatePreview(user)
+    await user.click(screen.getByRole('button', { name: /Confirm & Complete Return/i }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await screen.findByText('Failed to process return. Please try again.')
+
+    await user.type(screen.getByPlaceholderText('Optional general notes'), 'Returned with a stain')
+    await calculatePreview(user)
+    await user.click(screen.getByRole('button', { name: /Confirm & Complete Return/i }))
+    await waitFor(() => expect(keys).toHaveLength(2))
+
+    expect(keys[1]).not.toBe(keys[0])
+  })
+})

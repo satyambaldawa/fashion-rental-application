@@ -1,6 +1,7 @@
 package com.fashionrental.inventory;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
 import com.fashionrental.inventory.model.request.UpdateItemRequest;
@@ -34,6 +35,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
+import static com.fashionrental.support.TestData.withVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -100,7 +102,13 @@ class ItemServiceTest {
             createdAt.set(item, OffsetDateTime.now());
             updatedAt.set(item, OffsetDateTime.now());
         } catch (Exception ignored) {}
+        withVersion(item, 0L);
         return item;
+    }
+
+    private UpdateItemRequest updateRequest(String name, long version) {
+        return new UpdateItemRequest(
+                name, Item.Category.COSTUME, null, null, 500, 2000, 5, null, null, null, null, version);
     }
 
     @Test
@@ -637,11 +645,11 @@ class ItemServiceTest {
         item.setSize("L");
 
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRequest request = new UpdateItemRequest(
                 "Red Sherwani", Item.Category.DRESS, "XL", "Updated description",
-                600, 2500, 5, "New notes", 400, "New Vendor", null
+                600, 2500, 5, "New notes", 400, "New Vendor", null, 0L
         );
 
         ItemDetailResponse result = itemService.updateItem(itemId, request);
@@ -664,7 +672,7 @@ class ItemServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
 
         assertThatThrownBy(() -> itemService.updateItem(itemId, request))
@@ -678,7 +686,7 @@ class ItemServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(inactiveItem));
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
 
         assertThatThrownBy(() -> itemService.updateItem(itemId, request))
@@ -694,7 +702,7 @@ class ItemServiceTest {
         when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(2);
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 2, null, null, null, null
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 2, null, null, null, null, 0L
         );
 
         // Trying to reduce to 2, but 3 are booked — should fail
@@ -710,15 +718,58 @@ class ItemServiceTest {
         Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(availabilityService.getAvailableQuantity(itemId, null, null)).thenReturn(3);
-        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateItemRequest request = new UpdateItemRequest(
-                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null
+                "Sherwani", Item.Category.COSTUME, null, null, 500, 2000, 3, null, null, null, null, 0L
         );
 
         // Reducing to 3 when 2 are booked — should succeed
         ItemDetailResponse result = itemService.updateItem(itemId, request);
         assertThat(result.quantity()).isEqualTo(3);
+    }
+
+    @Test
+    void should_throw_stale_update_when_request_version_differs_from_current_version() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        withVersion(item, 3L);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+
+        UpdateItemRequest staleRequest = updateRequest("Renamed", 2L);
+
+        assertThatThrownBy(() -> itemService.updateItem(itemId, staleRequest))
+                .isInstanceOf(StaleUpdateException.class);
+        assertThat(item.getName()).isEqualTo("Sherwani");
+    }
+
+    @Test
+    void should_flush_before_mapping_so_the_response_carries_the_bumped_version() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> withVersion(item, 1L));
+
+        ItemDetailResponse result = itemService.updateItem(itemId, updateRequest("Renamed", 0L));
+
+        assertThat(result.version()).isEqualTo(1L);
+    }
+
+    @Test
+    void should_accept_a_second_save_that_uses_the_version_returned_by_the_first() {
+        UUID itemId = UUID.randomUUID();
+        Item item = buildItemWithTimestamps("Sherwani", Item.Category.COSTUME, 500, 2000, 5, true);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(itemRepository.saveAndFlush(any(Item.class))).thenAnswer(inv -> {
+            Item saved = inv.getArgument(0);
+            return withVersion(saved, saved.getVersion() + 1);
+        });
+
+        ItemDetailResponse first = itemService.updateItem(itemId, updateRequest("First", 0L));
+        ItemDetailResponse second = itemService.updateItem(itemId, updateRequest("Second", first.version()));
+
+        assertThat(second.name()).isEqualTo("Second");
+        assertThat(second.version()).isEqualTo(2L);
     }
 
     @Test

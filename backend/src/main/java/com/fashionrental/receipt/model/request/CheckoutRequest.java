@@ -36,6 +36,11 @@ public record CheckoutRequest(
         paymentMethod = paymentMethod == null ? ReceiptPaymentMethod.CASH : paymentMethod;
     }
 
+    public CheckoutRequest withIdempotencyKey(UUID key) {
+        return new CheckoutRequest(customerId, startDatetime, endDatetime, items, adHocItems, notes,
+                couponCode, paymentMethod, expectedGrandTotal, key);
+    }
+
     @JsonIgnore
     @AssertTrue(message = "UPI checkout must include the amount shown in the QR")
     public boolean isExpectedGrandTotalPresentForUpi() {

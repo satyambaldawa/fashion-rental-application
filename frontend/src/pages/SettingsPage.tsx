@@ -13,6 +13,7 @@ import PaymentSettingsPage from './payments/PaymentSettingsPage'
 import GalleryManagePage from './gallery/GalleryManagePage'
 import ReviewModerationPage from './reviews/ReviewModerationPage'
 import type { LateFeeRuleItem } from '../types/config'
+import { isStaleVersionError } from '../utils/staleVersion'
 import type { CreateUserRequest, UpdateUserRequest, UserRecord } from '../types/auth'
 
 const { Text } = Typography
@@ -31,7 +32,9 @@ export default function SettingsPage() {
   const [editForm] = Form.useForm<UpdateUserRequest>()
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
 
-  const { data: savedRules, isLoading } = useQuery({
+  const [staleSave, setStaleSave] = useState(false)
+
+  const { data: savedRules, isLoading, refetch: refetchRules } = useQuery({
     queryKey: ['late-fee-rules'],
     queryFn: getLateFeeRules,
   })
@@ -49,9 +52,14 @@ export default function SettingsPage() {
       queryClient.setQueryData(['late-fee-rules'], updated)
       setRows(toEditableRules(updated))
       setValidationError(null)
+      setStaleSave(false)
       message.success('Late fee rules saved.')
     },
     onError: (err: { response?: { data?: { error?: string } } }) => {
+      if (isStaleVersionError(err)) {
+        setStaleSave(true)
+        return
+      }
       setValidationError(err.response?.data?.error ?? 'Failed to save rules.')
     },
   })
@@ -103,6 +111,7 @@ export default function SettingsPage() {
       penaltyMultiplier: 1.0,
       sortOrder: editableRows.length + 1,
       isActive: true,
+      version: null,
     }
     setRows([...editableRows, newRow])
   }
@@ -115,7 +124,19 @@ export default function SettingsPage() {
 
   function handleSave() {
     setValidationError(null)
+    setStaleSave(false)
     save({ rules: editableRows.map(({ key: _key, ...r }) => r) })
+  }
+
+  async function handleReloadRules() {
+    const result = await refetchRules()
+    if (result.isError) {
+      setValidationError('Could not reload the late fee rules. Check your connection and try again.')
+      return
+    }
+    setRows(null)
+    setStaleSave(false)
+    setValidationError(null)
   }
 
   function openEditModal(user: UserRecord) {
@@ -241,6 +262,17 @@ export default function SettingsPage() {
         message="These values apply to all future return calculations. Changes do not affect invoices already generated."
         style={{ marginBottom: 16 }}
       />
+
+      {staleSave && (
+        <Alert
+          type="error"
+          showIcon
+          message="Someone else changed the late fee rules."
+          description="Reloading shows the latest rules and discards the changes you made here — you will need to enter them again."
+          action={<Button size="small" onClick={handleReloadRules}>Reload</Button>}
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       {validationError && (
         <Alert type="error" message={validationError} style={{ marginBottom: 12 }}

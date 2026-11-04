@@ -68,6 +68,70 @@ describe('invoicesApi', () => {
   })
 })
 
+describe('Idempotency-Key header (#189)', () => {
+  it('receiptsApi.create sends the key as the Idempotency-Key header', async () => {
+    let sentKey: string | null = null
+    server.use(http.post('*/api/receipts', ({ request }) => {
+      sentKey = request.headers.get('Idempotency-Key')
+      return HttpResponse.json({ success: true, data: f.aReceipt(), error: null })
+    }))
+
+    await receiptsApi.create({} as never, 'key-123')
+
+    expect(sentKey).toBe('key-123')
+  })
+
+  it('receiptsApi.create sends no Idempotency-Key header when none is given', async () => {
+    let sentKey: string | null = 'unset'
+    server.use(http.post('*/api/receipts', ({ request }) => {
+      sentKey = request.headers.get('Idempotency-Key')
+      return HttpResponse.json({ success: true, data: f.aReceipt(), error: null })
+    }))
+
+    await receiptsApi.create({} as never)
+
+    expect(sentKey).toBeNull()
+  })
+
+  it('invoicesApi.processReturn sends the key as the Idempotency-Key header', async () => {
+    let sentKey: string | null = null
+    server.use(http.post('*/api/receipts/:receiptId/return', ({ request }) => {
+      sentKey = request.headers.get('Idempotency-Key')
+      return HttpResponse.json({ success: true, data: f.anInvoice(), error: null })
+    }))
+
+    await invoicesApi.processReturn('rcpt-1', {} as never, 'key-456')
+
+    expect(sentKey).toBe('key-456')
+  })
+})
+
+describe('optimistic-lock versions (#189)', () => {
+  it('itemsApi.update sends the version in the body', async () => {
+    let body: unknown = null
+    server.use(http.put('*/api/items/:id', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ success: true, data: f.anItemDetail(), error: null })
+    }))
+
+    await itemsApi.update('item-1', { name: 'X', category: 'COSTUME', rate: 1, deposit: 0, quantity: 1, version: 7 })
+
+    expect(body).toMatchObject({ version: 7 })
+  })
+
+  it('customersApi.update sends the version in the body', async () => {
+    let body: unknown = null
+    server.use(http.put('*/api/customers/:id', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ success: true, data: f.aCustomer(), error: null })
+    }))
+
+    await customersApi.update('cust-1', { name: 'X', phone: '9811122233', customerType: 'MISC', version: 3 })
+
+    expect(body).toMatchObject({ version: 3 })
+  })
+})
+
 describe('reportsApi', () => {
   it('covers all four reports and the optional-date branch', async () => {
     expect((await reportsApi.getDailyRevenue('2026-04-19')).netFlow).toBe(1300)

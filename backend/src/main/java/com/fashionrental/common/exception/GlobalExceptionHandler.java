@@ -1,8 +1,13 @@
 package com.fashionrental.common.exception;
 
 import com.fashionrental.common.response.ApiResponse;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.PessimisticLockException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -20,6 +25,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    static final String LOCK_FAILURE_MESSAGE = "Someone else is updating this at the same time. Please try again.";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
@@ -29,6 +35,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(Exception ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(StaleUpdateException.MESSAGE));
+    }
+
+    @ExceptionHandler({
+            PessimisticLockingFailureException.class,
+            PessimisticLockException.class,
+            LockTimeoutException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleLockFailure(Exception ex) {
+        log.warn("Lock acquisition failed", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(LOCK_FAILURE_MESSAGE));
     }
 
     @ExceptionHandler(ValidationException.class)

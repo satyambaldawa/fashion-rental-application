@@ -36,6 +36,7 @@ import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import DatePicker from 'antd/es/date-picker'
 import { useCart } from '../../hooks/useCart'
+import { useIdempotencyKey } from '../../hooks/useIdempotencyKey'
 import { toApiDatetime } from '../../utils/datetime'
 import { itemsApi } from '../../api/items'
 import { receiptsApi } from '../../api/receipts'
@@ -243,9 +244,21 @@ export default function CheckoutPage() {
     navigate(`/receipts/${receipt.id}`, { state })
   }
 
+  // The key follows the exact payload the cash path would send, so retrying after a lost
+  // response replays the first receipt while any cart/customer/coupon change, a completed
+  // checkout, or a fresh visit gets a new key and creates a new receipt.
+  const cashCustomerId = pinnedCustomer?.id ?? selectedCustomer?.id
+  const cashRequest: CheckoutRequest | null = cart && cashCustomerId
+    ? { ...buildRequest(cashCustomerId), paymentMethod: 'CASH' }
+    : null
+  const { key: cashIdempotencyKey, rotate: rotateCashIdempotencyKey } = useIdempotencyKey(cashRequest)
+
   const createMutation = useMutation({
-    mutationFn: (req: CheckoutRequest) => receiptsApi.create(req),
-    onSuccess: handleReceiptCreated,
+    mutationFn: (req: CheckoutRequest) => receiptsApi.create(req, cashIdempotencyKey),
+    onSuccess: (receipt: Receipt) => {
+      rotateCashIdempotencyKey()
+      handleReceiptCreated(receipt)
+    },
     onError: (err: unknown) => {
       const apiErr = err as { response?: { data?: { error?: string } } }
       setConflictError(apiErr?.response?.data?.error ?? 'Failed to create receipt. Please try again.')

@@ -42,6 +42,7 @@ export interface ItemDetail extends ItemSummary {
   photos: ItemPhoto[]
   createdAt: string
   updatedAt: string
+  version: number
 }
 
 export interface PackageComponentRequest {
@@ -88,6 +89,7 @@ export interface UpdateItemRequest {
   purchaseRate?: number
   vendorName?: string
   components?: PackageComponentRequest[]
+  version: number
 }
 
 export interface AvailabilityResult {

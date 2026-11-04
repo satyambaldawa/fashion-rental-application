@@ -12,6 +12,7 @@ export interface Customer {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  version: number
 }
 
 export interface CustomerSummary {
@@ -38,6 +39,7 @@ export interface UpdateCustomerRequest {
   address?: string
   customerType: CustomerType
   organizationName?: string
+  version: number
 }
 
 export interface CustomerReceiptItem {

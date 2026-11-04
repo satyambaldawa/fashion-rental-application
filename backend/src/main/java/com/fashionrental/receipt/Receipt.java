@@ -104,6 +104,10 @@ public class Receipt {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "given_at")
     private OffsetDateTime givenAt;
 
@@ -175,6 +179,7 @@ public class Receipt {
     public void setNotes(String notes) { this.notes = notes; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public Long getVersion() { return version; }
     public List<ReceiptLineItem> getLineItems() { return lineItems; }
     public void setLineItems(List<ReceiptLineItem> lineItems) { this.lineItems = lineItems; }
 

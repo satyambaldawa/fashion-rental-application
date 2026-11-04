@@ -10,6 +10,7 @@ import com.fashionrental.receipt.model.response.ReceiptLineItemResponse;
 import com.fashionrental.receipt.model.response.ReceiptResponse;
 import com.fashionrental.receipt.model.response.ReceiptSummaryResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -21,9 +22,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -42,6 +45,7 @@ class ReceiptControllerTest {
 
     // Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest
     @MockitoBean com.fashionrental.config.JwtConfig jwtConfig;
+    @MockitoBean com.fashionrental.config.AppUserRepository appUserRepository;
     @MockitoBean org.springframework.security.core.userdetails.UserDetailsService userDetailsService;
 
     private static final OffsetDateTime START = OffsetDateTime.parse("2026-04-21T10:00:00+05:30");
@@ -112,6 +116,58 @@ class ReceiptControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.receiptNumber").value("R-20260421-001"));
+    }
+
+    @Test
+    @WithMockUser
+    void should_pass_the_idempotency_key_header_to_checkout() throws Exception {
+        UUID headerKey = UUID.randomUUID();
+        when(checkoutService.createReceipt(any())).thenReturn(receiptResponse());
+
+        mockMvc.perform(post("/api/receipts").with(csrf())
+                        .header("Idempotency-Key", headerKey.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest())))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        verify(checkoutService).createReceipt(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo(headerKey);
+    }
+
+    @Test
+    @WithMockUser
+    void should_prefer_the_header_over_the_body_idempotency_key() throws Exception {
+        UUID headerKey = UUID.randomUUID();
+        UUID bodyKey = UUID.randomUUID();
+        CheckoutRequest bodyWithKey = validRequest().withIdempotencyKey(bodyKey);
+        when(checkoutService.createReceipt(any())).thenReturn(receiptResponse());
+
+        mockMvc.perform(post("/api/receipts").with(csrf())
+                        .header("Idempotency-Key", headerKey.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bodyWithKey)))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        verify(checkoutService).createReceipt(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo(headerKey);
+    }
+
+    @Test
+    @WithMockUser
+    void should_keep_the_body_idempotency_key_when_no_header_is_sent() throws Exception {
+        UUID bodyKey = UUID.randomUUID();
+        when(checkoutService.createReceipt(any())).thenReturn(receiptResponse());
+
+        mockMvc.perform(post("/api/receipts").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest().withIdempotencyKey(bodyKey))))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        verify(checkoutService).createReceipt(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo(bodyKey);
     }
 
     @Test

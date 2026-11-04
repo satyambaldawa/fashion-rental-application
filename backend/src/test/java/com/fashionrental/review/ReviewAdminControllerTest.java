@@ -37,6 +37,7 @@ class ReviewAdminControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockitoBean private ReviewService reviewService;
     @MockitoBean private JwtConfig jwtConfig;
+    @MockitoBean private com.fashionrental.config.AppUserRepository appUserRepository;
 
     @Test
     @WithMockUser(roles = "OWNER")

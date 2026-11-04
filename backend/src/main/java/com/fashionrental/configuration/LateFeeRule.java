@@ -34,6 +34,10 @@ public class LateFeeRule {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     public UUID getId() { return id; }
     public Integer getDurationFromHours() { return durationFromHours; }
     public void setDurationFromHours(Integer durationFromHours) { this.durationFromHours = durationFromHours; }
@@ -49,4 +53,5 @@ public class LateFeeRule {
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Long getVersion() { return version; }
 }

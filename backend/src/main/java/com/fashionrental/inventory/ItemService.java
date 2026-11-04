@@ -1,6 +1,7 @@
 package com.fashionrental.inventory;
 
 import com.fashionrental.common.exception.ResourceNotFoundException;
+import com.fashionrental.common.exception.StaleUpdateException;
 import com.fashionrental.common.exception.ValidationException;
 import com.fashionrental.inventory.model.request.CreateItemRequest;
 import com.fashionrental.inventory.model.request.PackageComponentRequest;
@@ -210,6 +211,10 @@ public class ItemService {
             throw new ResourceNotFoundException("Item not found: " + id);
         }
 
+        if (!request.version().equals(item.getVersion())) {
+            throw new StaleUpdateException();
+        }
+
         // Guard: prevent reducing quantity below currently rented-out units
         if (request.quantity() < item.getQuantity()) {
             int available = availabilityService.getAvailableQuantity(id, null, null);
@@ -239,7 +244,7 @@ public class ItemService {
             validateAndAttachComponents(item, request.components());
         }
 
-        Item saved = itemRepository.save(item);
+        Item saved = itemRepository.saveAndFlush(item);
         return toDetailResponse(saved);
     }
 
@@ -344,7 +349,8 @@ public class ItemService {
                 components,
                 photos,
                 item.getCreatedAt(),
-                item.getUpdatedAt()
+                item.getUpdatedAt(),
+                item.getVersion()
         );
     }
 

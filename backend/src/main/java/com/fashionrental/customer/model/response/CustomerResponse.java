@@ -14,5 +14,6 @@ public record CustomerResponse(
         String organizationName,
         Boolean isActive,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        Long version
 ) {}

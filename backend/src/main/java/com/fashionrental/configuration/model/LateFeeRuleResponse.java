@@ -10,5 +10,6 @@ public record LateFeeRuleResponse(
     BigDecimal penaltyMultiplier,
     int sortOrder,
     boolean isActive,
-    String label
+    String label,
+    Long version
 ) {}

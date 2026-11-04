@@ -37,6 +37,7 @@ class ReviewPublicControllerTest {
 
     // ── Required by JwtAuthFilter and SecurityConfig wiring in @WebMvcTest ──
     @MockitoBean private JwtConfig jwtConfig;
+    @MockitoBean private com.fashionrental.config.AppUserRepository appUserRepository;
 
     private static MockMultipartFile reviewPart(String json) {
         return new MockMultipartFile("review", "review", MediaType.APPLICATION_JSON_VALUE, json.getBytes());

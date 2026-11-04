@@ -52,6 +52,9 @@ class ItemControllerTest {
     @MockitoBean
     private com.fashionrental.config.JwtConfig jwtConfig;
 
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
+
     private ItemSummaryResponse summaryResponse(UUID id, String name) {
         return new ItemSummaryResponse(
                 id, name, Item.Category.COSTUME, Item.ItemType.INDIVIDUAL, "M",
@@ -66,7 +69,7 @@ class ItemControllerTest {
                 id, name, Item.Category.COSTUME, Item.ItemType.INDIVIDUAL,
                 "M", "A fine costume", 200, 1000, 3, true, null,
                 null, null, null,
-                List.of(), OffsetDateTime.now(), OffsetDateTime.now()
+                List.of(), OffsetDateTime.now(), OffsetDateTime.now(), 0L
         );
     }
 
@@ -362,7 +365,7 @@ class ItemControllerTest {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
                 "Updated Sherwani", Item.Category.DRESS, "XL", "Updated desc",
-                600, 2500, 5, null, null, null, null
+                600, 2500, 5, null, null, null, null, 0L
         );
         when(itemService.updateItem(eq(id), any(UpdateItemRequest.class)))
                 .thenReturn(detailResponse(id, "Updated Sherwani"));
@@ -380,7 +383,7 @@ class ItemControllerTest {
     void should_return_404_when_updating_nonexistent_item() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
-                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
         when(itemService.updateItem(eq(id), any(UpdateItemRequest.class)))
                 .thenThrow(new ResourceNotFoundException("Item not found: " + id));
@@ -397,7 +400,7 @@ class ItemControllerTest {
     void should_return_400_when_update_has_blank_name() throws Exception {
         UUID id = UUID.randomUUID();
         UpdateItemRequest request = new UpdateItemRequest(
-                "", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null
+                "", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
         );
 
         mockMvc.perform(put("/api/items/{id}", id).with(csrf())
@@ -405,6 +408,39 @@ class ItemControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_return_400_when_update_has_no_version() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, null
+        );
+
+        mockMvc.perform(put("/api/items/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(containsString("version")));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void should_return_409_with_stale_message_when_item_was_changed_by_someone_else() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateItemRequest request = new UpdateItemRequest(
+                "Name", Item.Category.COSTUME, null, null, 100, 0, 1, null, null, null, null, 0L
+        );
+        when(itemService.updateItem(eq(id), any(UpdateItemRequest.class)))
+                .thenThrow(new com.fashionrental.common.exception.StaleUpdateException());
+
+        mockMvc.perform(put("/api/items/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(
+                        com.fashionrental.common.exception.StaleUpdateException.MESSAGE));
     }
 
     @Test

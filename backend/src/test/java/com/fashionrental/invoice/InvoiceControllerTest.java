@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -47,6 +48,9 @@ class InvoiceControllerTest {
 
     @MockitoBean
     private JwtConfig jwtConfig;
+
+    @MockitoBean
+    private com.fashionrental.config.AppUserRepository appUserRepository;
 
     private ProcessReturnRequest returnRequest() {
         return new ProcessReturnRequest(
@@ -117,7 +121,7 @@ class InvoiceControllerTest {
     void should_process_return_and_return_201_with_invoice() throws Exception {
         UUID receiptId = UUID.randomUUID();
         UUID invoiceId = UUID.randomUUID();
-        when(returnService.processReturn(eq(receiptId), any())).thenReturn(invoiceResponse(invoiceId));
+        when(returnService.processReturn(eq(receiptId), any(), any())).thenReturn(invoiceResponse(invoiceId));
 
         mockMvc.perform(post("/api/receipts/{id}/return", receiptId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -131,7 +135,7 @@ class InvoiceControllerTest {
     void should_pass_null_apply_late_fee_when_field_missing_from_issue_body() throws Exception {
         UUID receiptId = UUID.randomUUID();
         UUID invoiceId = UUID.randomUUID();
-        when(returnService.processReturn(eq(receiptId), any())).thenReturn(invoiceResponse(invoiceId));
+        when(returnService.processReturn(eq(receiptId), any(), any())).thenReturn(invoiceResponse(invoiceId));
         String body = "{\"returnDatetime\":\"2026-04-11T12:00:00+05:30\",\"lineItems\":[],\"paymentMethod\":\"CASH\"}";
 
         mockMvc.perform(post("/api/receipts/{id}/return", receiptId).with(csrf())
@@ -140,7 +144,7 @@ class InvoiceControllerTest {
                 .andExpect(status().isCreated());
 
         ArgumentCaptor<ProcessReturnRequest> captor = ArgumentCaptor.forClass(ProcessReturnRequest.class);
-        verify(returnService).processReturn(eq(receiptId), captor.capture());
+        verify(returnService).processReturn(eq(receiptId), captor.capture(), isNull());
         assertThat(captor.getValue().applyLateFee()).isNull();
     }
 
@@ -149,7 +153,7 @@ class InvoiceControllerTest {
     void should_accept_waive_from_executive() throws Exception {
         UUID receiptId = UUID.randomUUID();
         UUID invoiceId = UUID.randomUUID();
-        when(returnService.processReturn(eq(receiptId), any())).thenReturn(invoiceResponse(invoiceId));
+        when(returnService.processReturn(eq(receiptId), any(), any())).thenReturn(invoiceResponse(invoiceId));
         String body = "{\"returnDatetime\":\"2026-04-11T12:00:00+05:30\",\"lineItems\":[],"
                 + "\"paymentMethod\":\"CASH\",\"applyLateFee\":false}";
 
@@ -159,8 +163,34 @@ class InvoiceControllerTest {
                 .andExpect(status().isCreated());
 
         ArgumentCaptor<ProcessReturnRequest> captor = ArgumentCaptor.forClass(ProcessReturnRequest.class);
-        verify(returnService).processReturn(eq(receiptId), captor.capture());
+        verify(returnService).processReturn(eq(receiptId), captor.capture(), isNull());
         assertThat(captor.getValue().applyLateFee()).isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
+    @WithMockUser
+    void should_pass_the_idempotency_key_header_to_the_service() throws Exception {
+        UUID receiptId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        when(returnService.processReturn(eq(receiptId), any(), any())).thenReturn(invoiceResponse(UUID.randomUUID()));
+
+        mockMvc.perform(post("/api/receipts/{id}/return", receiptId).with(csrf())
+                        .header("Idempotency-Key", key.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(returnRequest())))
+                .andExpect(status().isCreated());
+
+        verify(returnService).processReturn(eq(receiptId), any(), eq(key));
+    }
+
+    @Test
+    @WithMockUser
+    void should_return_400_when_the_idempotency_key_header_is_not_a_uuid() throws Exception {
+        mockMvc.perform(post("/api/receipts/{id}/return", UUID.randomUUID()).with(csrf())
+                        .header("Idempotency-Key", "not-a-uuid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(returnRequest())))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

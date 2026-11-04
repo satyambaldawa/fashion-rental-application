@@ -1,5 +1,7 @@
 package com.fashionrental.configuration.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -13,5 +15,12 @@ public record LateFeeRuleItem(
     Integer durationToHours,
     @NotNull @DecimalMin("0.0") BigDecimal penaltyMultiplier,
     @NotNull Integer sortOrder,
-    boolean isActive
-) {}
+    boolean isActive,
+    Long version
+) {
+    @JsonIgnore
+    @AssertTrue(message = "version is required for an existing late fee rule")
+    public boolean isVersionPresentForExistingRule() {
+        return id == null || version != null;
+    }
+}

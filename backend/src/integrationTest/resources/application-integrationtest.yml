@@ -1,6 +1,10 @@
 # Integration-test profile. The datasource is injected from the Testcontainers
 # PostgreSQL via @DynamicPropertySource in AbstractIntegrationTest; the values below
 # satisfy the remaining required placeholders from application.yml so the context boots.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 12
 app:
   cors:
     allowed-origins: http://localhost

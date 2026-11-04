@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders, flush, screen, waitFor, within } from '../../test/render'
+import { renderWithProviders, flush, screen, waitFor, within, cleanup } from '../../test/render'
 import { server } from '../../test/server'
 import * as f from '../../test/factories'
 import CheckoutPage from './CheckoutPage'
@@ -1100,6 +1100,126 @@ describe('CheckoutPage UPI payment', () => {
     await user.click(await within(dialog).findByRole('button', { name: '₹1,300 received' }))
 
     expect(await within(dialog).findByText(/Receipt NOT created, but the customer has paid ₹1,300/)).toBeInTheDocument()
+    expect(localStorage.getItem(CART_STORAGE_KEY)).not.toBeNull()
+  })
+
+  it('sends the UPI idempotency key as the Idempotency-Key header too, matching the body field', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const headerKeys: Array<string | null> = []
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.get('*/api/checkout/payment-options', () => ok(upiOn)),
+      http.post('*/api/receipts', async ({ request }) => {
+        headerKeys.push(request.headers.get('Idempotency-Key'))
+        bodies.push(await request.json() as Record<string, unknown>)
+        return ok(f.aReceipt({ id: 'rcpt-new' }))
+      }),
+    )
+
+    const user = await goToConfirm()
+    await chooseUpi(user)
+    await user.click(screen.getByRole('button', { name: 'Show UPI QR' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(await within(dialog).findByRole('button', { name: '₹1,300 received' }))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(headerKeys[0]).toBe(bodies[0].idempotencyKey)
+  })
+})
+
+describe('CheckoutPage cash checkout idempotency (#189)', () => {
+  const pinnedCustomer: CartCustomer = { id: 'cust-9', name: 'Priya', phone: '9900011122' }
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+  afterEach(() => {
+    localStorage.removeItem(CART_STORAGE_KEY)
+    sessionStorage.clear()
+    useAuthStore.setState({ token: null, role: null })
+  })
+
+  async function goToConfirm() {
+    const user = userEvent.setup()
+    renderWithProviders(<CheckoutPage />, { route: '/checkout', path: '/checkout' })
+    await flush()
+    await user.click(await screen.findByRole('button', { name: 'Checkout' }))
+    await flush()
+    await user.click(await screen.findByRole('button', { name: 'Confirm & Proceed' }))
+    await flush()
+    return user
+  }
+
+  function captureKeys(respond: (attempt: number) => Response) {
+    const keys: Array<string | null> = []
+    server.use(
+      http.get('*/api/items', () => ok(page([f.anItemSummary({ id: 'item-1' })]))),
+      http.post('*/api/receipts', ({ request }) => {
+        keys.push(request.headers.get('Idempotency-Key'))
+        return respond(keys.length)
+      }),
+    )
+    return keys
+  }
+
+  it('sends an Idempotency-Key header on a cash checkout', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const keys = captureKeys(() => ok(f.aReceipt({ id: 'rcpt-new' })))
+
+    const user = await goToConfirm()
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+
+    await waitFor(() => expect(keys).toHaveLength(1))
+    expect(keys[0]).toMatch(UUID_PATTERN)
+  })
+
+  it('reuses the same key when the checkout is retried after a network error', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const keys = captureKeys(attempt => (attempt === 1 ? HttpResponse.error() : ok(f.aReceipt({ id: 'rcpt-new' }))))
+
+    const user = await goToConfirm()
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await screen.findByText('Failed to create receipt. Please try again.')
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(2))
+
+    expect(keys[1]).toBe(keys[0])
+  })
+
+  it('uses a different key for an identical rental created after the first one succeeded', async () => {
+    setAuth('EXECUTIVE')
+    const keys = captureKeys(() => ok(f.aReceipt({ id: 'rcpt-new' })))
+
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const firstUser = await goToConfirm()
+    await firstUser.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await waitFor(() => expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull())
+    cleanup()
+
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    const secondUser = await goToConfirm()
+    await secondUser.click(screen.getByRole('button', { name: 'Create Receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(2))
+
+    expect(keys[1]).not.toBe(keys[0])
+  })
+
+  it('shows the no-longer-available message and keeps the cart when another tablet took the last unit', async () => {
+    setAuth('EXECUTIVE')
+    seedCustomerCart([baseCartItem], pinnedCustomer)
+    captureKeys(() => HttpResponse.json(
+      { success: false, data: null, error: "'Royal Sherwani' no longer has enough units available. Please review your order." },
+      { status: 409 },
+    ))
+
+    const user = await goToConfirm()
+    await user.click(screen.getByRole('button', { name: 'Create Receipt' }))
+
+    expect(await screen.findByText(/no longer has enough units available/)).toBeInTheDocument()
     expect(localStorage.getItem(CART_STORAGE_KEY)).not.toBeNull()
   })
 })

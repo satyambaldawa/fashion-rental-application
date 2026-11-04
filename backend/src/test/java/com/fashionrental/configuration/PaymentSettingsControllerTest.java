@@ -31,6 +31,7 @@ class PaymentSettingsControllerTest {
 
     @MockitoBean private ShopSettingsService shopSettingsService;
     @MockitoBean private com.fashionrental.config.JwtConfig jwtConfig;
+    @MockitoBean private com.fashionrental.config.AppUserRepository appUserRepository;
 
     private static final PaymentSettingsResponse CONFIGURED =
             new PaymentSettingsResponse(true, "shop@ybl", "Shop");

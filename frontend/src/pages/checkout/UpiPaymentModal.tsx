@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { receiptsApi } from '../../api/receipts'
 import { formatCurrency } from '../../utils/currency'
 import { buildUpiPaymentUri } from '../../utils/upi'
+import { generateUuidV4 } from '../../utils/uuid'
 import type { CheckoutPreviewRequest, CheckoutRequest, Receipt } from '../../types/receipt'
 
 const { Text, Title } = Typography
@@ -30,7 +31,7 @@ export default function UpiPaymentModal({
 }: UpiPaymentModalProps) {
   // One key per payment attempt: retrying "received" after a lost response replays the same
   // key, so the server returns the receipt it already created instead of a second one.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey] = useState(generateUuidV4)
 
   // The QR amount is money actually collected, so it must come from the server's own pricing
   // at this moment — never from the cart's locally cached rates (see useCart's display-only
@@ -48,7 +49,7 @@ export default function UpiPaymentModal({
       paymentMethod: 'UPI',
       expectedGrandTotal: amount,
       idempotencyKey,
-    }),
+    }, idempotencyKey),
     onSuccess: onReceiptCreated,
   })
 

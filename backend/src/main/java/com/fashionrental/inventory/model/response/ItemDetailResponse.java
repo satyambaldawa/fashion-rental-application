@@ -25,5 +25,6 @@ public record ItemDetailResponse(
         List<PackageComponentResponse> components,
         List<ItemPhotoResponse> photos,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        Long version
 ) {}
